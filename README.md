@@ -250,6 +250,32 @@ Persistent volumes:
 - `postgres-data`: database.
 - `foundry-data`: `/data/packs/{pack_id}` media files.
 
+### 💾 Backup and restore
+
+Back up PostgreSQL:
+
+```bash
+docker compose exec -T postgres pg_dump -U stickers stickers > stickers.sql
+```
+
+Back up sticker media:
+
+```bash
+docker run --rm -v sticker-foundry_foundry-data:/data -v "$PWD:/backup" alpine tar czf /backup/foundry-data.tgz -C /data .
+```
+
+Restore PostgreSQL:
+
+```bash
+docker compose exec -T postgres psql -U stickers stickers < stickers.sql
+```
+
+Restore sticker media:
+
+```bash
+docker run --rm -v sticker-foundry_foundry-data:/data -v "$PWD:/backup" alpine sh -c "rm -rf /data/* && tar xzf /backup/foundry-data.tgz -C /data"
+```
+
 Unraid deployment:
 
 1. Copy this repository to an Unraid appdata path or use a Git checkout.
