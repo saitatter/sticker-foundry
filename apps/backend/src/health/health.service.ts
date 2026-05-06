@@ -17,6 +17,23 @@ export class HealthService {
     };
   }
 
+  metrics() {
+    const memory = process.memoryUsage();
+    return {
+      uptimeSeconds: Math.round(process.uptime()),
+      memory: {
+        rssBytes: memory.rss,
+        heapUsedBytes: memory.heapUsed,
+        heapTotalBytes: memory.heapTotal,
+        externalBytes: memory.external,
+      },
+      process: {
+        pid: process.pid,
+        nodeVersion: process.version,
+      },
+    };
+  }
+
   private async databaseStatus() {
     try {
       await this.prisma.$queryRaw`SELECT 1`;

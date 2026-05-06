@@ -176,6 +176,10 @@ curl http://localhost:3000/api/health
 ```
 
 ```bash
+curl http://localhost:3000/api/metrics
+```
+
+```bash
 curl -X POST http://localhost:3000/api/packs/PACK_ID/stickers \
   -H "Authorization: Bearer $TOKEN" \
   -F "file=@sticker.png" \

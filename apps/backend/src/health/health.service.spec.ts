@@ -24,4 +24,23 @@ describe(HealthService, () => {
       }),
     );
   });
+
+  it('reports process metrics', () => {
+    const prisma = { $queryRaw: jest.fn() };
+    const service = new HealthService(prisma as never);
+
+    expect(service.metrics()).toEqual(
+      expect.objectContaining({
+        uptimeSeconds: expect.any(Number),
+        memory: expect.objectContaining({
+          rssBytes: expect.any(Number),
+          heapUsedBytes: expect.any(Number),
+        }),
+        process: expect.objectContaining({
+          pid: expect.any(Number),
+          nodeVersion: expect.any(String),
+        }),
+      }),
+    );
+  });
 });
