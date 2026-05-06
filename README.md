@@ -231,6 +231,7 @@ Sync strategy:
 The web app lives in `apps/web` and provides:
 
 - Login/register UI.
+- Pack dashboard search, filters, sorting, and quick status badges.
 - Pack list and pack detail view.
 - Create/edit/delete pack UI.
 - Sticker upload with validation feedback.

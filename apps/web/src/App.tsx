@@ -19,6 +19,7 @@ import {
   RefreshCw,
   RotateCcw,
   RotateCw,
+  Search,
   Trash2,
   Upload,
 } from 'lucide-react';
@@ -33,6 +34,9 @@ type Notice = {
   tone: 'info' | 'error' | 'success';
   text: string;
 };
+
+type PackFilter = 'all' | 'public' | 'private' | 'ready' | 'needs-work';
+type PackSort = 'updated' | 'name' | 'stickers';
 
 export function App() {
   const [token, setToken] = useState(() => localStorage.getItem(TOKEN_KEY));
@@ -357,20 +361,69 @@ function PackList({
   loading: boolean;
   onSelect: (packId: string) => void;
 }) {
+  const [query, setQuery] = useState('');
+  const [filter, setFilter] = useState<PackFilter>('all');
+  const [sort, setSort] = useState<PackSort>('updated');
+  const visiblePacks = useMemo(() => {
+    const normalizedQuery = query.trim().toLowerCase();
+    return packs
+      .filter((pack) => {
+        if (normalizedQuery) {
+          const haystack = `${pack.name} ${pack.publisher} ${pack.description ?? ''}`.toLowerCase();
+          if (!haystack.includes(normalizedQuery)) return false;
+        }
+        if (filter === 'public') return pack.isPublic;
+        if (filter === 'private') return !pack.isPublic;
+        if (filter === 'ready') return pack.stickerCount >= 3;
+        if (filter === 'needs-work') return pack.stickerCount < 3;
+        return true;
+      })
+      .sort((left, right) => {
+        if (sort === 'name') return left.name.localeCompare(right.name);
+        if (sort === 'stickers') return right.stickerCount - left.stickerCount || left.name.localeCompare(right.name);
+        return new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime();
+      });
+  }, [filter, packs, query, sort]);
+
   return (
     <section className="pack-list" aria-label="Sticker packs">
       <div className="section-heading">
         <h2>Packs</h2>
-        <span className="counter">{loading ? '...' : packs.length}</span>
+        <span className="counter">{loading ? '...' : visiblePacks.length}</span>
+      </div>
+      <div className="pack-list-tools">
+        <label className="search-field">
+          <Search size={15} />
+          <input
+            aria-label="Search packs"
+            placeholder="Search packs"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+          />
+        </label>
+        <div className="pack-list-selects">
+          <select aria-label="Filter packs" value={filter} onChange={(event) => setFilter(event.target.value as PackFilter)}>
+            <option value="all">All</option>
+            <option value="public">Public</option>
+            <option value="private">Private</option>
+            <option value="ready">Ready</option>
+            <option value="needs-work">Needs work</option>
+          </select>
+          <select aria-label="Sort packs" value={sort} onChange={(event) => setSort(event.target.value as PackSort)}>
+            <option value="updated">Updated</option>
+            <option value="name">Name</option>
+            <option value="stickers">Stickers</option>
+          </select>
+        </div>
       </div>
       <div className="pack-list-scroll">
-        {packs.length === 0 && !loading ? (
+        {visiblePacks.length === 0 && !loading ? (
           <div className="empty-pack-list">
             <Archive size={22} />
-            <span>No packs</span>
+            <span>{packs.length === 0 ? 'No packs' : 'No packs match the current filters'}</span>
           </div>
         ) : null}
-        {packs.map((pack) => (
+        {visiblePacks.map((pack) => (
           <button
             className={`pack-row ${pack.id === selectedPackId ? 'selected' : ''}`}
             key={pack.id}
@@ -382,8 +435,14 @@ function PackList({
               <span>{pack.publisher}</span>
             </span>
             <span className="pack-row-meta">
-              {pack.isPublic ? <Globe2 size={15} /> : <Lock size={15} />}
-              {pack.stickerCount}/30
+              <span className={`status-pill ${pack.isPublic ? 'public' : 'private'}`}>
+                {pack.isPublic ? <Globe2 size={13} /> : <Lock size={13} />}
+                {pack.isPublic ? 'Public' : 'Private'}
+              </span>
+              <span className={`status-pill ${pack.stickerCount >= 3 ? 'ready' : 'needs-work'}`}>
+                {pack.stickerCount >= 3 ? <CheckCircle2 size={13} /> : <AlertCircle size={13} />}
+                {pack.stickerCount}/30
+              </span>
             </span>
           </button>
         ))}
