@@ -1,6 +1,7 @@
 import {
   Archive,
   Download,
+  Edit3,
   Eye,
   EyeOff,
   Globe2,
@@ -428,6 +429,8 @@ function PackDetail({
         <Metric label="Updated" value={new Date(pack.updatedAt).toLocaleDateString()} />
       </div>
 
+      <PackEditForm api={api} pack={pack} onChanged={onChanged} onError={onError} />
+
       <UploadPanel api={api} pack={pack} disabled={stickers.length >= 30} onChanged={onChanged} onError={onError} />
 
       <section className="stickers-section">
@@ -455,6 +458,86 @@ function PackDetail({
           </div>
         )}
       </section>
+    </section>
+  );
+}
+
+function PackEditForm({
+  api,
+  pack,
+  onChanged,
+  onError,
+}: {
+  api: StickerFoundryApi;
+  pack: Pack;
+  onChanged: (message: string) => Promise<void>;
+  onError: (error: unknown) => void;
+}) {
+  const [name, setName] = useState(pack.name);
+  const [publisher, setPublisher] = useState(pack.publisher);
+  const [description, setDescription] = useState(pack.description ?? '');
+  const [isPublic, setIsPublic] = useState(pack.isPublic);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    setName(pack.name);
+    setPublisher(pack.publisher);
+    setDescription(pack.description ?? '');
+    setIsPublic(pack.isPublic);
+  }, [pack.description, pack.isPublic, pack.name, pack.publisher]);
+
+  const dirty =
+    name !== pack.name ||
+    publisher !== pack.publisher ||
+    description !== (pack.description ?? '') ||
+    isPublic !== pack.isPublic;
+
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    setSaving(true);
+    try {
+      await api.updatePack(pack.id, {
+        name,
+        publisher,
+        description,
+        isPublic,
+      });
+      await onChanged('Pack updated');
+    } catch (error) {
+      onError(error);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <section className="edit-panel">
+      <div className="section-heading">
+        <h3>Details</h3>
+        <Edit3 size={18} />
+      </div>
+      <form className="edit-form" onSubmit={submit}>
+        <label>
+          Name
+          <input value={name} onChange={(event) => setName(event.target.value)} maxLength={128} required />
+        </label>
+        <label>
+          Publisher
+          <input value={publisher} onChange={(event) => setPublisher(event.target.value)} maxLength={128} required />
+        </label>
+        <label>
+          Description
+          <input value={description} onChange={(event) => setDescription(event.target.value)} maxLength={500} />
+        </label>
+        <label className="checkbox-row edit-toggle">
+          <input checked={isPublic} onChange={(event) => setIsPublic(event.target.checked)} type="checkbox" />
+          Public
+        </label>
+        <button className="secondary-button" disabled={!dirty || saving} type="submit">
+          <Edit3 size={17} />
+          Save
+        </button>
+      </form>
     </section>
   );
 }

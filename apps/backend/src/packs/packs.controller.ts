@@ -4,6 +4,7 @@ import {
   Delete,
   Get,
   Param,
+  Patch,
   Post,
   Res,
   UploadedFile,
@@ -15,6 +16,7 @@ import { Response } from 'express';
 import { CurrentUser, RequestUser } from '../common/current-user.decorator';
 import { JwtAuthGuard } from '../common/jwt-auth.guard';
 import { CreatePackDto } from './dto/create-pack.dto';
+import { UpdatePackDto } from './dto/update-pack.dto';
 import { UploadStickerDto } from './dto/upload-sticker.dto';
 import { PackExportService } from './pack-export.service';
 import { PacksService } from './packs.service';
@@ -45,6 +47,11 @@ export class PacksController {
   @Delete(':id')
   delete(@CurrentUser() user: RequestUser, @Param('id') id: string) {
     return this.packsService.delete(user.sub, id);
+  }
+
+  @Patch(':id')
+  update(@CurrentUser() user: RequestUser, @Param('id') id: string, @Body() dto: UpdatePackDto) {
+    return this.packsService.update(user.sub, id, dto);
   }
 
   @Get(':id/stickers/:stickerId/file')

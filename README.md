@@ -175,7 +175,7 @@ The web app lives in `apps/web` and provides:
 
 - Login/register UI.
 - Pack list and pack detail view.
-- Create/delete pack UI.
+- Create/edit/delete pack UI.
 - Sticker upload with validation feedback.
 - Processed WebP preview.
 - Sticker delete action.

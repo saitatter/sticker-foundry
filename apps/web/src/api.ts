@@ -38,6 +38,8 @@ export type CreatePackInput = {
   isPublic: boolean;
 };
 
+export type UpdatePackInput = Partial<CreatePackInput>;
+
 const API_BASE_URL = import.meta.env.VITE_API_URL ?? '/api';
 
 export class ApiError extends Error {
@@ -92,6 +94,14 @@ export class StickerFoundryApi {
   async createPack(input: CreatePackInput) {
     return this.request<Pack>('/packs', {
       method: 'POST',
+      auth: true,
+      body: JSON.stringify(input),
+    });
+  }
+
+  async updatePack(id: string, input: UpdatePackInput) {
+    return this.request<Pack>(`/packs/${id}`, {
+      method: 'PATCH',
       auth: true,
       body: JSON.stringify(input),
     });

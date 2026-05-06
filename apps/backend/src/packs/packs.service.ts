@@ -4,6 +4,7 @@ import { join, resolve } from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import { PrismaService } from '../prisma.service';
 import { CreatePackDto } from './dto/create-pack.dto';
+import { UpdatePackDto } from './dto/update-pack.dto';
 import { UploadStickerDto } from './dto/upload-sticker.dto';
 import { PackExportService } from './pack-export.service';
 import { StickerImageService } from './sticker-image.service';
@@ -81,6 +82,28 @@ export class PacksService {
     await rm(this.exportService.packDirectory(id), { recursive: true, force: true });
 
     return { deleted: true };
+  }
+
+  async update(ownerId: string, id: string, dto: UpdatePackDto) {
+    const pack = await this.prisma.pack.findUnique({ where: { id } });
+    if (!pack) {
+      throw new NotFoundException('Pack not found');
+    }
+    if (pack.ownerId !== ownerId) {
+      throw new ForbiddenException('Only the owner can update this pack');
+    }
+
+    await this.prisma.pack.update({
+      where: { id },
+      data: {
+        name: dto.name,
+        publisher: dto.publisher,
+        description: dto.description,
+        isPublic: dto.isPublic,
+      },
+    });
+
+    return this.get(ownerId, id);
   }
 
   async uploadSticker(ownerId: string, packId: string, file: Express.Multer.File | undefined, dto: UploadStickerDto) {
