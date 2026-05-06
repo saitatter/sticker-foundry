@@ -247,6 +247,7 @@ The web app lives in `apps/web` and provides:
 - Pack dashboard search, filters, sorting, and quick status badges.
 - Pack list and pack detail view.
 - Create/edit/delete pack UI.
+- Clone pack action for remixing an existing pack into a private copy.
 - Sticker upload with validation feedback.
 - Processed WebP preview.
 - Tray icon preview and replacement.

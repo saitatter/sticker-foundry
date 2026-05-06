@@ -1,5 +1,5 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import { rm } from 'fs/promises';
+import { cp, rm } from 'fs/promises';
 import { join, resolve } from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import { PrismaService } from '../prisma.service';
@@ -84,6 +84,52 @@ export class PacksService {
     await rm(this.exportService.packDirectory(id), { recursive: true, force: true });
 
     return { deleted: true };
+  }
+
+  async clone(userId: string, id: string) {
+    const source = await this.prisma.pack.findUnique({
+      where: { id },
+      include: { stickers: { orderBy: [{ position: 'asc' }, { createdAt: 'asc' }] } },
+    });
+    if (!source) {
+      throw new NotFoundException('Pack not found');
+    }
+    if (!source.isPublic && source.ownerId !== userId) {
+      throw new ForbiddenException('You do not have access to this pack');
+    }
+
+    const cloned = await this.prisma.pack.create({
+      data: {
+        ownerId: userId,
+        name: `${source.name} Copy`.slice(0, 128),
+        publisher: source.publisher,
+        description: source.description,
+        isPublic: false,
+        imageDataVersion: source.imageDataVersion,
+        stickers: {
+          create: source.stickers.map((sticker) => ({
+            fileName: sticker.fileName,
+            emojis: sticker.emojis,
+            accessibilityText: sticker.accessibilityText,
+            sizeBytes: sticker.sizeBytes,
+            sha256: sticker.sha256,
+            position: sticker.position,
+          })),
+        },
+      },
+    });
+
+    try {
+      await cp(this.exportService.packDirectory(source.id), this.exportService.packDirectory(cloned.id), {
+        recursive: true,
+        force: true,
+      });
+    } catch (error) {
+      await this.prisma.pack.delete({ where: { id: cloned.id } });
+      throw error;
+    }
+
+    return this.get(userId, cloned.id);
   }
 
   async update(ownerId: string, id: string, dto: UpdatePackDto) {

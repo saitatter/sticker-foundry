@@ -4,6 +4,7 @@ import {
   Archive,
   AlertCircle,
   CheckCircle2,
+  Copy,
   Download,
   Edit3,
   Eye,
@@ -175,6 +176,11 @@ export function App() {
                 setSelectedPackId(packs.find((pack) => pack.id !== selectedPack.id)?.id ?? null);
                 setSelectedPack(null);
                 setNotice({ tone: 'success', text: 'Pack deleted' });
+              }}
+              onCloned={(pack) => {
+                setPacks((current) => [pack, ...current]);
+                setSelectedPackId(pack.id);
+                setNotice({ tone: 'success', text: 'Pack cloned' });
               }}
               onError={reportError}
               onNotice={(message) => setNotice({ tone: 'success', text: message })}
@@ -464,6 +470,7 @@ function PackDetail({
   pack,
   onChanged,
   onDeleted,
+  onCloned,
   onError,
   onNotice,
 }: {
@@ -471,6 +478,7 @@ function PackDetail({
   pack: Pack;
   onChanged: (message: string) => Promise<void>;
   onDeleted: () => void;
+  onCloned: (pack: Pack) => void;
   onError: (error: unknown) => void;
   onNotice: (message: string) => void;
 }) {
@@ -506,6 +514,14 @@ function PackDetail({
     try {
       await api.deletePack(pack.id);
       onDeleted();
+    } catch (error) {
+      onError(error);
+    }
+  }
+
+  async function clonePack() {
+    try {
+      onCloned(await api.clonePack(pack.id));
     } catch (error) {
       onError(error);
     }
@@ -582,6 +598,10 @@ function PackDetail({
           <button className="secondary-button" disabled={!canExport || exporting} onClick={() => void exportPack()} type="button">
             <Download size={17} />
             {exporting ? 'Exporting' : 'Download ZIP'}
+          </button>
+          <button className="secondary-button" onClick={() => void clonePack()} type="button">
+            <Copy size={17} />
+            Clone
           </button>
           <IconButton label="Delete pack" onClick={() => void deletePack()} danger>
             <Trash2 size={18} />

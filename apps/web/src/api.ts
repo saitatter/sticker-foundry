@@ -131,6 +131,13 @@ export class StickerFoundryApi {
     });
   }
 
+  async clonePack(id: string) {
+    return this.request<Pack>(`/packs/${id}/clone`, {
+      method: 'POST',
+      auth: true,
+    });
+  }
+
   async uploadSticker(packId: string, file: File, emojis: string[], accessibilityText: string) {
     const form = new FormData();
     form.append('file', file);

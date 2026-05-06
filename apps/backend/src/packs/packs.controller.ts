@@ -57,6 +57,11 @@ export class PacksController {
     return this.packsService.delete(user.sub, id);
   }
 
+  @Post(':id/clone')
+  clone(@CurrentUser() user: RequestUser, @Param('id') id: string) {
+    return this.packsService.clone(user.sub, id);
+  }
+
   @Patch(':id')
   update(@CurrentUser() user: RequestUser, @Param('id') id: string, @Body() dto: UpdatePackDto) {
     return this.packsService.update(user.sub, id, dto);
