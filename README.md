@@ -90,8 +90,15 @@ npm install
 cp apps/backend/.env.example apps/backend/.env
 docker compose up -d postgres
 npm run prisma:migrate
+npm run prisma:seed
 npm run dev:backend
 ```
+
+The seed command creates a local demo account and a WhatsApp-compatible demo pack:
+
+- email: `demo@stickerfoundry.local`
+- password: `stickerfoundry123`
+- pack: `Foundry Classics`
 
 ### 🧪 Backend tests
 
