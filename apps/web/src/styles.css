@@ -539,6 +539,25 @@ input:focus {
   background: var(--surface);
 }
 
+.sticker-tile.dragging {
+  border-color: var(--primary);
+  opacity: 0.68;
+}
+
+.sticker-drag-handle {
+  position: absolute;
+  top: 48px;
+  right: 8px;
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--muted);
+  background: rgba(255, 255, 255, 0.92);
+}
+
 .sticker-tile .icon-button {
   position: absolute;
   top: 8px;

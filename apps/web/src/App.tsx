@@ -9,6 +9,7 @@ import {
   Eye,
   EyeOff,
   Globe2,
+  GripVertical,
   ImagePlus,
   KeyRound,
   Lock,
@@ -406,6 +407,7 @@ function PackDetail({
   const stickers = pack.stickers ?? [];
   const canExport = stickers.length >= 3 && stickers.length <= 30;
   const [exporting, setExporting] = useState(false);
+  const [draggingStickerId, setDraggingStickerId] = useState<string | null>(null);
 
   async function exportPack() {
     setExporting(true);
@@ -450,6 +452,28 @@ function PackDetail({
       await onChanged('Sticker order updated');
     } catch (error) {
       onError(error);
+    }
+  }
+
+  async function reorderStickerTo(targetStickerId: string) {
+    if (!draggingStickerId || draggingStickerId === targetStickerId) return;
+
+    const currentIndex = stickers.findIndex((sticker) => sticker.id === draggingStickerId);
+    const targetIndex = stickers.findIndex((sticker) => sticker.id === targetStickerId);
+    if (currentIndex < 0 || targetIndex < 0) return;
+
+    const nextOrder = stickers.map((sticker) => sticker.id);
+    const [movedStickerId] = nextOrder.splice(currentIndex, 1);
+    const insertIndex = currentIndex < targetIndex ? targetIndex - 1 : targetIndex;
+    nextOrder.splice(insertIndex, 0, movedStickerId);
+
+    try {
+      await api.reorderStickers(pack.id, nextOrder);
+      await onChanged('Sticker order updated');
+    } catch (error) {
+      onError(error);
+    } finally {
+      setDraggingStickerId(null);
     }
   }
 
@@ -507,8 +531,12 @@ function PackDetail({
                 sticker={sticker}
                 canMoveDown={index < stickers.length - 1}
                 canMoveUp={index > 0}
+                isDragging={draggingStickerId === sticker.id}
                 onChanged={() => onChanged('Sticker updated')}
                 onDeleted={() => onChanged('Sticker deleted')}
+                onDragEnd={() => setDraggingStickerId(null)}
+                onDragStart={() => setDraggingStickerId(sticker.id)}
+                onDrop={() => void reorderStickerTo(sticker.id)}
                 onError={onError}
                 onMoveDown={() => moveSticker(sticker.id, 1)}
                 onMoveUp={() => moveSticker(sticker.id, -1)}
@@ -805,8 +833,12 @@ function StickerTile({
   sticker,
   canMoveDown,
   canMoveUp,
+  isDragging,
   onChanged,
   onDeleted,
+  onDragEnd,
+  onDragStart,
+  onDrop,
   onError,
   onMoveDown,
   onMoveUp,
@@ -816,8 +848,12 @@ function StickerTile({
   sticker: Sticker;
   canMoveDown: boolean;
   canMoveUp: boolean;
+  isDragging: boolean;
   onChanged: () => Promise<void>;
   onDeleted: () => Promise<void>;
+  onDragEnd: () => void;
+  onDragStart: () => void;
+  onDrop: () => void;
   onError: (error: unknown) => void;
   onMoveDown: () => void;
   onMoveUp: () => void;
@@ -884,7 +920,17 @@ function StickerTile({
   const dirty = emojis !== sticker.emojis.join(',') || accessibilityText !== (sticker.accessibilityText ?? '');
 
   return (
-    <article className="sticker-tile">
+    <article
+      className={`sticker-tile ${isDragging ? 'dragging' : ''}`}
+      draggable
+      onDragEnd={onDragEnd}
+      onDragOver={(event) => event.preventDefault()}
+      onDragStart={onDragStart}
+      onDrop={onDrop}
+    >
+      <span className="sticker-drag-handle" aria-hidden="true">
+        <GripVertical size={16} />
+      </span>
       <div className="sticker-order-actions">
         <IconButton label="Move sticker up" onClick={onMoveUp} disabled={!canMoveUp}>
           <ArrowUp size={15} />

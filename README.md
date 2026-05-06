@@ -210,6 +210,7 @@ The web app lives in `apps/web` and provides:
 - Tray icon preview and replacement.
 - Sticker emoji and accessibility text editing.
 - Sticker reorder controls.
+- Drag-and-drop sticker ordering.
 - Bulk sticker upload.
 - Sticker delete action.
 - Export ZIP download.
