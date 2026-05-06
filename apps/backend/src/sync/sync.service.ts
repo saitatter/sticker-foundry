@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { PackRole } from '@prisma/client';
 import { createHash } from 'crypto';
 import { PrismaService } from '../prisma.service';
 import { WHATSAPP_LIMITS } from '../packs/whatsapp-constraints';
@@ -10,7 +11,7 @@ export class SyncService {
   async packs(userId: string) {
     const packs = await this.prisma.pack.findMany({
       where: {
-        OR: [{ ownerId: userId }, { isPublic: true }],
+        OR: [{ ownerId: userId }, { isPublic: true }, { members: { some: { userId } } }],
       },
       orderBy: [{ updatedAt: 'desc' }, { name: 'asc' }],
       include: {
@@ -19,17 +20,21 @@ export class SyncService {
           orderBy: [{ position: 'asc' }, { createdAt: 'asc' }],
           select: { fileName: true, sha256: true },
         },
+        members: { where: { userId }, select: { userId: true, role: true } },
       },
     });
 
     return {
       serverTime: new Date().toISOString(),
-      packs: packs.map(({ _count, stickers, ...pack }) => {
+      packs: packs.map(({ _count, stickers, members, ...pack }) => {
         const stickerCount = _count.stickers;
         const updatedAt = pack.updatedAt.toISOString();
         const canExport =
           stickerCount >= WHATSAPP_LIMITS.minStickersPerPack && stickerCount <= WHATSAPP_LIMITS.maxStickersPerPack;
         const contentHash = this.contentHash(pack.id, pack.imageDataVersion, stickers);
+
+        const role =
+          pack.ownerId === userId ? PackRole.OWNER : (members?.[0]?.role ?? (pack.isPublic ? PackRole.VIEWER : undefined));
 
         return {
           id: pack.id,
@@ -38,6 +43,9 @@ export class SyncService {
           description: pack.description,
           isPublic: pack.isPublic,
           isOwner: pack.ownerId === userId,
+          role,
+          canEdit: role === PackRole.OWNER || role === PackRole.EDITOR,
+          canManage: role === PackRole.OWNER,
           imageDataVersion: pack.imageDataVersion,
           stickerCount,
           canExport,

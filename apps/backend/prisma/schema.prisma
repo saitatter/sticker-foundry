@@ -8,27 +8,32 @@ datasource db {
 }
 
 model User {
-  id           String   @id @default(uuid())
-  email        String   @unique
-  displayName  String
-  passwordHash String
-  packs        Pack[]
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id              String       @id @default(uuid())
+  email           String       @unique
+  displayName     String
+  passwordHash    String
+  packs           Pack[]
+  memberships     PackMember[]
+  createdInvites  PackInvite[] @relation("CreatedInvites")
+  acceptedInvites PackInvite[] @relation("AcceptedInvites")
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
 }
 
 model Pack {
-  id               String    @id @default(uuid())
+  id               String       @id @default(uuid())
   name             String
   publisher        String
   description      String?
-  isPublic         Boolean   @default(false)
-  imageDataVersion String    @default("1")
+  isPublic         Boolean      @default(false)
+  imageDataVersion String       @default("1")
   ownerId          String
-  owner            User      @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  owner            User         @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   stickers         Sticker[]
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
+  members          PackMember[]
+  invites          PackInvite[]
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
 
   @@index([ownerId])
   @@index([isPublic])
@@ -49,4 +54,45 @@ model Sticker {
   @@unique([packId, fileName])
   @@index([packId])
   @@index([packId, position])
+}
+
+enum PackRole {
+  VIEWER
+  EDITOR
+  OWNER
+}
+
+model PackMember {
+  id        String   @id @default(uuid())
+  packId    String
+  pack      Pack     @relation(fields: [packId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role      PackRole @default(VIEWER)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([packId, userId])
+  @@index([userId])
+  @@index([packId, role])
+}
+
+model PackInvite {
+  id           String    @id @default(uuid())
+  packId       String
+  pack         Pack      @relation(fields: [packId], references: [id], onDelete: Cascade)
+  email        String?
+  role         PackRole  @default(VIEWER)
+  code         String    @unique
+  expiresAt    DateTime?
+  acceptedAt   DateTime?
+  createdById  String
+  createdBy    User      @relation("CreatedInvites", fields: [createdById], references: [id], onDelete: Cascade)
+  acceptedById String?
+  acceptedBy   User?     @relation("AcceptedInvites", fields: [acceptedById], references: [id], onDelete: SetNull)
+  createdAt    DateTime  @default(now())
+
+  @@index([packId])
+  @@index([email])
+  @@index([acceptedById])
 }

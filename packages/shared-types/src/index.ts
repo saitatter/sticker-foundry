@@ -9,6 +9,8 @@ export type StickerDto = {
   createdAt: string;
 };
 
+export type PackRole = 'VIEWER' | 'EDITOR' | 'OWNER';
+
 export type PackDto = {
   id: string;
   name: string;
@@ -17,6 +19,9 @@ export type PackDto = {
   isPublic: boolean;
   imageDataVersion: string;
   stickerCount: number;
+  role?: PackRole;
+  canEdit?: boolean;
+  canManage?: boolean;
   updatedAt: string;
   stickers?: StickerDto[];
 };
@@ -28,6 +33,9 @@ export type SyncPackDto = {
   description?: string | null;
   isPublic: boolean;
   isOwner: boolean;
+  role?: PackRole;
+  canEdit?: boolean;
+  canManage?: boolean;
   imageDataVersion: string;
   stickerCount: number;
   canExport: boolean;
@@ -62,6 +70,29 @@ export type PackManifestDto = {
   exportPath: string;
   trayIconPath: string;
   stickers: PackManifestStickerDto[];
+};
+
+export type PackMemberDto = {
+  id: string;
+  packId: string;
+  userId: string;
+  role: PackRole;
+  user: {
+    id: string;
+    email: string;
+    displayName: string;
+  };
+};
+
+export type PackInviteDto = {
+  id: string;
+  packId: string;
+  email?: string | null;
+  role: PackRole;
+  code: string;
+  expiresAt?: string | null;
+  acceptedAt?: string | null;
+  createdAt: string;
 };
 
 export type AuthResponseDto = {

@@ -1,8 +1,11 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { PackRole } from '@prisma/client';
+import { randomBytes } from 'crypto';
 import { cp, rm } from 'fs/promises';
 import { join, resolve } from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import { PrismaService } from '../prisma.service';
+import { CreatePackInviteDto } from './dto/create-pack-invite.dto';
 import { CreatePackDto } from './dto/create-pack.dto';
 import { ReorderStickersDto } from './dto/reorder-stickers.dto';
 import { UpdatePackDto } from './dto/update-pack.dto';
@@ -11,6 +14,12 @@ import { UploadStickerDto } from './dto/upload-sticker.dto';
 import { PackExportService } from './pack-export.service';
 import { StickerImageService } from './sticker-image.service';
 import { DEFAULT_STICKER_EMOJIS, WHATSAPP_LIMITS } from './whatsapp-constraints';
+
+type AccessPack = {
+  ownerId: string;
+  isPublic?: boolean;
+  members?: Array<{ userId: string; role: PackRole }>;
+};
 
 @Injectable()
 export class PacksService {
@@ -35,17 +44,19 @@ export class PacksService {
   async list(userId: string) {
     const packs = await this.prisma.pack.findMany({
       where: {
-        OR: [{ ownerId: userId }, { isPublic: true }],
+        OR: [{ ownerId: userId }, { isPublic: true }, { members: { some: { userId } } }],
       },
       orderBy: { updatedAt: 'desc' },
       include: {
         _count: { select: { stickers: true } },
+        members: { where: { userId }, select: { userId: true, role: true } },
       },
     });
 
     return packs.map(({ _count, ...pack }) => ({
       ...pack,
       stickerCount: _count.stickers,
+      ...this.accessSummary(userId, pack),
     }));
   }
 
@@ -55,12 +66,13 @@ export class PacksService {
       include: {
         stickers: { orderBy: [{ position: 'asc' }, { createdAt: 'asc' }] },
         _count: { select: { stickers: true } },
+        members: { where: { userId }, select: { userId: true, role: true } },
       },
     });
     if (!pack) {
       throw new NotFoundException('Pack not found');
     }
-    if (!pack.isPublic && pack.ownerId !== userId) {
+    if (!this.canView(userId, pack)) {
       throw new ForbiddenException('You do not have access to this pack');
     }
 
@@ -68,15 +80,19 @@ export class PacksService {
     return {
       ...rest,
       stickerCount: _count.stickers,
+      ...this.accessSummary(userId, pack),
     };
   }
 
   async delete(ownerId: string, id: string) {
-    const pack = await this.prisma.pack.findUnique({ where: { id } });
+    const pack = await this.prisma.pack.findUnique({
+      where: { id },
+      include: { members: { where: { userId: ownerId }, select: { userId: true, role: true } } },
+    });
     if (!pack) {
       throw new NotFoundException('Pack not found');
     }
-    if (pack.ownerId !== ownerId) {
+    if (!this.canManage(ownerId, pack)) {
       throw new ForbiddenException('Only the owner can delete this pack');
     }
 
@@ -86,15 +102,72 @@ export class PacksService {
     return { deleted: true };
   }
 
+  async members(ownerId: string, packId: string) {
+    await this.requireManage(ownerId, packId);
+    return this.prisma.packMember.findMany({
+      where: { packId },
+      orderBy: [{ role: 'desc' }, { createdAt: 'asc' }],
+      include: { user: { select: { id: true, email: true, displayName: true } } },
+    });
+  }
+
+  async createInvite(ownerId: string, packId: string, dto: CreatePackInviteDto) {
+    await this.requireManage(ownerId, packId);
+    if (dto.role === PackRole.OWNER) {
+      throw new BadRequestException('Owner invites are not supported yet');
+    }
+
+    return this.prisma.packInvite.create({
+      data: {
+        packId,
+        email: dto.email?.toLowerCase(),
+        role: dto.role,
+        code: this.newInviteCode(),
+        expiresAt: dto.expiresAt ? new Date(dto.expiresAt) : undefined,
+        createdById: ownerId,
+      },
+    });
+  }
+
+  async acceptInvite(userId: string, code: string) {
+    const invite = await this.prisma.packInvite.findUnique({ where: { code }, include: { pack: true } });
+    if (!invite) {
+      throw new NotFoundException('Invite not found');
+    }
+    if (invite.acceptedAt) {
+      throw new BadRequestException('Invite has already been accepted');
+    }
+    if (invite.expiresAt && invite.expiresAt.getTime() < Date.now()) {
+      throw new BadRequestException('Invite has expired');
+    }
+
+    await this.prisma.$transaction([
+      this.prisma.packMember.upsert({
+        where: { packId_userId: { packId: invite.packId, userId } },
+        create: { packId: invite.packId, userId, role: invite.role },
+        update: { role: invite.role },
+      }),
+      this.prisma.packInvite.update({
+        where: { id: invite.id },
+        data: { acceptedAt: new Date(), acceptedById: userId },
+      }),
+    ]);
+
+    return this.get(userId, invite.packId);
+  }
+
   async clone(userId: string, id: string) {
     const source = await this.prisma.pack.findUnique({
       where: { id },
-      include: { stickers: { orderBy: [{ position: 'asc' }, { createdAt: 'asc' }] } },
+      include: {
+        stickers: { orderBy: [{ position: 'asc' }, { createdAt: 'asc' }] },
+        members: { where: { userId }, select: { userId: true, role: true } },
+      },
     });
     if (!source) {
       throw new NotFoundException('Pack not found');
     }
-    if (!source.isPublic && source.ownerId !== userId) {
+    if (!this.canView(userId, source)) {
       throw new ForbiddenException('You do not have access to this pack');
     }
 
@@ -133,11 +206,14 @@ export class PacksService {
   }
 
   async update(ownerId: string, id: string, dto: UpdatePackDto) {
-    const pack = await this.prisma.pack.findUnique({ where: { id } });
+    const pack = await this.prisma.pack.findUnique({
+      where: { id },
+      include: { members: { where: { userId: ownerId }, select: { userId: true, role: true } } },
+    });
     if (!pack) {
       throw new NotFoundException('Pack not found');
     }
-    if (pack.ownerId !== ownerId) {
+    if (!this.canManage(ownerId, pack)) {
       throw new ForbiddenException('Only the owner can update this pack');
     }
 
@@ -170,8 +246,12 @@ export class PacksService {
     if (!pack) {
       throw new NotFoundException('Pack not found');
     }
-    if (pack.ownerId !== ownerId) {
-      throw new ForbiddenException('Only the owner can upload stickers');
+    const accessPack = await this.loadPackForAccess(ownerId, packId);
+    if (!accessPack) {
+      throw new NotFoundException('Pack not found');
+    }
+    if (!this.canEdit(ownerId, accessPack)) {
+      throw new ForbiddenException('Only editors can upload stickers');
     }
     if (pack._count.stickers >= WHATSAPP_LIMITS.maxStickersPerPack) {
       throw new BadRequestException(`A pack can contain at most ${WHATSAPP_LIMITS.maxStickersPerPack} stickers`);
@@ -217,12 +297,12 @@ export class PacksService {
       throw new BadRequestException('Only image uploads are accepted');
     }
 
-    const pack = await this.prisma.pack.findUnique({ where: { id: packId } });
+    const pack = await this.loadPackForAccess(ownerId, packId);
     if (!pack) {
       throw new NotFoundException('Pack not found');
     }
-    if (pack.ownerId !== ownerId) {
-      throw new ForbiddenException('Only the owner can update the tray icon');
+    if (!this.canEdit(ownerId, pack)) {
+      throw new ForbiddenException('Only editors can update the tray icon');
     }
 
     const tray = await this.imageService.processTrayIcon(file.buffer);
@@ -255,12 +335,12 @@ export class PacksService {
   }
 
   async deleteSticker(ownerId: string, packId: string, stickerId: string) {
-    const pack = await this.prisma.pack.findUnique({ where: { id: packId } });
+    const pack = await this.loadPackForAccess(ownerId, packId);
     if (!pack) {
       throw new NotFoundException('Pack not found');
     }
-    if (pack.ownerId !== ownerId) {
-      throw new ForbiddenException('Only the owner can delete stickers');
+    if (!this.canEdit(ownerId, pack)) {
+      throw new ForbiddenException('Only editors can delete stickers');
     }
 
     const sticker = await this.prisma.sticker.findFirst({
@@ -295,12 +375,12 @@ export class PacksService {
       throw new BadRequestException('Only image uploads are accepted');
     }
 
-    const pack = await this.prisma.pack.findUnique({ where: { id: packId } });
+    const pack = await this.loadPackForAccess(ownerId, packId);
     if (!pack) {
       throw new NotFoundException('Pack not found');
     }
-    if (pack.ownerId !== ownerId) {
-      throw new ForbiddenException('Only the owner can replace sticker images');
+    if (!this.canEdit(ownerId, pack)) {
+      throw new ForbiddenException('Only editors can replace sticker images');
     }
 
     const sticker = await this.prisma.sticker.findFirst({
@@ -333,12 +413,12 @@ export class PacksService {
   }
 
   async updateSticker(ownerId: string, packId: string, stickerId: string, dto: UpdateStickerDto) {
-    const pack = await this.prisma.pack.findUnique({ where: { id: packId } });
+    const pack = await this.loadPackForAccess(ownerId, packId);
     if (!pack) {
       throw new NotFoundException('Pack not found');
     }
-    if (pack.ownerId !== ownerId) {
-      throw new ForbiddenException('Only the owner can update stickers');
+    if (!this.canEdit(ownerId, pack)) {
+      throw new ForbiddenException('Only editors can update stickers');
     }
 
     const sticker = await this.prisma.sticker.findFirst({
@@ -367,13 +447,16 @@ export class PacksService {
   async reorderStickers(ownerId: string, packId: string, dto: ReorderStickersDto) {
     const pack = await this.prisma.pack.findUnique({
       where: { id: packId },
-      include: { stickers: { select: { id: true } } },
+      include: {
+        stickers: { select: { id: true } },
+        members: { where: { userId: ownerId }, select: { userId: true, role: true } },
+      },
     });
     if (!pack) {
       throw new NotFoundException('Pack not found');
     }
-    if (pack.ownerId !== ownerId) {
-      throw new ForbiddenException('Only the owner can reorder stickers');
+    if (!this.canEdit(ownerId, pack)) {
+      throw new ForbiddenException('Only editors can reorder stickers');
     }
 
     const existingIds = pack.stickers.map((sticker) => sticker.id).sort();
@@ -425,5 +508,56 @@ export class PacksService {
       return String(numeric + 1);
     }
     return String(Date.now());
+  }
+
+  private async loadPackForAccess(userId: string, packId: string) {
+    return this.prisma.pack.findUnique({
+      where: { id: packId },
+      include: { members: { where: { userId }, select: { userId: true, role: true } } },
+    });
+  }
+
+  private async requireManage(userId: string, packId: string) {
+    const pack = await this.loadPackForAccess(userId, packId);
+    if (!pack) {
+      throw new NotFoundException('Pack not found');
+    }
+    if (!this.canManage(userId, pack)) {
+      throw new ForbiddenException('Only the owner can manage this pack');
+    }
+    return pack;
+  }
+
+  private accessSummary(userId: string, pack: AccessPack) {
+    const role = this.roleFor(userId, pack) ?? (pack.isPublic ? PackRole.VIEWER : undefined);
+    return {
+      role,
+      canEdit: role === PackRole.OWNER || role === PackRole.EDITOR,
+      canManage: role === PackRole.OWNER,
+    };
+  }
+
+  private canView(userId: string, pack: AccessPack) {
+    return Boolean(pack.isPublic || this.roleFor(userId, pack));
+  }
+
+  private canEdit(userId: string, pack: AccessPack) {
+    const role = this.roleFor(userId, pack);
+    return role === PackRole.OWNER || role === PackRole.EDITOR;
+  }
+
+  private canManage(userId: string, pack: AccessPack) {
+    return this.roleFor(userId, pack) === PackRole.OWNER;
+  }
+
+  private roleFor(userId: string, pack: AccessPack) {
+    if (pack.ownerId === userId) {
+      return PackRole.OWNER;
+    }
+    return pack.members?.find((member) => member.userId === userId)?.role;
+  }
+
+  private newInviteCode() {
+    return randomBytes(18).toString('base64url');
   }
 }

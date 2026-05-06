@@ -23,9 +23,11 @@ import {
   Search,
   Trash2,
   Upload,
+  UserPlus,
+  Users,
 } from 'lucide-react';
 import { DragEvent, FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
-import { ApiError, Pack, Sticker, StickerFoundryApi, User } from './api';
+import { ApiError, Pack, PackInvite, PackMember, PackRole, Sticker, StickerFoundryApi, User } from './api';
 
 const TOKEN_KEY = 'stickerfoundry.token';
 const DEMO_EMAIL = 'demo@stickerfoundry.local';
@@ -152,6 +154,16 @@ export function App() {
               setPacks((current) => [pack, ...current]);
               setSelectedPackId(pack.id);
               setNotice({ tone: 'success', text: 'Pack created' });
+            }}
+            onError={reportError}
+          />
+
+          <AcceptInviteForm
+            api={api}
+            onAccepted={async (pack) => {
+              await refreshPacks();
+              setSelectedPackId(pack.id);
+              setNotice({ tone: 'success', text: 'Invite accepted' });
             }}
             onError={reportError}
           />
@@ -442,6 +454,55 @@ function PackCreateForm({
   );
 }
 
+function AcceptInviteForm({
+  api,
+  onAccepted,
+  onError,
+}: {
+  api: StickerFoundryApi;
+  onAccepted: (pack: Pack) => Promise<void>;
+  onError: (error: unknown) => void;
+}) {
+  const [code, setCode] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    const inviteCode = code.trim();
+    if (!inviteCode) return;
+
+    setSubmitting(true);
+    try {
+      const pack = await api.acceptPackInvite(inviteCode);
+      setCode('');
+      await onAccepted(pack);
+    } catch (error) {
+      onError(error);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <section className="tool-panel">
+      <div className="section-heading">
+        <h2>Join pack</h2>
+        <UserPlus size={18} />
+      </div>
+      <form className="form-grid compact" onSubmit={submit}>
+        <label>
+          Invite code
+          <input value={code} onChange={(event) => setCode(event.target.value)} autoComplete="off" />
+        </label>
+        <button className="secondary-button" disabled={!code.trim() || submitting} type="submit">
+          <UserPlus size={17} />
+          Join
+        </button>
+      </form>
+    </section>
+  );
+}
+
 function PackList({
   packs,
   selectedPackId,
@@ -535,6 +596,7 @@ function PackList({
                 {pack.stickerCount >= 3 ? <CheckCircle2 size={13} /> : <AlertCircle size={13} />}
                 {pack.stickerCount}/30
               </span>
+              {pack.role ? <span className="status-pill">{roleLabel(pack.role)}</span> : null}
             </span>
           </button>
         ))}
@@ -561,6 +623,8 @@ function PackDetail({
   onNotice: (message: string) => void;
 }) {
   const stickers = pack.stickers ?? [];
+  const canEdit = pack.canEdit ?? true;
+  const canManage = pack.canManage ?? false;
   const canExport = stickers.length >= 3 && stickers.length <= 30;
   const [exporting, setExporting] = useState(false);
   const [contentsPreview, setContentsPreview] = useState<string | null>(null);
@@ -681,14 +745,17 @@ function PackDetail({
             <Copy size={17} />
             Clone
           </button>
-          <IconButton label="Delete pack" onClick={() => void deletePack()} danger>
-            <Trash2 size={18} />
-          </IconButton>
+          {canManage ? (
+            <IconButton label="Delete pack" onClick={() => void deletePack()} danger>
+              <Trash2 size={18} />
+            </IconButton>
+          ) : null}
         </div>
       </div>
 
       <div className="stats-grid">
         <Metric label="Stickers" value={`${stickers.length}/30`} />
+        <Metric label="Role" value={roleLabel(pack.role)} />
         <Metric label="Version" value={pack.imageDataVersion} />
         <Metric label="Updated" value={new Date(pack.updatedAt).toLocaleDateString()} />
       </div>
@@ -697,17 +764,21 @@ function PackDetail({
 
       {contentsPreview ? <pre className="contents-preview">{contentsPreview}</pre> : null}
 
-      <PackEditForm api={api} pack={pack} onChanged={onChanged} onError={onError} />
+      {canManage ? <CollaborationPanel api={api} pack={pack} onChanged={onChanged} onError={onError} onNotice={onNotice} /> : null}
 
-      <TrayIconPanel api={api} pack={pack} onChanged={onChanged} onError={onError} />
+      {canManage ? <PackEditForm api={api} pack={pack} onChanged={onChanged} onError={onError} /> : null}
 
-      <UploadPanel
-        api={api}
-        pack={pack}
-        remainingSlots={Math.max(0, 30 - stickers.length)}
-        onChanged={onChanged}
-        onError={onError}
-      />
+      {canEdit ? <TrayIconPanel api={api} pack={pack} onChanged={onChanged} onError={onError} /> : null}
+
+      {canEdit ? (
+        <UploadPanel
+          api={api}
+          pack={pack}
+          remainingSlots={Math.max(0, 30 - stickers.length)}
+          onChanged={onChanged}
+          onError={onError}
+        />
+      ) : null}
 
       <section className="stickers-section">
         <div className="section-heading">
@@ -723,6 +794,7 @@ function PackDetail({
                 packId={pack.id}
                 sticker={sticker}
                 version={pack.imageDataVersion}
+                canEdit={canEdit}
                 canMoveDown={index < stickers.length - 1}
                 canMoveUp={index > 0}
                 isDragging={draggingStickerId === sticker.id}
@@ -765,6 +837,115 @@ function ExportReadiness({ stickerCount, canExport }: { stickerCount: number; ca
         </div>
       </div>
       <span className="export-count">{stickerCount}/30</span>
+    </section>
+  );
+}
+
+function CollaborationPanel({
+  api,
+  pack,
+  onError,
+  onNotice,
+}: {
+  api: StickerFoundryApi;
+  pack: Pack;
+  onChanged: (message: string) => Promise<void>;
+  onError: (error: unknown) => void;
+  onNotice: (message: string) => void;
+}) {
+  const [members, setMembers] = useState<PackMember[]>([]);
+  const [email, setEmail] = useState('');
+  const [role, setRole] = useState<Exclude<PackRole, 'OWNER'>>('EDITOR');
+  const [invite, setInvite] = useState<PackInvite | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [creating, setCreating] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    setLoading(true);
+    api
+      .packMembers(pack.id)
+      .then((nextMembers) => {
+        if (alive) setMembers(nextMembers);
+      })
+      .catch(onError)
+      .finally(() => {
+        if (alive) setLoading(false);
+      });
+
+    return () => {
+      alive = false;
+    };
+  }, [api, onError, pack.id]);
+
+  async function createInvite(event: FormEvent) {
+    event.preventDefault();
+    setCreating(true);
+    try {
+      const nextInvite = await api.createPackInvite(pack.id, role, email);
+      setInvite(nextInvite);
+      setEmail('');
+      onNotice('Invite created');
+    } catch (error) {
+      onError(error);
+    } finally {
+      setCreating(false);
+    }
+  }
+
+  async function copyInviteCode() {
+    if (!invite) return;
+    try {
+      await navigator.clipboard.writeText(invite.code);
+      onNotice('Invite code copied');
+    } catch {
+      onNotice('Invite code ready');
+    }
+  }
+
+  return (
+    <section className="collaboration-panel">
+      <div className="section-heading">
+        <h3>Collaboration</h3>
+        <Users size={18} />
+      </div>
+      <div className="collaboration-grid">
+        <div className="member-list">
+          {loading ? <span className="muted-row">Loading members</span> : null}
+          {members.map((member) => (
+            <div className="member-row" key={member.id}>
+              <span>
+                <strong>{member.user.displayName}</strong>
+                <small>{member.user.email}</small>
+              </span>
+              <span className="status-pill">{roleLabel(member.role)}</span>
+            </div>
+          ))}
+          {!loading && members.length === 0 ? <span className="muted-row">Only the owner has access right now.</span> : null}
+        </div>
+        <form className="invite-form" onSubmit={createInvite}>
+          <label>
+            Email
+            <input value={email} onChange={(event) => setEmail(event.target.value)} placeholder="optional@email.com" type="email" />
+          </label>
+          <label>
+            Role
+            <select value={role} onChange={(event) => setRole(event.target.value as Exclude<PackRole, 'OWNER'>)}>
+              <option value="EDITOR">Editor</option>
+              <option value="VIEWER">Viewer</option>
+            </select>
+          </label>
+          <button className="secondary-button" disabled={creating} type="submit">
+            <UserPlus size={17} />
+            Invite
+          </button>
+          {invite ? (
+            <button className="invite-code-button" onClick={() => void copyInviteCode()} type="button">
+              <span>{invite.code}</span>
+            </button>
+          ) : null}
+        </form>
+      </div>
     </section>
   );
 }
@@ -1050,6 +1231,7 @@ function StickerTile({
   packId,
   sticker,
   version,
+  canEdit,
   canMoveDown,
   canMoveUp,
   isDragging,
@@ -1066,6 +1248,7 @@ function StickerTile({
   packId: string;
   sticker: Sticker;
   version: string;
+  canEdit: boolean;
   canMoveDown: boolean;
   canMoveUp: boolean;
   isDragging: boolean;
@@ -1162,57 +1345,65 @@ function StickerTile({
   return (
     <article
       className={`sticker-tile ${isDragging ? 'dragging' : ''}`}
-      draggable
+      draggable={canEdit}
       onDragEnd={onDragEnd}
       onDragOver={(event) => event.preventDefault()}
       onDragStart={onDragStart}
       onDrop={onDrop}
     >
-      <span className="sticker-drag-handle" aria-hidden="true">
-        <GripVertical size={16} />
-      </span>
-      <div className="sticker-order-actions">
-        <IconButton label="Move sticker up" onClick={onMoveUp} disabled={!canMoveUp}>
-          <ArrowUp size={15} />
-        </IconButton>
-        <IconButton label="Move sticker down" onClick={onMoveDown} disabled={!canMoveDown}>
-          <ArrowDown size={15} />
-        </IconButton>
-      </div>
+      {canEdit ? (
+        <>
+          <span className="sticker-drag-handle" aria-hidden="true">
+            <GripVertical size={16} />
+          </span>
+          <div className="sticker-order-actions">
+            <IconButton label="Move sticker up" onClick={onMoveUp} disabled={!canMoveUp}>
+              <ArrowUp size={15} />
+            </IconButton>
+            <IconButton label="Move sticker down" onClick={onMoveDown} disabled={!canMoveDown}>
+              <ArrowDown size={15} />
+            </IconButton>
+          </div>
+        </>
+      ) : null}
       <div className="sticker-preview">{url ? <img alt={sticker.accessibilityText ?? sticker.fileName} src={url} /> : null}</div>
       <div className="sticker-meta">
         <span>{formatBytes(sticker.sizeBytes)}</span>
         <span>{sticker.emojis.join(' ') || 'No emoji'}</span>
       </div>
-      <form className="sticker-edit-form" onSubmit={saveMetadata}>
-        <label>
-          Emojis
-          <input value={emojis} onChange={(event) => setEmojis(event.target.value)} placeholder="smile,laugh" />
-        </label>
-        <label>
-          Alt text
-          <input value={accessibilityText} onChange={(event) => setAccessibilityText(event.target.value)} maxLength={125} />
-        </label>
-        <button className="secondary-button sticker-save" disabled={!dirty || saving} type="submit">
-          Save
-        </button>
-      </form>
-      <form className="sticker-replace-form" onSubmit={replaceImage}>
-        <label className="file-drop sticker-replace-drop">
-          <input accept="image/*" onChange={(event) => setReplacementFile(event.target.files?.[0] ?? null)} type="file" />
-          <ImagePlus size={18} />
-          <span>{replacementFile ? replacementFile.name : 'Replace image'}</span>
-        </label>
-        <button className="secondary-button sticker-save" disabled={!replacementFile || replacing} type="submit">
-          {replacing ? 'Replacing' : 'Replace'}
-        </button>
-      </form>
-      {replacementFile ? (
-        <ImageEditControls file={replacementFile} options={replacementEditOptions} onChange={setReplacementEditOptions} compact />
+      {canEdit ? (
+        <>
+          <form className="sticker-edit-form" onSubmit={saveMetadata}>
+            <label>
+              Emojis
+              <input value={emojis} onChange={(event) => setEmojis(event.target.value)} placeholder="smile,laugh" />
+            </label>
+            <label>
+              Alt text
+              <input value={accessibilityText} onChange={(event) => setAccessibilityText(event.target.value)} maxLength={125} />
+            </label>
+            <button className="secondary-button sticker-save" disabled={!dirty || saving} type="submit">
+              Save
+            </button>
+          </form>
+          <form className="sticker-replace-form" onSubmit={replaceImage}>
+            <label className="file-drop sticker-replace-drop">
+              <input accept="image/*" onChange={(event) => setReplacementFile(event.target.files?.[0] ?? null)} type="file" />
+              <ImagePlus size={18} />
+              <span>{replacementFile ? replacementFile.name : 'Replace image'}</span>
+            </label>
+            <button className="secondary-button sticker-save" disabled={!replacementFile || replacing} type="submit">
+              {replacing ? 'Replacing' : 'Replace'}
+            </button>
+          </form>
+          {replacementFile ? (
+            <ImageEditControls file={replacementFile} options={replacementEditOptions} onChange={setReplacementEditOptions} compact />
+          ) : null}
+          <IconButton label="Delete sticker" onClick={() => void deleteSticker()} danger>
+            <Trash2 size={16} />
+          </IconButton>
+        </>
       ) : null}
-      <IconButton label="Delete sticker" onClick={() => void deleteSticker()} danger>
-        <Trash2 size={16} />
-      </IconButton>
     </article>
   );
 }
@@ -1351,6 +1542,13 @@ function EmptyState() {
 function exportFileName(pack: Pack) {
   const slug = pack.name.replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '').toLowerCase() || 'sticker-pack';
   return `${slug}-${pack.id.slice(0, 8)}.zip`;
+}
+
+function roleLabel(role?: PackRole) {
+  if (role === 'OWNER') return 'Owner';
+  if (role === 'EDITOR') return 'Editor';
+  if (role === 'VIEWER') return 'Viewer';
+  return 'Private';
 }
 
 async function editImageFile(file: File, options: ImageEditOptions) {

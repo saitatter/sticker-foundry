@@ -54,7 +54,7 @@ describe(SyncService, () => {
 
     expect(prisma.pack.findMany).toHaveBeenCalledWith({
       where: {
-        OR: [{ ownerId: 'user-1' }, { isPublic: true }],
+        OR: [{ ownerId: 'user-1' }, { isPublic: true }, { members: { some: { userId: 'user-1' } } }],
       },
       orderBy: [{ updatedAt: 'desc' }, { name: 'asc' }],
       include: {
@@ -63,6 +63,7 @@ describe(SyncService, () => {
           orderBy: [{ position: 'asc' }, { createdAt: 'asc' }],
           select: { fileName: true, sha256: true },
         },
+        members: { where: { userId: 'user-1' }, select: { userId: true, role: true } },
       },
     });
     expect(result.serverTime).toEqual(expect.any(String));
@@ -70,6 +71,9 @@ describe(SyncService, () => {
       expect.objectContaining({
         id: 'owned-pack',
         isOwner: true,
+        role: 'OWNER',
+        canEdit: true,
+        canManage: true,
         canExport: true,
         stickerCount: 3,
         updatedAt: '2026-05-07T08:00:00.000Z',
@@ -79,6 +83,9 @@ describe(SyncService, () => {
       expect.objectContaining({
         id: 'public-pack',
         isOwner: false,
+        role: 'VIEWER',
+        canEdit: false,
+        canManage: false,
         canExport: false,
         stickerCount: 2,
         updatedAt: '2026-05-07T09:00:00.000Z',

@@ -20,6 +20,8 @@ export type Sticker = {
   createdAt: string;
 };
 
+export type PackRole = 'VIEWER' | 'EDITOR' | 'OWNER';
+
 export type Pack = {
   id: string;
   name: string;
@@ -29,7 +31,27 @@ export type Pack = {
   imageDataVersion: string;
   stickerCount: number;
   updatedAt: string;
+  role?: PackRole;
+  canEdit?: boolean;
+  canManage?: boolean;
   stickers?: Sticker[];
+};
+
+export type PackMember = {
+  id: string;
+  role: PackRole;
+  createdAt: string;
+  user: User;
+};
+
+export type PackInvite = {
+  id: string;
+  code: string;
+  email?: string | null;
+  role: Exclude<PackRole, 'OWNER'>;
+  expiresAt?: string | null;
+  acceptedAt?: string | null;
+  createdAt: string;
 };
 
 export type ExportContents = {
@@ -141,6 +163,25 @@ export class StickerFoundryApi {
 
   async clonePack(id: string) {
     return this.request<Pack>(`/packs/${id}/clone`, {
+      method: 'POST',
+      auth: true,
+    });
+  }
+
+  async packMembers(id: string) {
+    return this.request<PackMember[]>(`/packs/${id}/members`, { auth: true });
+  }
+
+  async createPackInvite(id: string, role: Exclude<PackRole, 'OWNER'>, email?: string) {
+    return this.request<PackInvite>(`/packs/${id}/invites`, {
+      method: 'POST',
+      auth: true,
+      body: JSON.stringify({ role, email: email?.trim() || undefined }),
+    });
+  }
+
+  async acceptPackInvite(code: string) {
+    return this.request<Pack>(`/packs/invites/${encodeURIComponent(code)}/accept`, {
       method: 'POST',
       auth: true,
     });

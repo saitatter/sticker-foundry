@@ -1,4 +1,5 @@
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException } from '@nestjs/common';
+import { PackRole } from '@prisma/client';
 import { PacksService } from './packs.service';
 
 jest.mock('uuid', () => ({ v4: () => 'generated-sticker-id' }));
@@ -17,6 +18,15 @@ function createService() {
       delete: jest.fn(),
       findFirst: jest.fn(),
       findMany: jest.fn(),
+      update: jest.fn((args: unknown) => args),
+    },
+    packMember: {
+      findMany: jest.fn(),
+      upsert: jest.fn((args: unknown) => args),
+    },
+    packInvite: {
+      create: jest.fn(),
+      findUnique: jest.fn(),
       update: jest.fn((args: unknown) => args),
     },
     $transaction: jest.fn(async (operations: unknown[]) => operations),
@@ -176,6 +186,116 @@ describe(PacksService, () => {
     ).rejects.toBeInstanceOf(BadRequestException);
     expect(prisma.$transaction).not.toHaveBeenCalled();
     expect(prisma.pack.update).not.toHaveBeenCalled();
+  });
+
+  it('creates editor invites for pack owners and rejects owner invites', async () => {
+    const { service, prisma } = createService();
+
+    prisma.pack.findUnique.mockResolvedValue({
+      id: 'pack-1',
+      ownerId: 'owner-1',
+      isPublic: false,
+      members: [],
+    });
+    prisma.packInvite.create.mockImplementation(async ({ data }) => ({ id: 'invite-1', ...data }));
+
+    const invite = await service.createInvite('owner-1', 'pack-1', {
+      email: 'Friend@Example.com',
+      role: PackRole.EDITOR,
+    });
+
+    expect(invite).toEqual(
+      expect.objectContaining({
+        packId: 'pack-1',
+        email: 'friend@example.com',
+        role: PackRole.EDITOR,
+        createdById: 'owner-1',
+      }),
+    );
+    expect(invite.code).toEqual(expect.any(String));
+
+    await expect(
+      service.createInvite('owner-1', 'pack-1', {
+        role: PackRole.OWNER,
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('allows editors to upload stickers but blocks viewers from mutating sticker metadata', async () => {
+    const { service, prisma, imageService } = createService();
+
+    prisma.pack.findUnique
+      .mockResolvedValueOnce({
+        id: 'pack-1',
+        ownerId: 'owner-1',
+        imageDataVersion: '5',
+        _count: { stickers: 1 },
+      })
+      .mockResolvedValueOnce({
+        id: 'pack-1',
+        ownerId: 'owner-1',
+        imageDataVersion: '5',
+        members: [{ userId: 'editor-1', role: PackRole.EDITOR }],
+      })
+      .mockResolvedValueOnce({
+        id: 'pack-1',
+        ownerId: 'owner-1',
+        imageDataVersion: '6',
+        members: [{ userId: 'viewer-1', role: PackRole.VIEWER }],
+      });
+    imageService.processSticker.mockResolvedValue({ buffer: Buffer.from('sticker'), sizeBytes: 50, sha256: 'sha' });
+    prisma.sticker.create.mockImplementation(async ({ data }) => ({ id: 'sticker-2', ...data }));
+    prisma.pack.update.mockResolvedValue({ id: 'pack-1', imageDataVersion: '6' });
+
+    await expect(
+      service.uploadSticker(
+        'editor-1',
+        'pack-1',
+        { buffer: Buffer.from('source'), mimetype: 'image/png' } as Express.Multer.File,
+        {},
+      ),
+    ).resolves.toEqual(expect.objectContaining({ position: 1 }));
+
+    await expect(
+      service.updateSticker('viewer-1', 'pack-1', 'sticker-1', {
+        emojis: ['\uD83D\uDE00'],
+      }),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it('accepts invites by adding or updating pack membership', async () => {
+    const { service, prisma } = createService();
+
+    prisma.packInvite.findUnique.mockResolvedValue({
+      id: 'invite-1',
+      packId: 'pack-1',
+      role: PackRole.EDITOR,
+      acceptedAt: null,
+      expiresAt: null,
+      pack: { id: 'pack-1' },
+    });
+    prisma.pack.findUnique.mockResolvedValue({
+      id: 'pack-1',
+      ownerId: 'owner-1',
+      isPublic: false,
+      imageDataVersion: '1',
+      stickers: [],
+      members: [{ userId: 'editor-1', role: PackRole.EDITOR }],
+      _count: { stickers: 0 },
+    });
+
+    const pack = await service.acceptInvite('editor-1', 'invite-code');
+
+    expect(prisma.packMember.upsert).toHaveBeenCalledWith({
+      where: { packId_userId: { packId: 'pack-1', userId: 'editor-1' } },
+      create: { packId: 'pack-1', userId: 'editor-1', role: PackRole.EDITOR },
+      update: { role: PackRole.EDITOR },
+    });
+    expect(prisma.packInvite.update).toHaveBeenCalledWith({
+      where: { id: 'invite-1' },
+      data: { acceptedAt: expect.any(Date), acceptedById: 'editor-1' },
+    });
+    expect(pack).toEqual(expect.objectContaining({ role: PackRole.EDITOR, canEdit: true, canManage: false }));
   });
 
   it('replaces a sticker image without changing its metadata or file name', async () => {

@@ -20,6 +20,7 @@ This is the live feature backlog. Items already shipped are kept briefly at the 
 - Password change flow.
 - Configurable CORS origins.
 - Stronger upload content validation.
+- Pack collaboration roles, invite creation/acceptance, member listing, and role-aware web controls.
 - Compose `.env.example` and reverse proxy examples.
 - Dependabot and GitHub issue templates.
 - Metrics endpoint for basic monitoring.
@@ -42,9 +43,12 @@ This is the live feature backlog. Items already shipped are kept briefly at the 
 
 ## Collaboration
 
-- Invite users to a pack as viewer, editor, or owner.
+- Revoke pending invites.
+- Remove members from a pack.
+- Change member role between viewer and editor.
+- Add backend authorization tests for viewer/editor/owner flows.
+- Reflect viewer/editor controls in Android.
 - Shared team/workspace model for family or community packs.
-- Member management UI in web.
 - Comments or review status per sticker.
 - Optional approval flow before a sticker becomes part of an exported pack.
 

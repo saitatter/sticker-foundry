@@ -12,7 +12,8 @@ Already implemented:
 - Sharp media pipeline with real image-content validation, WebP conversion, 512x512 sticker resize, tray icon processing, compression limits, and WhatsApp pack constraints.
 - Export API with `contents.json`, `tray_icon.webp`, sticker files, `GET /packs/:id/contents`, `GET /packs/:id/manifest`, `ETag`, and OpenAPI docs.
 - Sync API with `contentHash`, `syncHash`, ownership flags, export readiness, and relative export/tray paths.
-- Web UI with auth, demo login, pack dashboard search/filter/sort/status badges, pack detail, create/edit/delete/clone, sticker upload, drag-and-drop uploads, image rotate/square crop, sticker replacement, tray replacement, ordering, ZIP download, contents preview, and account password change.
+- Pack collaboration with owner/viewer/editor roles, invite creation/acceptance, member listing, role-aware mutation checks, and sync capability flags.
+- Web UI with auth, demo login, pack dashboard search/filter/sort/status badges, pack detail, create/edit/delete/clone, collaboration invites, sticker upload, drag-and-drop uploads, image rotate/square crop, sticker replacement, tray replacement, ordering, ZIP download, contents preview, and account password change.
 - Android app with MVVM, Retrofit, Room cache, local ZIP extraction, WhatsApp `ContentProvider`, import intents for WhatsApp and WhatsApp Business, owner image upload/tray replacement, image rotate/square crop, server URL settings, logout, cache size/clear cache, import readiness, content-hash sync, and stale cache pruning.
 - Docker Compose with backend, web, PostgreSQL, `.env.example`, backend healthcheck, backup/restore docs, Unraid notes, and reverse proxy examples.
 - Semantic-release with emoji release sections, release APK artifact, Dependabot, PR title validation, and issue templates.
@@ -20,10 +21,9 @@ Already implemented:
 Known gaps:
 
 - Real-device WhatsApp and WhatsApp Business import still need hands-on validation.
-- No backend end-to-end integration test exercises the full HTTP flow with real PostgreSQL and exported ZIP parsing.
 - No Playwright/web smoke tests yet.
 - No Android lint/test job yet, only debug build validation.
-- No role-based collaboration model yet; pack access is owner/public only.
+- Collaboration invite revocation and member removal/role editing are not implemented yet.
 - No refresh tokens/session revocation yet.
 - No background media queue, audit log, quotas, or advanced upload abuse protection beyond current validation/rate limits.
 
@@ -64,23 +64,22 @@ Acceptance criteria:
 - Integration tests run in CI or a documented local command.
 - The WhatsApp export path is covered end to end.
 
-## Milestone 3: Collaboration
+## Milestone 3: Collaboration Hardening
 
-Goal: move beyond owner/public packs.
+Goal: finish the management flows around the shipped owner/viewer/editor model.
 
 Tasks:
 
-- Add pack membership schema with roles: viewer, editor, owner.
-- Add invite creation, invite acceptance, and invite revocation.
-- Update authorization checks for read/edit/delete/export operations.
-- Add web UI for managing members.
-- Extend sync output with role/capability flags.
+- Add invite revocation and expiration controls in the web UI.
+- Add member removal and member role editing.
+- Add backend tests for invite acceptance and editor/viewer authorization.
+- Add Android read-only/editable state based on sync capability flags.
 
 Acceptance criteria:
 
-- Owners can invite another user to edit a private pack.
-- Editors can upload/update stickers but cannot delete the pack or manage owners.
-- Viewers can sync/export but cannot mutate pack content.
+- Owners can fully manage existing collaborators and open invites.
+- Editors and viewers see role-appropriate controls in web and Android.
+- Authorization tests cover private shared packs.
 
 ## Milestone 4: Sticker Workflow UX
 
@@ -155,12 +154,12 @@ Acceptance criteria:
 ## Near-Term Recommended Order
 
 1. Real-device WhatsApp import validation.
-2. Backend end-to-end export integration tests.
-3. Pack collaboration roles and invites.
-4. Web bulk sticker actions.
-5. Android local sticker grid preview.
-6. Refresh-token/session revocation.
-7. Playwright web smoke tests.
+2. Collaboration hardening: invite revocation, member role edits, member removal.
+3. Web bulk sticker actions.
+4. Android local sticker grid preview.
+5. Refresh-token/session revocation.
+6. Playwright web smoke tests.
+7. Android lint/test CI.
 
 ## Design Notes
 

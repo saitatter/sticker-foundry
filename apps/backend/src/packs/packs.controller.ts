@@ -18,6 +18,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { Response } from 'express';
 import { CurrentUser, RequestUser } from '../common/current-user.decorator';
 import { JwtAuthGuard } from '../common/jwt-auth.guard';
+import { CreatePackInviteDto } from './dto/create-pack-invite.dto';
 import { CreatePackDto } from './dto/create-pack.dto';
 import { ReorderStickersDto } from './dto/reorder-stickers.dto';
 import { UpdatePackDto } from './dto/update-pack.dto';
@@ -60,6 +61,21 @@ export class PacksController {
   @Post(':id/clone')
   clone(@CurrentUser() user: RequestUser, @Param('id') id: string) {
     return this.packsService.clone(user.sub, id);
+  }
+
+  @Get(':id/members')
+  members(@CurrentUser() user: RequestUser, @Param('id') id: string) {
+    return this.packsService.members(user.sub, id);
+  }
+
+  @Post(':id/invites')
+  createInvite(@CurrentUser() user: RequestUser, @Param('id') id: string, @Body() dto: CreatePackInviteDto) {
+    return this.packsService.createInvite(user.sub, id, dto);
+  }
+
+  @Post('invites/:code/accept')
+  acceptInvite(@CurrentUser() user: RequestUser, @Param('code') code: string) {
+    return this.packsService.acceptInvite(user.sub, code);
   }
 
   @Patch(':id')

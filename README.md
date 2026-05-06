@@ -16,10 +16,11 @@ StickerFoundry is a self-hosted collaborative WhatsApp sticker pack manager, sha
 - JWT register/login.
 - Registration mode control with `REGISTRATION_MODE=open|invite-only|disabled` and optional `REGISTRATION_INVITE_CODE`.
 - Authenticated password change endpoint and web account dialog.
-- Pack CRUD with ownership and public pack visibility.
+- Pack CRUD with ownership, public visibility, viewer/editor collaboration roles, and invite codes.
 - Sticker upload with WebP conversion, 512x512 resize, and WhatsApp size validation.
 - Upload validation checks actual image content in addition to MIME headers.
 - WhatsApp-compatible ZIP export with `contents.json`, `tray_icon.webp`, and sticker files.
+- Web collaboration panel for owner-managed invite creation and member visibility.
 - Android Kotlin app with Retrofit sync, Room cache, local ZIP extraction, owner image uploads, rotate/crop editing, and WhatsApp import intent.
 - Android `ContentProvider` for WhatsApp metadata and sticker file access.
 - Docker Compose stack for backend + PostgreSQL.
@@ -164,6 +165,7 @@ curl http://localhost:3000/api/sync/packs \
 ```
 
 `GET /sync/packs` is the Android sync index. It returns pack metadata, `imageDataVersion`, `updatedAt`, `contentHash`, `syncHash`, `canExport`, and relative download paths so the app can skip unchanged or incomplete packs.
+It also includes role and capability flags (`role`, `canEdit`, `canManage`) so clients can show the right controls for owners, editors, and viewers.
 
 ```bash
 curl -i http://localhost:3000/api/packs/PACK_ID/manifest \
@@ -200,6 +202,26 @@ curl -L http://localhost:3000/api/packs/PACK_ID/export \
 - one `.webp` file per sticker
 
 The generated `contents.json` uses WhatsApp's sticker pack fields, including `identifier`, `name`, `publisher`, `tray_image_file`, `image_data_version`, `animated_sticker_pack`, and per-sticker `image_file`, `emojis`, and `accessibility_text`.
+
+### 👥 Collaboration
+
+Owners can invite collaborators as `EDITOR` or `VIEWER`:
+
+```bash
+curl -X POST http://localhost:3000/api/packs/PACK_ID/invites \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"email":"friend@example.com","role":"EDITOR"}'
+```
+
+The invited user accepts the returned `code` while signed in:
+
+```bash
+curl -X POST http://localhost:3000/api/packs/invites/INVITE_CODE/accept \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+Editors can mutate sticker content and tray images, viewers can sync/export, and only owners can edit pack metadata, delete packs, or create invites.
 
 ## 📱 Android
 
