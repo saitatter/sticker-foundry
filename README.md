@@ -24,6 +24,7 @@ StickerFoundry is a self-hosted collaborative WhatsApp sticker pack manager, sha
 - Docker Compose stack for backend + PostgreSQL.
 - Semantic-release workflow with Conventional Commits, changelog generation, GitHub Releases, and Android debug APK release asset.
 - Dependabot update checks for npm dependencies and GitHub Actions.
+- GitHub issue templates for bug reports and feature requests.
 
 ## 🚧 Project Status
 
