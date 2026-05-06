@@ -1,35 +1,50 @@
 package com.example.stickerplatform
 
+import android.content.Context
+import android.graphics.BitmapFactory
+import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.stickerplatform.data.ImageEditOptions
 import com.example.stickerplatform.data.PackEntity
 import com.example.stickerplatform.whatsapp.WhatsAppStickerLauncher
 
@@ -53,18 +68,19 @@ private fun StickerApp(viewModel: StickerViewModel = viewModel(factory = Sticker
     val context = LocalContext.current
     var stickerUploadPackId by remember { mutableStateOf<String?>(null) }
     var trayIconPackId by remember { mutableStateOf<String?>(null) }
+    var pendingEdit by remember { mutableStateOf<PendingImageEdit?>(null) }
     val stickerPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         val packId = stickerUploadPackId
         stickerUploadPackId = null
         if (uri != null && packId != null) {
-            viewModel.uploadSticker(packId, uri)
+            pendingEdit = PendingImageEdit(packId, uri, ImageEditTarget.Sticker)
         }
     }
     val trayIconPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         val packId = trayIconPackId
         trayIconPackId = null
         if (uri != null && packId != null) {
-            viewModel.replaceTrayIcon(packId, uri)
+            pendingEdit = PendingImageEdit(packId, uri, ImageEditTarget.TrayIcon)
         }
     }
 
@@ -96,6 +112,20 @@ private fun StickerApp(viewModel: StickerViewModel = viewModel(factory = Sticker
                 )
             }
         }
+    }
+
+    pendingEdit?.let { edit ->
+        ImageEditDialog(
+            edit = edit,
+            onDismiss = { pendingEdit = null },
+            onSubmit = { options ->
+                when (edit.target) {
+                    ImageEditTarget.Sticker -> viewModel.uploadSticker(edit.packId, edit.uri, options)
+                    ImageEditTarget.TrayIcon -> viewModel.replaceTrayIcon(edit.packId, edit.uri, options)
+                }
+                pendingEdit = null
+            },
+        )
     }
 }
 
@@ -169,3 +199,85 @@ private fun PackRow(
         }
     }
 }
+
+@Composable
+private fun ImageEditDialog(
+    edit: PendingImageEdit,
+    onDismiss: () -> Unit,
+    onSubmit: (ImageEditOptions) -> Unit,
+) {
+    val context = LocalContext.current
+    val preview = remember(edit.uri) { loadImageBitmap(context, edit.uri) }
+    var rotation by remember(edit.uri) { mutableStateOf(0) }
+    var cropSquare by remember(edit.uri) { mutableStateOf(false) }
+    val title = when (edit.target) {
+        ImageEditTarget.Sticker -> "Edit sticker"
+        ImageEditTarget.TrayIcon -> "Edit tray icon"
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                if (preview != null) {
+                    Image(
+                        bitmap = preview,
+                        contentDescription = null,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(220.dp)
+                            .clipToBounds()
+                            .graphicsLayer(rotationZ = rotation.toFloat()),
+                        contentScale = if (cropSquare) ContentScale.Crop else ContentScale.Fit,
+                    )
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TextButton(onClick = { rotation = (rotation + 270) % 360 }) {
+                        Text("Rotate left")
+                    }
+                    TextButton(onClick = { rotation = (rotation + 90) % 360 }) {
+                        Text("Rotate right")
+                    }
+                }
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Checkbox(checked = cropSquare, onCheckedChange = { cropSquare = it })
+                    Text("Square crop")
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    onSubmit(ImageEditOptions(rotationDegrees = rotation, cropSquare = cropSquare))
+                },
+            ) {
+                Text("Upload")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        },
+    )
+}
+
+private enum class ImageEditTarget {
+    Sticker,
+    TrayIcon,
+}
+
+private data class PendingImageEdit(
+    val packId: String,
+    val uri: Uri,
+    val target: ImageEditTarget,
+)
+
+private fun loadImageBitmap(context: Context, uri: Uri): ImageBitmap? =
+    context.contentResolver.openInputStream(uri)?.use { input ->
+        BitmapFactory.decodeStream(input)?.asImageBitmap()
+    }

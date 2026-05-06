@@ -5,6 +5,7 @@ import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.example.stickerplatform.data.ImageEditOptions
 import com.example.stickerplatform.data.PackEntity
 import com.example.stickerplatform.data.StickerRepository
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -38,19 +39,19 @@ class StickerViewModel(
         }
     }
 
-    fun uploadSticker(packId: String, uri: Uri) {
+    fun uploadSticker(packId: String, uri: Uri, options: ImageEditOptions) {
         viewModelScope.launch {
             status.value = "Uploading sticker"
-            runCatching { repository.uploadSticker(packId, uri) }
+            runCatching { repository.uploadSticker(packId, uri, options) }
                 .onSuccess { status.value = "Sticker uploaded" }
                 .onFailure { status.value = it.message ?: "Sticker upload failed" }
         }
     }
 
-    fun replaceTrayIcon(packId: String, uri: Uri) {
+    fun replaceTrayIcon(packId: String, uri: Uri, options: ImageEditOptions) {
         viewModelScope.launch {
             status.value = "Replacing tray icon"
-            runCatching { repository.replaceTrayIcon(packId, uri) }
+            runCatching { repository.replaceTrayIcon(packId, uri, options) }
                 .onSuccess { status.value = "Tray icon replaced" }
                 .onFailure { status.value = it.message ?: "Tray icon update failed" }
         }

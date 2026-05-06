@@ -1,6 +1,9 @@
 package com.example.stickerplatform.data
 
 import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.graphics.Matrix
 import android.net.Uri
 import android.provider.OpenableColumns
 import com.example.stickerplatform.BuildConfig
@@ -15,6 +18,7 @@ import okhttp3.OkHttpClient
 import okhttp3.RequestBody.Companion.toRequestBody
 import retrofit2.Retrofit
 import retrofit2.converter.moshi.MoshiConverterFactory
+import java.io.ByteArrayOutputStream
 
 class StickerRepository private constructor(context: Context) {
     private val appContext = context.applicationContext
@@ -75,13 +79,13 @@ class StickerRepository private constructor(context: Context) {
         }
     }
 
-    suspend fun uploadSticker(packId: String, uri: Uri) = withContext(Dispatchers.IO) {
-        api.uploadSticker(bearerToken(), packId, multipartFromUri(uri)).close()
+    suspend fun uploadSticker(packId: String, uri: Uri, options: ImageEditOptions) = withContext(Dispatchers.IO) {
+        api.uploadSticker(bearerToken(), packId, multipartFromUri(uri, options)).close()
         sync()
     }
 
-    suspend fun replaceTrayIcon(packId: String, uri: Uri) = withContext(Dispatchers.IO) {
-        api.replaceTrayIcon(bearerToken(), packId, multipartFromUri(uri)).close()
+    suspend fun replaceTrayIcon(packId: String, uri: Uri, options: ImageEditOptions) = withContext(Dispatchers.IO) {
+        api.replaceTrayIcon(bearerToken(), packId, multipartFromUri(uri, options)).close()
         sync()
     }
 
@@ -90,14 +94,50 @@ class StickerRepository private constructor(context: Context) {
         return "Bearer $token"
     }
 
-    private fun multipartFromUri(uri: Uri): MultipartBody.Part {
+    private fun multipartFromUri(uri: Uri, options: ImageEditOptions): MultipartBody.Part {
         val resolver = appContext.contentResolver
-        val mediaType = resolver.getType(uri) ?: "image/*"
-        val fileName = displayName(uri) ?: "sticker-foundry-${System.currentTimeMillis()}.png"
-        val bytes = resolver.openInputStream(uri)?.use { it.readBytes() }
-            ?: error("Cannot read selected image")
+        val hasEdits = options.rotationDegrees.floorMod(360) != 0 || options.cropSquare
+        val mediaType = if (hasEdits) "image/png" else resolver.getType(uri) ?: "image/*"
+        val fileName = if (hasEdits) {
+            "sticker-foundry-edited-${System.currentTimeMillis()}.png"
+        } else {
+            displayName(uri) ?: "sticker-foundry-${System.currentTimeMillis()}.png"
+        }
+        val bytes = if (hasEdits) {
+            editedImageBytes(uri, options)
+        } else {
+            resolver.openInputStream(uri)?.use { it.readBytes() } ?: error("Cannot read selected image")
+        }
         val requestBody = bytes.toRequestBody(mediaType.toMediaTypeOrNull())
         return MultipartBody.Part.createFormData("file", fileName, requestBody)
+    }
+
+    private fun editedImageBytes(uri: Uri, options: ImageEditOptions): ByteArray {
+        val source = appContext.contentResolver.openInputStream(uri)?.use { input ->
+            BitmapFactory.decodeStream(input)
+        } ?: error("Cannot decode selected image")
+
+        val cropped = if (options.cropSquare) {
+            val size = minOf(source.width, source.height)
+            val x = (source.width - size) / 2
+            val y = (source.height - size) / 2
+            Bitmap.createBitmap(source, x, y, size, size)
+        } else {
+            source
+        }
+
+        val rotation = options.rotationDegrees.floorMod(360)
+        val output = if (rotation == 0) {
+            cropped
+        } else {
+            val matrix = Matrix().apply { postRotate(rotation.toFloat()) }
+            Bitmap.createBitmap(cropped, 0, 0, cropped.width, cropped.height, matrix, true)
+        }
+
+        return ByteArrayOutputStream().use { stream ->
+            output.compress(Bitmap.CompressFormat.PNG, 100, stream)
+            stream.toByteArray()
+        }
     }
 
     private fun displayName(uri: Uri): String? =
@@ -105,6 +145,8 @@ class StickerRepository private constructor(context: Context) {
             val index = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
             if (index >= 0 && cursor.moveToFirst()) cursor.getString(index) else null
         }
+
+    private fun Int.floorMod(divisor: Int): Int = ((this % divisor) + divisor) % divisor
 
     companion object {
         @Volatile private var instance: StickerRepository? = null
