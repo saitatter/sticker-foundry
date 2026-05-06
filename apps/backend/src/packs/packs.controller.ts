@@ -136,4 +136,10 @@ export class PacksController {
     await this.exportService.buildZip(id, archive);
     await archive.finalize();
   }
+
+  @Get(':id/contents')
+  async contents(@CurrentUser() user: RequestUser, @Param('id') id: string) {
+    await this.packsService.assertCanExport(user.sub, id);
+    return this.exportService.buildContents(id);
+  }
 }

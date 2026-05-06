@@ -218,6 +218,7 @@ The web app lives in `apps/web` and provides:
 - Bulk sticker upload.
 - Sticker delete action.
 - Export ZIP download.
+- Export `contents.json` preview.
 - Public/private pack creation.
 
 Run it locally:

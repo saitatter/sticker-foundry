@@ -8,6 +8,7 @@ import {
   Edit3,
   Eye,
   EyeOff,
+  FileJson,
   Globe2,
   GripVertical,
   ImagePlus,
@@ -407,6 +408,8 @@ function PackDetail({
   const stickers = pack.stickers ?? [];
   const canExport = stickers.length >= 3 && stickers.length <= 30;
   const [exporting, setExporting] = useState(false);
+  const [contentsPreview, setContentsPreview] = useState<string | null>(null);
+  const [loadingContents, setLoadingContents] = useState(false);
   const [draggingStickerId, setDraggingStickerId] = useState<string | null>(null);
 
   async function exportPack() {
@@ -436,6 +439,23 @@ function PackDetail({
       onDeleted();
     } catch (error) {
       onError(error);
+    }
+  }
+
+  async function previewContents() {
+    if (contentsPreview) {
+      setContentsPreview(null);
+      return;
+    }
+
+    setLoadingContents(true);
+    try {
+      const contents = await api.exportContents(pack.id);
+      setContentsPreview(JSON.stringify(contents, null, 2));
+    } catch (error) {
+      onError(error);
+    } finally {
+      setLoadingContents(false);
     }
   }
 
@@ -486,6 +506,10 @@ function PackDetail({
           <p>{pack.publisher}</p>
         </div>
         <div className="detail-actions">
+          <button className="secondary-button" disabled={!canExport || loadingContents} onClick={() => void previewContents()} type="button">
+            <FileJson size={17} />
+            {contentsPreview ? 'Hide JSON' : 'Preview JSON'}
+          </button>
           <button className="secondary-button" disabled={!canExport || exporting} onClick={() => void exportPack()} type="button">
             <Download size={17} />
             {exporting ? 'Exporting' : 'Download ZIP'}
@@ -503,6 +527,8 @@ function PackDetail({
       </div>
 
       <ExportReadiness stickerCount={stickers.length} canExport={canExport} />
+
+      {contentsPreview ? <pre className="contents-preview">{contentsPreview}</pre> : null}
 
       <PackEditForm api={api} pack={pack} onChanged={onChanged} onError={onError} />
 

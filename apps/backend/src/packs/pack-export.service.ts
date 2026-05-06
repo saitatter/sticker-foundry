@@ -8,6 +8,17 @@ import { PrismaService } from '../prisma.service';
 import { DEFAULT_STICKER_EMOJIS, WHATSAPP_LIMITS } from './whatsapp-constraints';
 
 type Archive = archiver.Archiver;
+type ExportPack = {
+  id: string;
+  name: string;
+  publisher: string;
+  imageDataVersion: string;
+  stickers: Array<{
+    fileName: string;
+    emojis: string[];
+    accessibilityText: string | null;
+  }>;
+};
 
 @Injectable()
 export class PackExportService {
@@ -17,27 +28,34 @@ export class PackExportService {
   ) {}
 
   async buildZip(packId: string, archive: Archive) {
-    const pack = await this.prisma.pack.findUnique({
-      where: { id: packId },
-      include: { stickers: { orderBy: [{ position: 'asc' }, { createdAt: 'asc' }] } },
-    });
-
-    if (!pack) {
-      throw new NotFoundException('Pack not found');
-    }
-
-    if (pack.stickers.length < WHATSAPP_LIMITS.minStickersPerPack) {
-      throw new BadRequestException(`A WhatsApp pack needs at least ${WHATSAPP_LIMITS.minStickersPerPack} stickers`);
-    }
-
-    if (pack.stickers.length > WHATSAPP_LIMITS.maxStickersPerPack) {
-      throw new BadRequestException(`A WhatsApp pack cannot exceed ${WHATSAPP_LIMITS.maxStickersPerPack} stickers`);
-    }
+    const pack = await this.loadValidExportPack(packId);
 
     const packDir = this.packDirectory(pack.id);
     await mkdir(packDir, { recursive: true });
 
-    const contents = {
+    archive.append(JSON.stringify(this.contentsForPack(pack), null, 2), { name: 'contents.json' });
+    archive.file(join(packDir, 'tray_icon.webp'), { name: 'tray_icon.webp' });
+
+    for (const sticker of pack.stickers) {
+      archive.append(createReadStream(join(packDir, sticker.fileName)), { name: sticker.fileName });
+    }
+  }
+
+  async buildContents(packId: string) {
+    return this.contentsForPack(await this.loadValidExportPack(packId));
+  }
+
+  createArchive(): Archive {
+    return archiver('zip', { zlib: { level: 9 } });
+  }
+
+  packDirectory(packId: string) {
+    const dataDir = this.config.get<string>('DATA_DIR', './data');
+    return join(dataDir, 'packs', packId);
+  }
+
+  private contentsForPack(pack: ExportPack) {
+    return {
       android_play_store_link: '',
       ios_app_store_link: '',
       sticker_packs: [
@@ -61,22 +79,30 @@ export class PackExportService {
         },
       ],
     };
+  }
 
-    archive.append(JSON.stringify(contents, null, 2), { name: 'contents.json' });
-    archive.file(join(packDir, 'tray_icon.webp'), { name: 'tray_icon.webp' });
-
-    for (const sticker of pack.stickers) {
-      archive.append(createReadStream(join(packDir, sticker.fileName)), { name: sticker.fileName });
+  private async loadValidExportPack(packId: string) {
+    const pack = await this.loadExportPack(packId);
+    if (!pack) {
+      throw new NotFoundException('Pack not found');
     }
+
+    if (pack.stickers.length < WHATSAPP_LIMITS.minStickersPerPack) {
+      throw new BadRequestException(`A WhatsApp pack needs at least ${WHATSAPP_LIMITS.minStickersPerPack} stickers`);
+    }
+
+    if (pack.stickers.length > WHATSAPP_LIMITS.maxStickersPerPack) {
+      throw new BadRequestException(`A WhatsApp pack cannot exceed ${WHATSAPP_LIMITS.maxStickersPerPack} stickers`);
+    }
+
+    return pack;
   }
 
-  createArchive(): Archive {
-    return archiver('zip', { zlib: { level: 9 } });
-  }
-
-  packDirectory(packId: string) {
-    const dataDir = this.config.get<string>('DATA_DIR', './data');
-    return join(dataDir, 'packs', packId);
+  private loadExportPack(packId: string) {
+    return this.prisma.pack.findUnique({
+      where: { id: packId },
+      include: { stickers: { orderBy: [{ position: 'asc' }, { createdAt: 'asc' }] } },
+    });
   }
 
   private cleanEmojis(emojis: string[]) {

@@ -453,6 +453,19 @@ input:focus {
   font-size: 13px;
 }
 
+.contents-preview {
+  max-height: 360px;
+  margin: 0;
+  padding: 14px;
+  overflow: auto;
+  color: #10201d;
+  background: #f9fbfb;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
 .upload-form {
   display: grid;
   grid-template-columns: minmax(220px, 1.2fr) 1fr 1fr auto;

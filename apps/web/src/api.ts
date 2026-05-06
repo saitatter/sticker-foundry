@@ -32,6 +32,22 @@ export type Pack = {
   stickers?: Sticker[];
 };
 
+export type ExportContents = {
+  sticker_packs: Array<{
+    identifier: string;
+    name: string;
+    publisher: string;
+    tray_image_file: string;
+    image_data_version: string;
+    animated_sticker_pack: boolean;
+    stickers: Array<{
+      image_file: string;
+      emojis: string[];
+      accessibility_text?: string;
+    }>;
+  }>;
+};
+
 export type CreatePackInput = {
   name: string;
   publisher: string;
@@ -197,6 +213,10 @@ export class StickerFoundryApi {
       throw new ApiError(await readError(response), response.status);
     }
     return response.blob();
+  }
+
+  async exportContents(packId: string) {
+    return this.request<ExportContents>(`/packs/${packId}/contents`, { auth: true });
   }
 
   private async request<T>(
