@@ -54,6 +54,24 @@ export class PacksController {
     return this.packsService.update(user.sub, id, dto);
   }
 
+  @Get(':id/tray-icon')
+  async trayIcon(@CurrentUser() user: RequestUser, @Param('id') id: string, @Res() response: Response) {
+    const filePath = await this.packsService.getTrayIconFilePath(user.sub, id);
+    response.setHeader('Content-Type', 'image/webp');
+    response.setHeader('Cache-Control', 'private, max-age=300');
+    return response.sendFile(filePath);
+  }
+
+  @Post(':id/tray-icon')
+  @UseInterceptors(FileInterceptor('file'))
+  uploadTrayIcon(
+    @CurrentUser() user: RequestUser,
+    @Param('id') id: string,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    return this.packsService.uploadTrayIcon(user.sub, id, file);
+  }
+
   @Get(':id/stickers/:stickerId/file')
   async stickerFile(
     @CurrentUser() user: RequestUser,

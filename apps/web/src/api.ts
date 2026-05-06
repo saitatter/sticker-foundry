@@ -130,6 +130,28 @@ export class StickerFoundryApi {
     });
   }
 
+  async uploadTrayIcon(packId: string, file: File) {
+    const form = new FormData();
+    form.append('file', file);
+
+    return this.request<Pack>(`/packs/${packId}/tray-icon`, {
+      method: 'POST',
+      auth: true,
+      body: form,
+      isMultipart: true,
+    });
+  }
+
+  async trayIconBlob(packId: string) {
+    const response = await fetch(`${API_BASE_URL}/packs/${packId}/tray-icon`, {
+      headers: new Headers(this.authHeaders()),
+    });
+    if (!response.ok) {
+      throw new ApiError(await readError(response), response.status);
+    }
+    return response.blob();
+  }
+
   async deleteSticker(packId: string, stickerId: string) {
     return this.request<{ deleted: boolean }>(`/packs/${packId}/stickers/${stickerId}`, {
       method: 'DELETE',

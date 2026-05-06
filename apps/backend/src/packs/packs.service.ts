@@ -159,6 +159,37 @@ export class PacksService {
     return sticker;
   }
 
+  async uploadTrayIcon(ownerId: string, packId: string, file: Express.Multer.File | undefined) {
+    if (!file) {
+      throw new BadRequestException('A multipart file field named "file" is required');
+    }
+
+    if (!file.mimetype.startsWith('image/')) {
+      throw new BadRequestException('Only image uploads are accepted');
+    }
+
+    const pack = await this.prisma.pack.findUnique({ where: { id: packId } });
+    if (!pack) {
+      throw new NotFoundException('Pack not found');
+    }
+    if (pack.ownerId !== ownerId) {
+      throw new ForbiddenException('Only the owner can update the tray icon');
+    }
+
+    const tray = await this.imageService.processTrayIcon(file.buffer);
+    await this.imageService.writeProcessedImage(join(this.exportService.packDirectory(packId), 'tray_icon.webp'), tray);
+
+    return this.prisma.pack.update({
+      where: { id: packId },
+      data: { imageDataVersion: this.newImageDataVersion(pack.imageDataVersion) },
+    });
+  }
+
+  async getTrayIconFilePath(userId: string, packId: string) {
+    await this.get(userId, packId);
+    return resolve(join(this.exportService.packDirectory(packId), 'tray_icon.webp'));
+  }
+
   async getStickerFilePath(userId: string, packId: string, stickerId: string) {
     await this.get(userId, packId);
     const sticker = await this.prisma.sticker.findFirst({

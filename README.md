@@ -178,6 +178,7 @@ The web app lives in `apps/web` and provides:
 - Create/edit/delete pack UI.
 - Sticker upload with validation feedback.
 - Processed WebP preview.
+- Tray icon preview and replacement.
 - Sticker delete action.
 - Export ZIP download.
 - Public/private pack creation.

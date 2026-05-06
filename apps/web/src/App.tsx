@@ -431,6 +431,8 @@ function PackDetail({
 
       <PackEditForm api={api} pack={pack} onChanged={onChanged} onError={onError} />
 
+      <TrayIconPanel api={api} pack={pack} onChanged={onChanged} onError={onError} />
+
       <UploadPanel api={api} pack={pack} disabled={stickers.length >= 30} onChanged={onChanged} onError={onError} />
 
       <section className="stickers-section">
@@ -536,6 +538,78 @@ function PackEditForm({
         <button className="secondary-button" disabled={!dirty || saving} type="submit">
           <Edit3 size={17} />
           Save
+        </button>
+      </form>
+    </section>
+  );
+}
+
+function TrayIconPanel({
+  api,
+  pack,
+  onChanged,
+  onError,
+}: {
+  api: StickerFoundryApi;
+  pack: Pack;
+  onChanged: (message: string) => Promise<void>;
+  onError: (error: unknown) => void;
+}) {
+  const [url, setUrl] = useState<string | null>(null);
+  const [file, setFile] = useState<File | null>(null);
+  const [uploading, setUploading] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    let objectUrl: string | null = null;
+    api
+      .trayIconBlob(pack.id)
+      .then((blob) => {
+        if (!alive) return;
+        objectUrl = URL.createObjectURL(blob);
+        setUrl(objectUrl);
+      })
+      .catch(() => setUrl(null));
+
+    return () => {
+      alive = false;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [api, pack.id, pack.imageDataVersion]);
+
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    if (!file) return;
+    setUploading(true);
+    try {
+      await api.uploadTrayIcon(pack.id, file);
+      setFile(null);
+      await onChanged('Tray icon updated');
+    } catch (error) {
+      onError(error);
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  return (
+    <section className="tray-panel">
+      <div className="section-heading">
+        <h3>Tray icon</h3>
+        <ImagePlus size={18} />
+      </div>
+      <form className="tray-form" onSubmit={submit}>
+        <div className="tray-preview" aria-label="Current tray icon">
+          {url ? <img alt={`${pack.name} tray icon`} src={url} /> : <ImagePlus size={24} />}
+        </div>
+        <label className="file-drop compact-drop">
+          <input accept="image/*" onChange={(event) => setFile(event.target.files?.[0] ?? null)} type="file" />
+          <ImagePlus size={20} />
+          <span>{file ? file.name : 'Choose tray image'}</span>
+        </label>
+        <button className="secondary-button" disabled={!file || uploading} type="submit">
+          <Upload size={17} />
+          Replace
         </button>
       </form>
     </section>
