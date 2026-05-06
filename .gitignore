@@ -5,8 +5,8 @@ coverage/
 .env.*
 !.env.example
 
-data/
-uploads/
+/data/
+/uploads/
 
 .DS_Store
 Thumbs.db
