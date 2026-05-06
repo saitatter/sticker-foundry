@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import archiver from 'archiver';
+import archiver = require('archiver');
 import { createHash } from 'crypto';
 import { createReadStream } from 'fs';
 import { mkdir, readFile } from 'fs/promises';

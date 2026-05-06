@@ -128,6 +128,7 @@ npm run test:backend
 ```
 
 The backend test suite covers pack/sticker business rules, sticker ordering, and WhatsApp export metadata.
+It also includes an HTTP e2e flow for register, create pack, upload stickers, manifest ETags, ZIP export, and `contents.json` parsing.
 
 ### 🔌 API examples
 
