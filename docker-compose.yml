@@ -31,10 +31,22 @@ services:
       JWT_SECRET: change-this-long-random-secret
       DATA_DIR: /data
       PUBLIC_BASE_URL: http://localhost:3000
+      THROTTLE_TTL_MS: 60000
+      THROTTLE_LIMIT: 300
     volumes:
       - foundry-data:/data
     ports:
       - "3000:3000"
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "8080:80"
 
 volumes:
   postgres-data:

@@ -16,7 +16,7 @@ function writeJson(relativePath, value) {
   fs.writeFileSync(path.join(repoRoot, relativePath), `${JSON.stringify(value, null, 2)}\n`);
 }
 
-for (const packagePath of ['package.json', 'apps/backend/package.json', 'packages/shared-types/package.json']) {
+for (const packagePath of ['package.json', 'apps/backend/package.json', 'apps/web/package.json', 'packages/shared-types/package.json']) {
   const packageJson = readJson(packagePath);
   packageJson.version = version;
   writeJson(packagePath, packageJson);
@@ -26,7 +26,7 @@ const lockPath = 'package-lock.json';
 const lockJson = readJson(lockPath);
 lockJson.version = version;
 if (lockJson.packages) {
-  for (const packagePath of ['', 'apps/backend', 'packages/shared-types']) {
+  for (const packagePath of ['', 'apps/backend', 'apps/web', 'packages/shared-types']) {
     if (lockJson.packages[packagePath]) {
       lockJson.packages[packagePath].version = version;
     }

@@ -28,7 +28,7 @@ Current state:
 
 - Backend API: starter MVP implemented.
 - Android app: starter MVP implemented and debug build passes.
-- Web UI: not implemented yet. The planned location is `apps/web`.
+- Web UI: starter MVP implemented in `apps/web`.
 
 See [docs/IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md) for the staged roadmap.
 
@@ -90,8 +90,30 @@ npm install
 cp apps/backend/.env.example apps/backend/.env
 docker compose up -d postgres
 npm run prisma:migrate
-npm run dev:backend
+npm run prisma:seed
+npm run dev
 ```
+
+`npm run dev` starts the backend and web app together. For a fresh database, use `npm run dev:seeded` after PostgreSQL is running; it applies migrations, seeds demo data, then starts both apps.
+
+- backend API: `http://localhost:3000/api`
+- web UI: `http://localhost:5173`
+
+The seed command creates a local demo account and a WhatsApp-compatible demo pack:
+
+- email: `demo@stickerfoundry.local`
+- password: `stickerfoundry123`
+- pack: `Foundry Classics`
+
+The web login screen includes a **Use demo account** button that fills these seeded credentials.
+
+### 🧪 Backend tests
+
+```bash
+npm run test:backend
+```
+
+The backend test suite covers pack/sticker business rules, sticker ordering, and WhatsApp export metadata.
 
 ### 🔌 API examples
 
@@ -107,6 +129,17 @@ curl -X POST http://localhost:3000/api/packs \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"name":"Family Memes","publisher":"Home","isPublic":false}'
+```
+
+```bash
+curl http://localhost:3000/api/sync/packs \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+`GET /sync/packs` is the Android sync index. It returns pack metadata, `imageDataVersion`, `updatedAt`, `syncHash`, `canExport`, and relative download paths so the app can skip unchanged or incomplete packs.
+
+```bash
+curl http://localhost:3000/api/health
 ```
 
 ```bash
@@ -171,30 +204,44 @@ Sync strategy:
 
 ## 🌐 Web UI
 
-There is no web frontend yet. For now, pack management is available through the backend API, and WhatsApp import is handled by the Android app.
-
-The planned `apps/web` app should provide:
+The web app lives in `apps/web` and provides:
 
 - Login/register UI.
-- Pack list and pack detail pages.
+- Pack list and pack detail view.
 - Create/edit/delete pack UI.
-- Sticker upload with progress and validation messages.
+- Sticker upload with validation feedback.
 - Processed WebP preview.
+- Tray icon preview and replacement.
+- Sticker emoji and accessibility text editing.
+- Sticker reorder controls.
+- Drag-and-drop sticker ordering.
+- Bulk sticker upload.
+- Sticker delete action.
 - Export ZIP download.
-- Public/private pack toggle.
+- Export `contents.json` preview.
+- Public/private pack creation.
+
+Run it locally:
+
+```bash
+npm run dev:web
+```
+
+By default, Vite proxies `/api` to `http://localhost:3000`. Set `VITE_API_URL` when pointing the web app at a different backend URL.
 
 ## 🐳 Docker Setup
 
-Run backend + PostgreSQL:
+Run web + backend + PostgreSQL:
 
 ```bash
 cd sticker-foundry
 docker compose up -d --build
 ```
 
-Backend listens on:
+Services listen on:
 
 ```text
+http://localhost:8080
 http://localhost:3000/api
 ```
 
@@ -202,6 +249,32 @@ Persistent volumes:
 
 - `postgres-data`: database.
 - `foundry-data`: `/data/packs/{pack_id}` media files.
+
+### 💾 Backup and restore
+
+Back up PostgreSQL:
+
+```bash
+docker compose exec -T postgres pg_dump -U stickers stickers > stickers.sql
+```
+
+Back up sticker media:
+
+```bash
+docker run --rm -v sticker-foundry_foundry-data:/data -v "$PWD:/backup" alpine tar czf /backup/foundry-data.tgz -C /data .
+```
+
+Restore PostgreSQL:
+
+```bash
+docker compose exec -T postgres psql -U stickers stickers < stickers.sql
+```
+
+Restore sticker media:
+
+```bash
+docker run --rm -v sticker-foundry_foundry-data:/data -v "$PWD:/backup" alpine sh -c "rm -rf /data/* && tar xzf /backup/foundry-data.tgz -C /data"
+```
 
 Unraid deployment:
 
@@ -272,10 +345,12 @@ Initial commit structure should include:
 - **Android build uses Java 8**: install JDK 17 and set `JAVA_HOME`.
 - **WhatsApp import does not open**: verify WhatsApp is installed and the pack has at least 3 stickers.
 - **Export fails**: verify the pack has 3-30 stickers and all images can be compressed to WhatsApp limits.
+- **Upload is rejected**: sticker source uploads are capped at 10 MB, tray icon source uploads at 5 MB.
+- **Too many requests**: the API applies an in-memory rate limit. Tune it with `THROTTLE_TTL_MS` and `THROTTLE_LIMIT`.
 
 ## 📝 Notes
 
-This project is a real starting point, not a complete production deployment. Before exposing it outside your LAN, add HTTPS, rate limiting, refresh tokens or short-lived access tokens, backups, stricter upload scanning, and an admin/web UI.
+This project is a real starting point, not a complete production deployment. Before exposing it outside your LAN, add HTTPS, rate limiting, refresh tokens or short-lived access tokens, backups, stricter upload scanning, and richer admin controls.
 
 WhatsApp limitations to remember:
 

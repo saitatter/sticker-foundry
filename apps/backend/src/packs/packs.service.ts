@@ -1,9 +1,12 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { rm } from 'fs/promises';
-import { join } from 'path';
+import { join, resolve } from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import { PrismaService } from '../prisma.service';
 import { CreatePackDto } from './dto/create-pack.dto';
+import { ReorderStickersDto } from './dto/reorder-stickers.dto';
+import { UpdatePackDto } from './dto/update-pack.dto';
+import { UpdateStickerDto } from './dto/update-sticker.dto';
 import { UploadStickerDto } from './dto/upload-sticker.dto';
 import { PackExportService } from './pack-export.service';
 import { StickerImageService } from './sticker-image.service';
@@ -50,7 +53,7 @@ export class PacksService {
     const pack = await this.prisma.pack.findUnique({
       where: { id },
       include: {
-        stickers: { orderBy: { createdAt: 'asc' } },
+        stickers: { orderBy: [{ position: 'asc' }, { createdAt: 'asc' }] },
         _count: { select: { stickers: true } },
       },
     });
@@ -81,6 +84,28 @@ export class PacksService {
     await rm(this.exportService.packDirectory(id), { recursive: true, force: true });
 
     return { deleted: true };
+  }
+
+  async update(ownerId: string, id: string, dto: UpdatePackDto) {
+    const pack = await this.prisma.pack.findUnique({ where: { id } });
+    if (!pack) {
+      throw new NotFoundException('Pack not found');
+    }
+    if (pack.ownerId !== ownerId) {
+      throw new ForbiddenException('Only the owner can update this pack');
+    }
+
+    await this.prisma.pack.update({
+      where: { id },
+      data: {
+        name: dto.name,
+        publisher: dto.publisher,
+        description: dto.description,
+        isPublic: dto.isPublic,
+      },
+    });
+
+    return this.get(ownerId, id);
   }
 
   async uploadSticker(ownerId: string, packId: string, file: Express.Multer.File | undefined, dto: UploadStickerDto) {
@@ -125,6 +150,7 @@ export class PacksService {
         accessibilityText: dto.accessibilityText,
         sizeBytes: processed.sizeBytes,
         sha256: processed.sha256,
+        position: pack._count.stickers,
       },
     });
 
@@ -136,8 +162,164 @@ export class PacksService {
     return sticker;
   }
 
+  async uploadTrayIcon(ownerId: string, packId: string, file: Express.Multer.File | undefined) {
+    if (!file) {
+      throw new BadRequestException('A multipart file field named "file" is required');
+    }
+
+    if (!file.mimetype.startsWith('image/')) {
+      throw new BadRequestException('Only image uploads are accepted');
+    }
+
+    const pack = await this.prisma.pack.findUnique({ where: { id: packId } });
+    if (!pack) {
+      throw new NotFoundException('Pack not found');
+    }
+    if (pack.ownerId !== ownerId) {
+      throw new ForbiddenException('Only the owner can update the tray icon');
+    }
+
+    const tray = await this.imageService.processTrayIcon(file.buffer);
+    await this.imageService.writeProcessedImage(join(this.exportService.packDirectory(packId), 'tray_icon.webp'), tray);
+
+    return this.prisma.pack.update({
+      where: { id: packId },
+      data: { imageDataVersion: this.newImageDataVersion(pack.imageDataVersion) },
+    });
+  }
+
+  async getTrayIconFilePath(userId: string, packId: string) {
+    await this.get(userId, packId);
+    return resolve(join(this.exportService.packDirectory(packId), 'tray_icon.webp'));
+  }
+
+  async getStickerFilePath(userId: string, packId: string, stickerId: string) {
+    await this.get(userId, packId);
+    const sticker = await this.prisma.sticker.findFirst({
+      where: { id: stickerId, packId },
+    });
+    if (!sticker) {
+      throw new NotFoundException('Sticker not found');
+    }
+
+    return {
+      fileName: sticker.fileName,
+      path: resolve(join(this.exportService.packDirectory(packId), sticker.fileName)),
+    };
+  }
+
+  async deleteSticker(ownerId: string, packId: string, stickerId: string) {
+    const pack = await this.prisma.pack.findUnique({ where: { id: packId } });
+    if (!pack) {
+      throw new NotFoundException('Pack not found');
+    }
+    if (pack.ownerId !== ownerId) {
+      throw new ForbiddenException('Only the owner can delete stickers');
+    }
+
+    const sticker = await this.prisma.sticker.findFirst({
+      where: { id: stickerId, packId },
+    });
+    if (!sticker) {
+      throw new NotFoundException('Sticker not found');
+    }
+
+    await this.prisma.sticker.delete({ where: { id: stickerId } });
+    await rm(join(this.exportService.packDirectory(packId), sticker.fileName), { force: true });
+    await this.compactStickerPositions(packId);
+    await this.prisma.pack.update({
+      where: { id: packId },
+      data: { imageDataVersion: this.newImageDataVersion(pack.imageDataVersion) },
+    });
+
+    return { deleted: true };
+  }
+
+  async updateSticker(ownerId: string, packId: string, stickerId: string, dto: UpdateStickerDto) {
+    const pack = await this.prisma.pack.findUnique({ where: { id: packId } });
+    if (!pack) {
+      throw new NotFoundException('Pack not found');
+    }
+    if (pack.ownerId !== ownerId) {
+      throw new ForbiddenException('Only the owner can update stickers');
+    }
+
+    const sticker = await this.prisma.sticker.findFirst({
+      where: { id: stickerId, packId },
+    });
+    if (!sticker) {
+      throw new NotFoundException('Sticker not found');
+    }
+
+    const updated = await this.prisma.sticker.update({
+      where: { id: stickerId },
+      data: {
+        emojis: dto.emojis?.filter(Boolean).slice(0, WHATSAPP_LIMITS.maxStickerEmojis),
+        accessibilityText: dto.accessibilityText,
+      },
+    });
+
+    await this.prisma.pack.update({
+      where: { id: packId },
+      data: { imageDataVersion: this.newImageDataVersion(pack.imageDataVersion) },
+    });
+
+    return updated;
+  }
+
+  async reorderStickers(ownerId: string, packId: string, dto: ReorderStickersDto) {
+    const pack = await this.prisma.pack.findUnique({
+      where: { id: packId },
+      include: { stickers: { select: { id: true } } },
+    });
+    if (!pack) {
+      throw new NotFoundException('Pack not found');
+    }
+    if (pack.ownerId !== ownerId) {
+      throw new ForbiddenException('Only the owner can reorder stickers');
+    }
+
+    const existingIds = pack.stickers.map((sticker) => sticker.id).sort();
+    const requestedIds = [...dto.stickerIds].sort();
+    if (existingIds.length !== requestedIds.length || existingIds.some((id, index) => id !== requestedIds[index])) {
+      throw new BadRequestException('Reorder request must include every sticker in this pack exactly once');
+    }
+
+    await this.prisma.$transaction([
+      ...dto.stickerIds.map((id, position) =>
+        this.prisma.sticker.update({
+          where: { id },
+          data: { position },
+        }),
+      ),
+      this.prisma.pack.update({
+        where: { id: packId },
+        data: { imageDataVersion: this.newImageDataVersion(pack.imageDataVersion) },
+      }),
+    ]);
+
+    return this.get(ownerId, packId);
+  }
+
   async assertCanExport(userId: string, packId: string) {
     await this.get(userId, packId);
+  }
+
+  private async compactStickerPositions(packId: string) {
+    const stickers = await this.prisma.sticker.findMany({
+      where: { packId },
+      orderBy: [{ position: 'asc' }, { createdAt: 'asc' }],
+      select: { id: true },
+    });
+
+    await this.prisma.$transaction(
+      stickers.map((sticker, position) =>
+        this.prisma.sticker.update({
+          where: { id: sticker.id },
+          data: { position },
+        }),
+      ),
+    );
   }
 
   private newImageDataVersion(previous: string) {

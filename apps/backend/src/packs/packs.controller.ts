@@ -4,6 +4,7 @@ import {
   Delete,
   Get,
   Param,
+  Patch,
   Post,
   Res,
   UploadedFile,
@@ -15,9 +16,15 @@ import { Response } from 'express';
 import { CurrentUser, RequestUser } from '../common/current-user.decorator';
 import { JwtAuthGuard } from '../common/jwt-auth.guard';
 import { CreatePackDto } from './dto/create-pack.dto';
+import { ReorderStickersDto } from './dto/reorder-stickers.dto';
+import { UpdatePackDto } from './dto/update-pack.dto';
+import { UpdateStickerDto } from './dto/update-sticker.dto';
 import { UploadStickerDto } from './dto/upload-sticker.dto';
 import { PackExportService } from './pack-export.service';
 import { PacksService } from './packs.service';
+
+const stickerUploadOptions = { limits: { fileSize: 10 * 1024 * 1024 } };
+const trayIconUploadOptions = { limits: { fileSize: 5 * 1024 * 1024 } };
 
 @Controller('packs')
 @UseGuards(JwtAuthGuard)
@@ -47,8 +54,44 @@ export class PacksController {
     return this.packsService.delete(user.sub, id);
   }
 
+  @Patch(':id')
+  update(@CurrentUser() user: RequestUser, @Param('id') id: string, @Body() dto: UpdatePackDto) {
+    return this.packsService.update(user.sub, id, dto);
+  }
+
+  @Get(':id/tray-icon')
+  async trayIcon(@CurrentUser() user: RequestUser, @Param('id') id: string, @Res() response: Response) {
+    const filePath = await this.packsService.getTrayIconFilePath(user.sub, id);
+    response.setHeader('Content-Type', 'image/webp');
+    response.setHeader('Cache-Control', 'private, max-age=300');
+    return response.sendFile(filePath);
+  }
+
+  @Post(':id/tray-icon')
+  @UseInterceptors(FileInterceptor('file', trayIconUploadOptions))
+  uploadTrayIcon(
+    @CurrentUser() user: RequestUser,
+    @Param('id') id: string,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    return this.packsService.uploadTrayIcon(user.sub, id, file);
+  }
+
+  @Get(':id/stickers/:stickerId/file')
+  async stickerFile(
+    @CurrentUser() user: RequestUser,
+    @Param('id') id: string,
+    @Param('stickerId') stickerId: string,
+    @Res() response: Response,
+  ) {
+    const file = await this.packsService.getStickerFilePath(user.sub, id, stickerId);
+    response.setHeader('Content-Type', 'image/webp');
+    response.setHeader('Cache-Control', 'private, max-age=300');
+    return response.sendFile(file.path);
+  }
+
   @Post(':id/stickers')
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(FileInterceptor('file', stickerUploadOptions))
   uploadSticker(
     @CurrentUser() user: RequestUser,
     @Param('id') id: string,
@@ -56,6 +99,26 @@ export class PacksController {
     @Body() dto: UploadStickerDto,
   ) {
     return this.packsService.uploadSticker(user.sub, id, file, dto);
+  }
+
+  @Patch(':id/stickers')
+  reorderStickers(@CurrentUser() user: RequestUser, @Param('id') id: string, @Body() dto: ReorderStickersDto) {
+    return this.packsService.reorderStickers(user.sub, id, dto);
+  }
+
+  @Delete(':id/stickers/:stickerId')
+  deleteSticker(@CurrentUser() user: RequestUser, @Param('id') id: string, @Param('stickerId') stickerId: string) {
+    return this.packsService.deleteSticker(user.sub, id, stickerId);
+  }
+
+  @Patch(':id/stickers/:stickerId')
+  updateSticker(
+    @CurrentUser() user: RequestUser,
+    @Param('id') id: string,
+    @Param('stickerId') stickerId: string,
+    @Body() dto: UpdateStickerDto,
+  ) {
+    return this.packsService.updateSticker(user.sub, id, stickerId, dto);
   }
 
   @Get(':id/export')
@@ -72,5 +135,11 @@ export class PacksController {
     archive.pipe(response);
     await this.exportService.buildZip(id, archive);
     await archive.finalize();
+  }
+
+  @Get(':id/contents')
+  async contents(@CurrentUser() user: RequestUser, @Param('id') id: string) {
+    await this.packsService.assertCanExport(user.sub, id);
+    return this.exportService.buildContents(id);
   }
 }

@@ -29,6 +29,27 @@ data class PackDto(
     val updatedAt: String,
 )
 
+data class SyncPacksResponse(
+    val serverTime: String,
+    val packs: List<SyncPackDto>,
+)
+
+data class SyncPackDto(
+    val id: String,
+    val name: String,
+    val publisher: String,
+    val description: String?,
+    val isPublic: Boolean,
+    val isOwner: Boolean,
+    val imageDataVersion: String,
+    val stickerCount: Int,
+    val canExport: Boolean,
+    val updatedAt: String,
+    val syncHash: String,
+    val exportPath: String,
+    val trayIconPath: String,
+)
+
 data class ContentsJson(
     @Json(name = "sticker_packs") val stickerPacks: List<StickerPackJson>,
 )

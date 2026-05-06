@@ -42,6 +42,7 @@ class ZipExtractor(
                 publisher = pack.publisher,
                 trayImageFile = pack.trayImageFile,
                 imageDataVersion = pack.imageDataVersion,
+                syncHash = "",
                 localPath = packDir.absolutePath,
                 isPublic = true,
                 updatedAt = System.currentTimeMillis().toString(),

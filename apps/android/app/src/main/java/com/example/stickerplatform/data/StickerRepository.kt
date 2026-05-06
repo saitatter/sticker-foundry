@@ -34,14 +34,14 @@ class StickerRepository private constructor(context: Context) {
     suspend fun sync() = withContext(Dispatchers.IO) {
         val token = session.token() ?: error("Login first")
         val bearer = "Bearer $token"
-        val remotePacks = api.packs(bearer)
+        val remotePacks = api.syncPacks(bearer).packs
 
         for (remote in remotePacks) {
-            if (remote.stickerCount < 3) {
+            if (!remote.canExport) {
                 continue
             }
             val local = db.stickerDao().getPack(remote.id)
-            if (local?.imageDataVersion == remote.imageDataVersion) {
+            if (local?.syncHash == remote.syncHash) {
                 continue
             }
 
@@ -50,6 +50,7 @@ class StickerRepository private constructor(context: Context) {
             db.stickerDao().upsertPack(
                 extracted.entity.copy(
                     isPublic = remote.isPublic,
+                    syncHash = remote.syncHash,
                     updatedAt = remote.updatedAt,
                 ),
             )
