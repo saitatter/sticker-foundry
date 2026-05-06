@@ -51,9 +51,17 @@ class StickerRepository private constructor(context: Context) {
         val token = session.token() ?: error("Login first")
         val bearer = "Bearer $token"
         val remotePacks = api().syncPacks(bearer).packs
+        val remotePackIds = remotePacks.map { it.id }.toSet()
+
+        for (local in db.stickerDao().getAllPacksBlocking()) {
+            if (local.id !in remotePackIds) {
+                deleteLocalPack(local.id)
+            }
+        }
 
         for (remote in remotePacks) {
             if (!remote.canExport) {
+                deleteLocalPack(remote.id)
                 continue
             }
             val remoteSyncKey = remote.contentHash ?: remote.syncHash
@@ -106,6 +114,11 @@ class StickerRepository private constructor(context: Context) {
     suspend fun clearCache() = withContext(Dispatchers.IO) {
         db.stickerDao().deleteAllPacks()
         packsDirectory().deleteRecursively()
+    }
+
+    private suspend fun deleteLocalPack(packId: String) {
+        db.stickerDao().deletePack(packId)
+        File(packsDirectory(), packId).deleteRecursively()
     }
 
     private fun api(): StickerApi {

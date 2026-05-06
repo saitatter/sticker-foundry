@@ -77,6 +77,9 @@ interface StickerDao {
     @Query("DELETE FROM stickers WHERE packId = :packId")
     suspend fun deleteStickers(packId: String)
 
+    @Query("DELETE FROM packs WHERE id = :packId")
+    suspend fun deletePack(packId: String)
+
     @Query("DELETE FROM packs")
     suspend fun deleteAllPacks()
 }
