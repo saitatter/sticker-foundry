@@ -6,7 +6,6 @@ import android.graphics.BitmapFactory
 import android.graphics.Matrix
 import android.net.Uri
 import android.provider.OpenableColumns
-import com.example.stickerplatform.BuildConfig
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
 import kotlinx.coroutines.Dispatchers
@@ -19,31 +18,39 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import retrofit2.Retrofit
 import retrofit2.converter.moshi.MoshiConverterFactory
 import java.io.ByteArrayOutputStream
+import java.io.File
 
 class StickerRepository private constructor(context: Context) {
     private val appContext = context.applicationContext
     private val moshi = Moshi.Builder().add(KotlinJsonAdapterFactory()).build()
-    private val api = Retrofit.Builder()
-        .baseUrl(BuildConfig.API_BASE_URL)
-        .addConverterFactory(MoshiConverterFactory.create(moshi))
-        .client(OkHttpClient.Builder().build())
-        .build()
-        .create(StickerApi::class.java)
     private val db = LocalDatabase.get(appContext)
     private val session = SessionStore(appContext)
     private val extractor = ZipExtractor(appContext, moshi)
+    private val client = OkHttpClient.Builder().build()
+    private var apiBaseUrl = ""
+    private var apiClient: StickerApi? = null
 
     fun observePacks(): Flow<List<PackEntity>> = db.stickerDao().observePacks()
 
+    fun serverUrl(): String = session.serverUrl()
+
+    fun cacheSizeBytes(): Long = packsDirectory().sizeBytes()
+
+    fun saveServerUrl(url: String) {
+        session.saveServerUrl(url)
+        apiBaseUrl = ""
+        apiClient = null
+    }
+
     suspend fun login(email: String, password: String) {
-        val response = api.login(LoginRequest(email, password))
+        val response = api().login(LoginRequest(email, password))
         session.saveToken(response.accessToken)
     }
 
     suspend fun sync() = withContext(Dispatchers.IO) {
         val token = session.token() ?: error("Login first")
         val bearer = "Bearer $token"
-        val remotePacks = api.syncPacks(bearer).packs
+        val remotePacks = api().syncPacks(bearer).packs
 
         for (remote in remotePacks) {
             if (!remote.canExport) {
@@ -65,7 +72,7 @@ class StickerRepository private constructor(context: Context) {
                 continue
             }
 
-            val bytes = api.exportPack(bearer, remote.id).bytes()
+            val bytes = api().exportPack(bearer, remote.id).bytes()
             val extracted = extractor.extract(remote.id, bytes)
             db.stickerDao().upsertPack(
                 extracted.entity.copy(
@@ -82,13 +89,38 @@ class StickerRepository private constructor(context: Context) {
     }
 
     suspend fun uploadSticker(packId: String, uri: Uri, options: ImageEditOptions) = withContext(Dispatchers.IO) {
-        api.uploadSticker(bearerToken(), packId, multipartFromUri(uri, options)).close()
+        api().uploadSticker(bearerToken(), packId, multipartFromUri(uri, options)).close()
         sync()
     }
 
     suspend fun replaceTrayIcon(packId: String, uri: Uri, options: ImageEditOptions) = withContext(Dispatchers.IO) {
-        api.replaceTrayIcon(bearerToken(), packId, multipartFromUri(uri, options)).close()
+        api().replaceTrayIcon(bearerToken(), packId, multipartFromUri(uri, options)).close()
         sync()
+    }
+
+    suspend fun logout() = withContext(Dispatchers.IO) {
+        session.clearToken()
+    }
+
+    suspend fun clearCache() = withContext(Dispatchers.IO) {
+        db.stickerDao().deleteAllPacks()
+        packsDirectory().deleteRecursively()
+    }
+
+    private fun api(): StickerApi {
+        val currentUrl = session.serverUrl()
+        if (apiClient != null && apiBaseUrl == currentUrl) {
+            return apiClient ?: error("API client unavailable")
+        }
+
+        apiBaseUrl = currentUrl
+        apiClient = Retrofit.Builder()
+            .baseUrl(currentUrl)
+            .addConverterFactory(MoshiConverterFactory.create(moshi))
+            .client(client)
+            .build()
+            .create(StickerApi::class.java)
+        return apiClient ?: error("API client unavailable")
     }
 
     private fun bearerToken(): String {
@@ -149,6 +181,14 @@ class StickerRepository private constructor(context: Context) {
         }
 
     private fun Int.floorMod(divisor: Int): Int = ((this % divisor) + divisor) % divisor
+
+    private fun packsDirectory(): File = File(appContext.filesDir, "packs")
+
+    private fun File.sizeBytes(): Long {
+        if (!exists()) return 0L
+        if (isFile) return length()
+        return listFiles()?.sumOf { it.sizeBytes() } ?: 0L
+    }
 
     companion object {
         @Volatile private var instance: StickerRepository? = null

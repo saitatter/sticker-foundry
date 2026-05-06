@@ -65,10 +65,13 @@ class MainActivity : ComponentActivity() {
 private fun StickerApp(viewModel: StickerViewModel = viewModel(factory = StickerViewModel.factory(LocalContext.current))) {
     val packs by viewModel.packs.collectAsState()
     val status by viewModel.status.collectAsState()
+    val serverUrl by viewModel.serverUrl.collectAsState()
+    val cacheUsage by viewModel.cacheUsage.collectAsState()
     val context = LocalContext.current
     var stickerUploadPackId by remember { mutableStateOf<String?>(null) }
     var trayIconPackId by remember { mutableStateOf<String?>(null) }
     var pendingEdit by remember { mutableStateOf<PendingImageEdit?>(null) }
+    var showSettings by remember { mutableStateOf(false) }
     val stickerPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         val packId = stickerUploadPackId
         stickerUploadPackId = null
@@ -93,6 +96,10 @@ private fun StickerApp(viewModel: StickerViewModel = viewModel(factory = Sticker
         LoginBox(
             onLogin = { email, password -> viewModel.login(email, password) },
             onSync = { viewModel.sync() },
+            onSettings = {
+                viewModel.refreshCacheUsage()
+                showSettings = true
+            },
             status = status,
         )
 
@@ -118,6 +125,17 @@ private fun StickerApp(viewModel: StickerViewModel = viewModel(factory = Sticker
         }
     }
 
+    if (showSettings) {
+        SettingsDialog(
+            serverUrl = serverUrl,
+            cacheUsage = cacheUsage,
+            onSaveServerUrl = { viewModel.saveServerUrl(it) },
+            onLogout = { viewModel.logout() },
+            onClearCache = { viewModel.clearCache() },
+            onDismiss = { showSettings = false },
+        )
+    }
+
     pendingEdit?.let { edit ->
         ImageEditDialog(
             edit = edit,
@@ -137,6 +155,7 @@ private fun StickerApp(viewModel: StickerViewModel = viewModel(factory = Sticker
 private fun LoginBox(
     onLogin: (String, String) -> Unit,
     onSync: () -> Unit,
+    onSettings: () -> Unit,
     status: String,
 ) {
     var email by remember { mutableStateOf("") }
@@ -163,11 +182,60 @@ private fun LoginBox(
             Button(onClick = onSync) {
                 Text("Sync")
             }
+            Button(onClick = onSettings) {
+                Text("Settings")
+            }
         }
         if (status.isNotBlank()) {
             Text(status, style = MaterialTheme.typography.bodySmall)
         }
     }
+}
+
+@Composable
+private fun SettingsDialog(
+    serverUrl: String,
+    cacheUsage: String,
+    onSaveServerUrl: (String) -> Unit,
+    onLogout: () -> Unit,
+    onClearCache: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var editedServerUrl by remember(serverUrl) { mutableStateOf(serverUrl) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Settings") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                OutlinedTextField(
+                    value = editedServerUrl,
+                    onValueChange = { editedServerUrl = it },
+                    label = { Text("Server URL") },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Text("Cache usage: $cacheUsage", style = MaterialTheme.typography.bodySmall)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TextButton(onClick = onLogout) {
+                        Text("Logout")
+                    }
+                    TextButton(onClick = onClearCache) {
+                        Text("Clear cache")
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(onClick = { onSaveServerUrl(editedServerUrl) }) {
+                Text("Save")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Close")
+            }
+        },
+    )
 }
 
 @Composable

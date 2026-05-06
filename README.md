@@ -205,6 +205,8 @@ For a physical phone, change `API_BASE_URL` in `apps/android/app/build.gradle.kt
 buildConfigField("String", "API_BASE_URL", "\"http://192.168.1.50:3000/api/\"")
 ```
 
+The Android app also has a Settings dialog where testers can change the API URL, log out, inspect cache size, and clear the local pack cache without rebuilding the APK.
+
 User flow:
 
 1. Login in the app.

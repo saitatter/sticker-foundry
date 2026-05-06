@@ -76,6 +76,9 @@ interface StickerDao {
 
     @Query("DELETE FROM stickers WHERE packId = :packId")
     suspend fun deleteStickers(packId: String)
+
+    @Query("DELETE FROM packs")
+    suspend fun deleteAllPacks()
 }
 
 @Database(entities = [PackEntity::class, StickerEntity::class], version = 4, exportSchema = true)
