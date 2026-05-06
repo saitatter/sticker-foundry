@@ -234,7 +234,7 @@ Sync strategy:
 - Server is source of truth.
 - Android stores a cache in Room and app-private files.
 - Backend increments `imageDataVersion` whenever sticker content changes.
-- Android stores the server `syncHash` and downloads only changed packs.
+- Android stores the server `contentHash` when available, falls back to `syncHash`, and downloads only changed packs.
 
 ## 🌐 Web UI
 

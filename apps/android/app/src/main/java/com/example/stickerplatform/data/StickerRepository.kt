@@ -56,8 +56,9 @@ class StickerRepository private constructor(context: Context) {
             if (!remote.canExport) {
                 continue
             }
+            val remoteSyncKey = remote.contentHash ?: remote.syncHash
             val local = db.stickerDao().getPack(remote.id)
-            if (local?.syncHash == remote.syncHash) {
+            if (local?.syncHash == remoteSyncKey) {
                 db.stickerDao().upsertPack(
                     local.copy(
                         name = remote.name,
@@ -79,7 +80,7 @@ class StickerRepository private constructor(context: Context) {
                     isPublic = remote.isPublic,
                     isOwner = remote.isOwner,
                     stickerCount = remote.stickerCount,
-                    syncHash = remote.syncHash,
+                    syncHash = remoteSyncKey,
                     updatedAt = remote.updatedAt,
                 ),
             )
