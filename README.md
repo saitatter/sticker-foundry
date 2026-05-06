@@ -97,6 +97,7 @@ npm run dev
 `npm run dev` starts the backend and web app together. For a fresh database, use `npm run dev:seeded` after PostgreSQL is running; it applies migrations, seeds demo data, then starts both apps.
 
 - backend API: `http://localhost:3000/api`
+- OpenAPI docs: `http://localhost:3000/api/docs`
 - web UI: `http://localhost:5173`
 
 The seed command creates a local demo account and a WhatsApp-compatible demo pack:
@@ -116,6 +117,18 @@ npm run test:backend
 The backend test suite covers pack/sticker business rules, sticker ordering, and WhatsApp export metadata.
 
 ### 🔌 API examples
+
+Interactive OpenAPI documentation is available at:
+
+```text
+http://localhost:3000/api/docs
+```
+
+The raw OpenAPI JSON is available at:
+
+```text
+http://localhost:3000/api/docs-json
+```
 
 ```bash
 curl -X POST http://localhost:3000/api/auth/register \
