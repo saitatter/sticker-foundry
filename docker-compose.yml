@@ -3,9 +3,9 @@ services:
     image: postgres:16-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_DB: stickers
-      POSTGRES_USER: stickers
-      POSTGRES_PASSWORD: stickers
+      POSTGRES_DB: ${POSTGRES_DB:-stickers}
+      POSTGRES_USER: ${POSTGRES_USER:-stickers}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-stickers}
     volumes:
       - postgres-data:/var/lib/postgresql/data
     ports:
@@ -27,12 +27,15 @@ services:
     environment:
       NODE_ENV: production
       PORT: 3000
-      DATABASE_URL: postgresql://stickers:stickers@postgres:5432/stickers?schema=public
-      JWT_SECRET: change-this-long-random-secret
+      DATABASE_URL: postgresql://${POSTGRES_USER:-stickers}:${POSTGRES_PASSWORD:-stickers}@postgres:5432/${POSTGRES_DB:-stickers}?schema=public
+      JWT_SECRET: ${JWT_SECRET:-change-this-long-random-secret}
       DATA_DIR: /data
-      PUBLIC_BASE_URL: http://localhost:3000
-      THROTTLE_TTL_MS: 60000
-      THROTTLE_LIMIT: 300
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost:3000}
+      CORS_ORIGIN: ${CORS_ORIGIN:-*}
+      REGISTRATION_MODE: ${REGISTRATION_MODE:-open}
+      REGISTRATION_INVITE_CODE: ${REGISTRATION_INVITE_CODE:-}
+      THROTTLE_TTL_MS: ${THROTTLE_TTL_MS:-60000}
+      THROTTLE_LIMIT: ${THROTTLE_LIMIT:-300}
     volumes:
       - foundry-data:/data
     ports:

@@ -277,6 +277,14 @@ cd sticker-foundry
 docker compose up -d --build
 ```
 
+Copy the example environment file before a real deployment:
+
+```bash
+cp .env.example .env
+```
+
+Then edit `.env` and set strong values for `POSTGRES_PASSWORD` and `JWT_SECRET`.
+
 Services listen on:
 
 ```text
@@ -323,6 +331,8 @@ Unraid deployment:
 4. Map `3000:3000`.
 5. Map `foundry-data` to a durable appdata directory if you prefer a host path, for example `/mnt/user/appdata/sticker-foundry/data:/data`.
 6. Start the stack. The backend runs `prisma migrate deploy` before booting.
+
+Reverse proxy examples for Caddy, Nginx Proxy Manager, and Traefik live in [docs/REVERSE_PROXY.md](docs/REVERSE_PROXY.md).
 
 ## 🔄 Releases
 
