@@ -2,6 +2,8 @@ import {
   ArrowDown,
   ArrowUp,
   Archive,
+  AlertCircle,
+  CheckCircle2,
   Download,
   Edit3,
   Eye,
@@ -164,6 +166,7 @@ export function App() {
                 setNotice({ tone: 'success', text: 'Pack deleted' });
               }}
               onError={reportError}
+              onNotice={(message) => setNotice({ tone: 'success', text: message })}
             />
           ) : (
             <EmptyState />
@@ -342,6 +345,12 @@ function PackList({
         <span className="counter">{loading ? '...' : packs.length}</span>
       </div>
       <div className="pack-list-scroll">
+        {packs.length === 0 && !loading ? (
+          <div className="empty-pack-list">
+            <Archive size={22} />
+            <span>No packs</span>
+          </div>
+        ) : null}
         {packs.map((pack) => (
           <button
             className={`pack-row ${pack.id === selectedPackId ? 'selected' : ''}`}
@@ -370,29 +379,36 @@ function PackDetail({
   onChanged,
   onDeleted,
   onError,
+  onNotice,
 }: {
   api: StickerFoundryApi;
   pack: Pack;
   onChanged: (message: string) => Promise<void>;
   onDeleted: () => void;
   onError: (error: unknown) => void;
+  onNotice: (message: string) => void;
 }) {
   const stickers = pack.stickers ?? [];
   const canExport = stickers.length >= 3 && stickers.length <= 30;
+  const [exporting, setExporting] = useState(false);
 
   async function exportPack() {
+    setExporting(true);
     try {
       const blob = await api.exportPack(pack.id);
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `${pack.name.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}-${pack.id.slice(0, 8)}.zip`;
+      link.download = exportFileName(pack);
       document.body.append(link);
       link.click();
       link.remove();
       URL.revokeObjectURL(url);
+      onNotice('Export ZIP downloaded');
     } catch (error) {
       onError(error);
+    } finally {
+      setExporting(false);
     }
   }
 
@@ -431,9 +447,9 @@ function PackDetail({
           <p>{pack.publisher}</p>
         </div>
         <div className="detail-actions">
-          <button className="secondary-button" disabled={!canExport} onClick={() => void exportPack()} type="button">
+          <button className="secondary-button" disabled={!canExport || exporting} onClick={() => void exportPack()} type="button">
             <Download size={17} />
-            Export
+            {exporting ? 'Exporting' : 'Download ZIP'}
           </button>
           <IconButton label="Delete pack" onClick={() => void deletePack()} danger>
             <Trash2 size={18} />
@@ -446,6 +462,8 @@ function PackDetail({
         <Metric label="Version" value={pack.imageDataVersion} />
         <Metric label="Updated" value={new Date(pack.updatedAt).toLocaleDateString()} />
       </div>
+
+      <ExportReadiness stickerCount={stickers.length} canExport={canExport} />
 
       <PackEditForm api={api} pack={pack} onChanged={onChanged} onError={onError} />
 
@@ -483,6 +501,27 @@ function PackDetail({
           </div>
         )}
       </section>
+    </section>
+  );
+}
+
+function ExportReadiness({ stickerCount, canExport }: { stickerCount: number; canExport: boolean }) {
+  const missing = Math.max(0, 3 - stickerCount);
+
+  return (
+    <section className={`export-panel ${canExport ? 'ready' : 'blocked'}`}>
+      <div className="export-status">
+        {canExport ? <CheckCircle2 size={20} /> : <AlertCircle size={20} />}
+        <div>
+          <h3>{canExport ? 'WhatsApp export ready' : 'WhatsApp export blocked'}</h3>
+          <p>
+            {canExport
+              ? 'ZIP includes contents.json, tray icon, and ordered stickers.'
+              : `${missing} more sticker${missing === 1 ? '' : 's'} needed.`}
+          </p>
+        </div>
+      </div>
+      <span className="export-count">{stickerCount}/30</span>
     </section>
   );
 }
@@ -893,6 +932,11 @@ function EmptyState() {
       <p>Create or select a pack.</p>
     </section>
   );
+}
+
+function exportFileName(pack: Pack) {
+  const slug = pack.name.replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '').toLowerCase() || 'sticker-pack';
+  return `${slug}-${pack.id.slice(0, 8)}.zip`;
 }
 
 function formatBytes(bytes: number) {
