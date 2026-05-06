@@ -41,7 +41,7 @@ class StickerRepository private constructor(context: Context) {
                 continue
             }
             val local = db.stickerDao().getPack(remote.id)
-            if (local?.imageDataVersion == remote.imageDataVersion) {
+            if (local?.syncHash == remote.syncHash) {
                 continue
             }
 
@@ -50,6 +50,7 @@ class StickerRepository private constructor(context: Context) {
             db.stickerDao().upsertPack(
                 extracted.entity.copy(
                     isPublic = remote.isPublic,
+                    syncHash = remote.syncHash,
                     updatedAt = remote.updatedAt,
                 ),
             )

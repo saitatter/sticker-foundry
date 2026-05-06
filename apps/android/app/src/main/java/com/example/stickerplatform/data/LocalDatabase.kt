@@ -12,6 +12,8 @@ import androidx.room.PrimaryKey
 import androidx.room.Query
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import kotlinx.coroutines.flow.Flow
 
 @Entity(tableName = "packs")
@@ -21,6 +23,7 @@ data class PackEntity(
     val publisher: String,
     val trayImageFile: String,
     val imageDataVersion: String,
+    val syncHash: String,
     val localPath: String,
     val isPublic: Boolean,
     val updatedAt: String,
@@ -73,16 +76,23 @@ interface StickerDao {
     suspend fun deleteStickers(packId: String)
 }
 
-@Database(entities = [PackEntity::class, StickerEntity::class], version = 1, exportSchema = true)
+@Database(entities = [PackEntity::class, StickerEntity::class], version = 2, exportSchema = true)
 abstract class LocalDatabase : RoomDatabase() {
     abstract fun stickerDao(): StickerDao
 
     companion object {
         @Volatile private var instance: LocalDatabase? = null
 
+        private val migration1To2 = object : Migration(1, 2) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE packs ADD COLUMN syncHash TEXT NOT NULL DEFAULT ''")
+            }
+        }
+
         fun get(context: Context): LocalDatabase =
             instance ?: synchronized(this) {
                 instance ?: Room.databaseBuilder(context.applicationContext, LocalDatabase::class.java, "stickers.db")
+                    .addMigrations(migration1To2)
                     .build()
                     .also { instance = it }
             }
@@ -90,6 +100,7 @@ abstract class LocalDatabase : RoomDatabase() {
         fun providerGet(context: Context): LocalDatabase =
             instance ?: synchronized(this) {
                 instance ?: Room.databaseBuilder(context.applicationContext, LocalDatabase::class.java, "stickers.db")
+                    .addMigrations(migration1To2)
                     .allowMainThreadQueries()
                     .build()
                     .also { instance = it }
