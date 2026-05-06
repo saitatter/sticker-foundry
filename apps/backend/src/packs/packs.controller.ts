@@ -17,6 +17,7 @@ import { CurrentUser, RequestUser } from '../common/current-user.decorator';
 import { JwtAuthGuard } from '../common/jwt-auth.guard';
 import { CreatePackDto } from './dto/create-pack.dto';
 import { UpdatePackDto } from './dto/update-pack.dto';
+import { UpdateStickerDto } from './dto/update-sticker.dto';
 import { UploadStickerDto } from './dto/upload-sticker.dto';
 import { PackExportService } from './pack-export.service';
 import { PacksService } from './packs.service';
@@ -99,6 +100,16 @@ export class PacksController {
   @Delete(':id/stickers/:stickerId')
   deleteSticker(@CurrentUser() user: RequestUser, @Param('id') id: string, @Param('stickerId') stickerId: string) {
     return this.packsService.deleteSticker(user.sub, id, stickerId);
+  }
+
+  @Patch(':id/stickers/:stickerId')
+  updateSticker(
+    @CurrentUser() user: RequestUser,
+    @Param('id') id: string,
+    @Param('stickerId') stickerId: string,
+    @Body() dto: UpdateStickerDto,
+  ) {
+    return this.packsService.updateSticker(user.sub, id, stickerId, dto);
   }
 
   @Get(':id/export')

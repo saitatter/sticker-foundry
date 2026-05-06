@@ -448,6 +448,7 @@ function PackDetail({
                 key={sticker.id}
                 packId={pack.id}
                 sticker={sticker}
+                onChanged={() => onChanged('Sticker updated')}
                 onDeleted={() => onChanged('Sticker deleted')}
                 onError={onError}
               />
@@ -698,16 +699,26 @@ function StickerTile({
   api,
   packId,
   sticker,
+  onChanged,
   onDeleted,
   onError,
 }: {
   api: StickerFoundryApi;
   packId: string;
   sticker: Sticker;
+  onChanged: () => Promise<void>;
   onDeleted: () => Promise<void>;
   onError: (error: unknown) => void;
 }) {
   const [url, setUrl] = useState<string | null>(null);
+  const [emojis, setEmojis] = useState(sticker.emojis.join(','));
+  const [accessibilityText, setAccessibilityText] = useState(sticker.accessibilityText ?? '');
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    setEmojis(sticker.emojis.join(','));
+    setAccessibilityText(sticker.accessibilityText ?? '');
+  }, [sticker.accessibilityText, sticker.emojis]);
 
   useEffect(() => {
     let alive = true;
@@ -736,6 +747,30 @@ function StickerTile({
     }
   }
 
+  async function saveMetadata(event: FormEvent) {
+    event.preventDefault();
+    setSaving(true);
+    try {
+      await api.updateSticker(
+        packId,
+        sticker.id,
+        emojis
+          .split(',')
+          .map((emoji) => emoji.trim())
+          .filter(Boolean)
+          .slice(0, 3),
+        accessibilityText.trim(),
+      );
+      await onChanged();
+    } catch (error) {
+      onError(error);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const dirty = emojis !== sticker.emojis.join(',') || accessibilityText !== (sticker.accessibilityText ?? '');
+
   return (
     <article className="sticker-tile">
       <div className="sticker-preview">{url ? <img alt={sticker.accessibilityText ?? sticker.fileName} src={url} /> : null}</div>
@@ -743,6 +778,19 @@ function StickerTile({
         <span>{formatBytes(sticker.sizeBytes)}</span>
         <span>{sticker.emojis.join(' ') || 'No emoji'}</span>
       </div>
+      <form className="sticker-edit-form" onSubmit={saveMetadata}>
+        <label>
+          Emojis
+          <input value={emojis} onChange={(event) => setEmojis(event.target.value)} placeholder="smile,laugh" />
+        </label>
+        <label>
+          Alt text
+          <input value={accessibilityText} onChange={(event) => setAccessibilityText(event.target.value)} maxLength={125} />
+        </label>
+        <button className="secondary-button sticker-save" disabled={!dirty || saving} type="submit">
+          Save
+        </button>
+      </form>
       <IconButton label="Delete sticker" onClick={() => void deleteSticker()} danger>
         <Trash2 size={16} />
       </IconButton>

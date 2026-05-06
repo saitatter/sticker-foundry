@@ -159,6 +159,17 @@ export class StickerFoundryApi {
     });
   }
 
+  async updateSticker(packId: string, stickerId: string, emojis: string[], accessibilityText: string) {
+    return this.request<Sticker>(`/packs/${packId}/stickers/${stickerId}`, {
+      method: 'PATCH',
+      auth: true,
+      body: JSON.stringify({
+        emojis: emojis.slice(0, 3),
+        accessibilityText,
+      }),
+    });
+  }
+
   async stickerBlob(packId: string, stickerId: string) {
     const response = await fetch(`${API_BASE_URL}/packs/${packId}/stickers/${stickerId}/file`, {
       headers: new Headers(this.authHeaders()),
