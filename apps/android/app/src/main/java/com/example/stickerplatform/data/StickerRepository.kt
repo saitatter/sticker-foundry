@@ -58,6 +58,7 @@ class StickerRepository private constructor(context: Context) {
                         imageDataVersion = remote.imageDataVersion,
                         isPublic = remote.isPublic,
                         isOwner = remote.isOwner,
+                        stickerCount = remote.stickerCount,
                         updatedAt = remote.updatedAt,
                     ),
                 )
@@ -70,6 +71,7 @@ class StickerRepository private constructor(context: Context) {
                 extracted.entity.copy(
                     isPublic = remote.isPublic,
                     isOwner = remote.isOwner,
+                    stickerCount = remote.stickerCount,
                     syncHash = remote.syncHash,
                     updatedAt = remote.updatedAt,
                 ),

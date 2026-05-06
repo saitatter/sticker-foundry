@@ -27,6 +27,7 @@ data class PackEntity(
     val localPath: String,
     val isPublic: Boolean,
     val isOwner: Boolean,
+    val stickerCount: Int,
     val updatedAt: String,
 )
 
@@ -77,7 +78,7 @@ interface StickerDao {
     suspend fun deleteStickers(packId: String)
 }
 
-@Database(entities = [PackEntity::class, StickerEntity::class], version = 3, exportSchema = true)
+@Database(entities = [PackEntity::class, StickerEntity::class], version = 4, exportSchema = true)
 abstract class LocalDatabase : RoomDatabase() {
     abstract fun stickerDao(): StickerDao
 
@@ -96,10 +97,16 @@ abstract class LocalDatabase : RoomDatabase() {
             }
         }
 
+        private val migration3To4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE packs ADD COLUMN stickerCount INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
         fun get(context: Context): LocalDatabase =
             instance ?: synchronized(this) {
                 instance ?: Room.databaseBuilder(context.applicationContext, LocalDatabase::class.java, "stickers.db")
-                    .addMigrations(migration1To2, migration2To3)
+                    .addMigrations(migration1To2, migration2To3, migration3To4)
                     .build()
                     .also { instance = it }
             }
@@ -107,7 +114,7 @@ abstract class LocalDatabase : RoomDatabase() {
         fun providerGet(context: Context): LocalDatabase =
             instance ?: synchronized(this) {
                 instance ?: Room.databaseBuilder(context.applicationContext, LocalDatabase::class.java, "stickers.db")
-                    .addMigrations(migration1To2, migration2To3)
+                    .addMigrations(migration1To2, migration2To3, migration3To4)
                     .allowMainThreadQueries()
                     .build()
                     .also { instance = it }

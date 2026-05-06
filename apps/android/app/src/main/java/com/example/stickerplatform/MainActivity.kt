@@ -96,20 +96,24 @@ private fun StickerApp(viewModel: StickerViewModel = viewModel(factory = Sticker
             status = status,
         )
 
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(packs, key = { it.id }) { pack ->
-                PackRow(
-                    pack = pack,
-                    onAdd = { WhatsAppStickerLauncher.addPack(context, pack) },
-                    onUploadSticker = {
-                        stickerUploadPackId = pack.id
-                        stickerPicker.launch("image/*")
-                    },
-                    onReplaceTrayIcon = {
-                        trayIconPackId = pack.id
-                        trayIconPicker.launch("image/*")
-                    },
-                )
+        if (packs.isEmpty()) {
+            Text("No packs synced yet", style = MaterialTheme.typography.bodyMedium)
+        } else {
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(packs, key = { it.id }) { pack ->
+                    PackRow(
+                        pack = pack,
+                        onAdd = { WhatsAppStickerLauncher.addPack(context, pack) },
+                        onUploadSticker = {
+                            stickerUploadPackId = pack.id
+                            stickerPicker.launch("image/*")
+                        },
+                        onReplaceTrayIcon = {
+                            trayIconPackId = pack.id
+                            trayIconPicker.launch("image/*")
+                        },
+                    )
+                }
             }
         }
     }
@@ -180,11 +184,20 @@ private fun PackRow(
         ) {
             Text(pack.name, style = MaterialTheme.typography.titleMedium)
             Text(pack.publisher, style = MaterialTheme.typography.bodyMedium)
-            Text("Version ${pack.imageDataVersion}", style = MaterialTheme.typography.bodySmall)
+            Text(
+                "${pack.stickerCount} stickers · Version ${pack.imageDataVersion}",
+                style = MaterialTheme.typography.bodySmall,
+            )
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = onAdd) {
+                Button(
+                    onClick = onAdd,
+                    enabled = pack.stickerCount >= 3,
+                ) {
                     Text("Add to WhatsApp")
                 }
+            }
+            if (pack.stickerCount < 3) {
+                Text("Needs at least 3 stickers before WhatsApp import", style = MaterialTheme.typography.bodySmall)
             }
             if (pack.isOwner) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
