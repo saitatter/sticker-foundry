@@ -42,6 +42,27 @@ export type SyncPacksResponseDto = {
   packs: SyncPackDto[];
 };
 
+export type PackManifestStickerDto = {
+  fileName: string;
+  emojis: string[];
+  accessibilityText?: string | null;
+  sha256: string;
+  sizeBytes: number;
+};
+
+export type PackManifestDto = {
+  id: string;
+  name: string;
+  publisher: string;
+  imageDataVersion: string;
+  stickerCount: number;
+  canExport: boolean;
+  contentHash: string;
+  exportPath: string;
+  trayIconPath: string;
+  stickers: PackManifestStickerDto[];
+};
+
 export type AuthResponseDto = {
   accessToken: string;
   user: {

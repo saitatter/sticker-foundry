@@ -117,4 +117,61 @@ describe(PackExportService, () => {
 
     await expect(service.buildZip('pack-1', createArchive() as never)).rejects.toBeInstanceOf(BadRequestException);
   });
+
+  it('builds a manifest with a stable content hash and export paths', async () => {
+    const pack = {
+      id: 'pack-manifest',
+      name: 'Manifest Pack',
+      publisher: 'Sticker Foundry',
+      imageDataVersion: '4',
+      stickers: [
+        {
+          fileName: 'one.webp',
+          emojis: ['\uD83D\uDE00'],
+          accessibilityText: null,
+          sha256: 'one-hash',
+          sizeBytes: 1234,
+        },
+        {
+          fileName: 'two.webp',
+          emojis: [],
+          accessibilityText: 'second',
+          sha256: 'two-hash',
+          sizeBytes: 2345,
+        },
+        {
+          fileName: 'three.webp',
+          emojis: ['\u2728'],
+          accessibilityText: null,
+          sha256: 'three-hash',
+          sizeBytes: 3456,
+        },
+      ],
+    };
+    const { service } = await createService(pack);
+    const packDir = service.packDirectory(pack.id);
+    await mkdir(packDir, { recursive: true });
+    await writeFile(join(packDir, 'tray_icon.webp'), 'tray');
+
+    const manifest = await service.buildManifest(pack.id);
+
+    expect(manifest).toEqual(
+      expect.objectContaining({
+        id: pack.id,
+        stickerCount: 3,
+        canExport: true,
+        exportPath: `/packs/${pack.id}/export`,
+        trayIconPath: `/packs/${pack.id}/tray-icon`,
+      }),
+    );
+    expect(manifest.contentHash).toMatch(/^[a-f0-9]{64}$/);
+    expect(service.etagForHash(manifest.contentHash)).toBe(`"${manifest.contentHash}"`);
+    expect(manifest.stickers[1]).toEqual({
+      fileName: 'two.webp',
+      emojis: ['\uD83D\uDE00'],
+      accessibilityText: 'second',
+      sha256: 'two-hash',
+      sizeBytes: 2345,
+    });
+  });
 });

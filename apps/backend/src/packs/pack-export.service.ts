@@ -1,8 +1,9 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import archiver from 'archiver';
+import { createHash } from 'crypto';
 import { createReadStream } from 'fs';
-import { mkdir } from 'fs/promises';
+import { mkdir, readFile } from 'fs/promises';
 import { join } from 'path';
 import { PrismaService } from '../prisma.service';
 import { DEFAULT_STICKER_EMOJIS, WHATSAPP_LIMITS } from './whatsapp-constraints';
@@ -43,6 +44,41 @@ export class PackExportService {
 
   async buildContents(packId: string) {
     return this.contentsForPack(await this.loadValidExportPack(packId));
+  }
+
+  async buildManifest(packId: string) {
+    const pack = await this.loadExportPack(packId);
+    if (!pack) {
+      throw new NotFoundException('Pack not found');
+    }
+
+    const stickerCount = pack.stickers.length;
+    const canExport =
+      stickerCount >= WHATSAPP_LIMITS.minStickersPerPack && stickerCount <= WHATSAPP_LIMITS.maxStickersPerPack;
+    const contentHash = await this.contentHash(pack);
+
+    return {
+      id: pack.id,
+      name: pack.name,
+      publisher: pack.publisher,
+      imageDataVersion: pack.imageDataVersion,
+      stickerCount,
+      canExport,
+      contentHash,
+      exportPath: `/packs/${pack.id}/export`,
+      trayIconPath: `/packs/${pack.id}/tray-icon`,
+      stickers: pack.stickers.map((sticker) => ({
+        fileName: sticker.fileName,
+        emojis: this.cleanEmojis(sticker.emojis),
+        accessibilityText: sticker.accessibilityText,
+        sha256: sticker.sha256,
+        sizeBytes: sticker.sizeBytes,
+      })),
+    };
+  }
+
+  etagForHash(contentHash: string) {
+    return `"${contentHash}"`;
   }
 
   createArchive(): Archive {
@@ -103,6 +139,24 @@ export class PackExportService {
       where: { id: packId },
       include: { stickers: { orderBy: [{ position: 'asc' }, { createdAt: 'asc' }] } },
     });
+  }
+
+  private async contentHash(pack: ExportPack & { stickers: Array<ExportPack['stickers'][number] & { sha256?: string }> }) {
+    const hash = createHash('sha256');
+    hash.update(`${pack.id}:${pack.imageDataVersion}`);
+
+    try {
+      const trayIcon = await readFile(join(this.packDirectory(pack.id), 'tray_icon.webp'));
+      hash.update(trayIcon);
+    } catch {
+      hash.update('missing-tray-icon');
+    }
+
+    for (const sticker of pack.stickers) {
+      hash.update(`${sticker.fileName}:${sticker.sha256 ?? ''}`);
+    }
+
+    return hash.digest('hex');
   }
 
   private cleanEmojis(emojis: string[]) {

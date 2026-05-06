@@ -152,6 +152,13 @@ curl http://localhost:3000/api/sync/packs \
 `GET /sync/packs` is the Android sync index. It returns pack metadata, `imageDataVersion`, `updatedAt`, `syncHash`, `canExport`, and relative download paths so the app can skip unchanged or incomplete packs.
 
 ```bash
+curl -i http://localhost:3000/api/packs/PACK_ID/manifest \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+`GET /packs/:id/manifest` returns metadata, sticker file hashes, `contentHash`, and an `ETag`. Clients can send `If-None-Match` to receive `304 Not Modified` without downloading the full ZIP.
+
+```bash
 curl http://localhost:3000/api/health
 ```
 

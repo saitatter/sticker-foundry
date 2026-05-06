@@ -3,6 +3,8 @@ import {
   Controller,
   Delete,
   Get,
+  Headers,
+  HttpStatus,
   Param,
   Patch,
   Post,
@@ -153,5 +155,25 @@ export class PacksController {
   async contents(@CurrentUser() user: RequestUser, @Param('id') id: string) {
     await this.packsService.assertCanExport(user.sub, id);
     return this.exportService.buildContents(id);
+  }
+
+  @Get(':id/manifest')
+  async manifest(
+    @CurrentUser() user: RequestUser,
+    @Param('id') id: string,
+    @Headers('if-none-match') ifNoneMatch: string | undefined,
+    @Res() response: Response,
+  ) {
+    await this.packsService.get(user.sub, id);
+    const manifest = await this.exportService.buildManifest(id);
+    const etag = this.exportService.etagForHash(manifest.contentHash);
+
+    response.setHeader('ETag', etag);
+    response.setHeader('Cache-Control', 'private, max-age=60');
+    if (ifNoneMatch === etag) {
+      return response.status(HttpStatus.NOT_MODIFIED).send();
+    }
+
+    return response.json(manifest);
   }
 }
