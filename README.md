@@ -28,7 +28,7 @@ Current state:
 
 - Backend API: starter MVP implemented.
 - Android app: starter MVP implemented and debug build passes.
-- Web UI: not implemented yet. The planned location is `apps/web`.
+- Web UI: starter MVP implemented in `apps/web`.
 
 See [docs/IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md) for the staged roadmap.
 
@@ -171,17 +171,24 @@ Sync strategy:
 
 ## 🌐 Web UI
 
-There is no web frontend yet. For now, pack management is available through the backend API, and WhatsApp import is handled by the Android app.
-
-The planned `apps/web` app should provide:
+The web app lives in `apps/web` and provides:
 
 - Login/register UI.
-- Pack list and pack detail pages.
-- Create/edit/delete pack UI.
-- Sticker upload with progress and validation messages.
+- Pack list and pack detail view.
+- Create/delete pack UI.
+- Sticker upload with validation feedback.
 - Processed WebP preview.
+- Sticker delete action.
 - Export ZIP download.
-- Public/private pack toggle.
+- Public/private pack creation.
+
+Run it locally:
+
+```bash
+npm run dev:web
+```
+
+By default, Vite proxies `/api` to `http://localhost:3000`. Set `VITE_API_URL` when pointing the web app at a different backend URL.
 
 ## 🐳 Docker Setup
 

@@ -52,6 +52,7 @@ module.exports = {
           'package.json',
           'package-lock.json',
           'apps/backend/package.json',
+          'apps/web/package.json',
           'packages/shared-types/package.json',
           'apps/android/app/build.gradle.kts',
         ],

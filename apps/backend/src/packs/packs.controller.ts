@@ -47,6 +47,19 @@ export class PacksController {
     return this.packsService.delete(user.sub, id);
   }
 
+  @Get(':id/stickers/:stickerId/file')
+  async stickerFile(
+    @CurrentUser() user: RequestUser,
+    @Param('id') id: string,
+    @Param('stickerId') stickerId: string,
+    @Res() response: Response,
+  ) {
+    const file = await this.packsService.getStickerFilePath(user.sub, id, stickerId);
+    response.setHeader('Content-Type', 'image/webp');
+    response.setHeader('Cache-Control', 'private, max-age=300');
+    return response.sendFile(file.path);
+  }
+
   @Post(':id/stickers')
   @UseInterceptors(FileInterceptor('file'))
   uploadSticker(
@@ -56,6 +69,11 @@ export class PacksController {
     @Body() dto: UploadStickerDto,
   ) {
     return this.packsService.uploadSticker(user.sub, id, file, dto);
+  }
+
+  @Delete(':id/stickers/:stickerId')
+  deleteSticker(@CurrentUser() user: RequestUser, @Param('id') id: string, @Param('stickerId') stickerId: string) {
+    return this.packsService.deleteSticker(user.sub, id, stickerId);
   }
 
   @Get(':id/export')

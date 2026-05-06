@@ -1,6 +1,6 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { rm } from 'fs/promises';
-import { join } from 'path';
+import { join, resolve } from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import { PrismaService } from '../prisma.service';
 import { CreatePackDto } from './dto/create-pack.dto';
@@ -134,6 +134,47 @@ export class PacksService {
     });
 
     return sticker;
+  }
+
+  async getStickerFilePath(userId: string, packId: string, stickerId: string) {
+    await this.get(userId, packId);
+    const sticker = await this.prisma.sticker.findFirst({
+      where: { id: stickerId, packId },
+    });
+    if (!sticker) {
+      throw new NotFoundException('Sticker not found');
+    }
+
+    return {
+      fileName: sticker.fileName,
+      path: resolve(join(this.exportService.packDirectory(packId), sticker.fileName)),
+    };
+  }
+
+  async deleteSticker(ownerId: string, packId: string, stickerId: string) {
+    const pack = await this.prisma.pack.findUnique({ where: { id: packId } });
+    if (!pack) {
+      throw new NotFoundException('Pack not found');
+    }
+    if (pack.ownerId !== ownerId) {
+      throw new ForbiddenException('Only the owner can delete stickers');
+    }
+
+    const sticker = await this.prisma.sticker.findFirst({
+      where: { id: stickerId, packId },
+    });
+    if (!sticker) {
+      throw new NotFoundException('Sticker not found');
+    }
+
+    await this.prisma.sticker.delete({ where: { id: stickerId } });
+    await rm(join(this.exportService.packDirectory(packId), sticker.fileName), { force: true });
+    await this.prisma.pack.update({
+      where: { id: packId },
+      data: { imageDataVersion: this.newImageDataVersion(pack.imageDataVersion) },
+    });
+
+    return { deleted: true };
   }
 
   async assertCanExport(userId: string, packId: string) {
