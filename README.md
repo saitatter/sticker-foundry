@@ -100,6 +100,8 @@ The seed command creates a local demo account and a WhatsApp-compatible demo pac
 - password: `stickerfoundry123`
 - pack: `Foundry Classics`
 
+The web login screen includes a **Use demo account** button that fills these seeded credentials.
+
 ### 🧪 Backend tests
 
 ```bash

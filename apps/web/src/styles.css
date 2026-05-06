@@ -642,6 +642,11 @@ input:focus {
   background: var(--surface);
 }
 
+.demo-login-button {
+  width: 100%;
+  margin-bottom: 14px;
+}
+
 .password-field {
   display: grid;
   grid-template-columns: 1fr 40px;

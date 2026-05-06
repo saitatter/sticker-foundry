@@ -10,6 +10,7 @@ import {
   EyeOff,
   Globe2,
   ImagePlus,
+  KeyRound,
   Lock,
   LogOut,
   Plus,
@@ -21,6 +22,8 @@ import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { ApiError, Pack, Sticker, StickerFoundryApi, User } from './api';
 
 const TOKEN_KEY = 'stickerfoundry.token';
+const DEMO_EMAIL = 'demo@stickerfoundry.local';
+const DEMO_PASSWORD = 'stickerfoundry123';
 
 type Notice = {
   tone: 'info' | 'error' | 'success';
@@ -211,6 +214,13 @@ function AuthScreen({
     }
   }
 
+  function useDemoCredentials() {
+    setMode('login');
+    setEmail(DEMO_EMAIL);
+    setDisplayName('');
+    setPassword(DEMO_PASSWORD);
+  }
+
   return (
     <main className="auth-layout">
       <section className="auth-panel">
@@ -230,6 +240,11 @@ function AuthScreen({
             Register
           </button>
         </div>
+
+        <button className="secondary-button demo-login-button" onClick={useDemoCredentials} type="button">
+          <KeyRound size={17} />
+          Use demo account
+        </button>
 
         {notice ? <NoticeBar notice={notice} /> : null}
 
