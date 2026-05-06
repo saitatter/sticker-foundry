@@ -318,6 +318,7 @@ Initial commit structure should include:
 - **WhatsApp import does not open**: verify WhatsApp is installed and the pack has at least 3 stickers.
 - **Export fails**: verify the pack has 3-30 stickers and all images can be compressed to WhatsApp limits.
 - **Upload is rejected**: sticker source uploads are capped at 10 MB, tray icon source uploads at 5 MB.
+- **Too many requests**: the API applies an in-memory rate limit. Tune it with `THROTTLE_TTL_MS` and `THROTTLE_LIMIT`.
 
 ## 📝 Notes
 
