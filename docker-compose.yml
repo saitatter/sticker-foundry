@@ -1,0 +1,41 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: stickers
+      POSTGRES_USER: stickers
+      POSTGRES_PASSWORD: stickers
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U stickers -d stickers"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: .
+      dockerfile: apps/backend/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: postgresql://stickers:stickers@postgres:5432/stickers?schema=public
+      JWT_SECRET: change-this-long-random-secret
+      DATA_DIR: /data
+      PUBLIC_BASE_URL: http://localhost:3000
+    volumes:
+      - foundry-data:/data
+    ports:
+      - "3000:3000"
+
+volumes:
+  postgres-data:
+  foundry-data:

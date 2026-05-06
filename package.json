@@ -1,0 +1,19 @@
+{
+  "name": "sticker-foundry",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Self-hosted collaborative WhatsApp sticker pack management platform.",
+  "workspaces": [
+    "apps/backend",
+    "packages/shared-types"
+  ],
+  "scripts": {
+    "dev:backend": "npm --workspace apps/backend run start:dev",
+    "build:backend": "npm --workspace apps/backend run build",
+    "prisma:generate": "npm --workspace apps/backend run prisma:generate",
+    "prisma:migrate": "npm --workspace apps/backend run prisma:migrate"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

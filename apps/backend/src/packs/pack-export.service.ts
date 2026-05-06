@@ -1,0 +1,86 @@
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import archiver from 'archiver';
+import { createReadStream } from 'fs';
+import { mkdir } from 'fs/promises';
+import { join } from 'path';
+import { PrismaService } from '../prisma.service';
+import { DEFAULT_STICKER_EMOJIS, WHATSAPP_LIMITS } from './whatsapp-constraints';
+
+type Archive = archiver.Archiver;
+
+@Injectable()
+export class PackExportService {
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly config: ConfigService,
+  ) {}
+
+  async buildZip(packId: string, archive: Archive) {
+    const pack = await this.prisma.pack.findUnique({
+      where: { id: packId },
+      include: { stickers: { orderBy: { createdAt: 'asc' } } },
+    });
+
+    if (!pack) {
+      throw new NotFoundException('Pack not found');
+    }
+
+    if (pack.stickers.length < WHATSAPP_LIMITS.minStickersPerPack) {
+      throw new BadRequestException(`A WhatsApp pack needs at least ${WHATSAPP_LIMITS.minStickersPerPack} stickers`);
+    }
+
+    if (pack.stickers.length > WHATSAPP_LIMITS.maxStickersPerPack) {
+      throw new BadRequestException(`A WhatsApp pack cannot exceed ${WHATSAPP_LIMITS.maxStickersPerPack} stickers`);
+    }
+
+    const packDir = this.packDirectory(pack.id);
+    await mkdir(packDir, { recursive: true });
+
+    const contents = {
+      android_play_store_link: '',
+      ios_app_store_link: '',
+      sticker_packs: [
+        {
+          identifier: pack.id.slice(0, WHATSAPP_LIMITS.maxIdentifierLength),
+          name: pack.name,
+          publisher: pack.publisher,
+          tray_image_file: 'tray_icon.webp',
+          image_data_version: pack.imageDataVersion,
+          avoid_cache: false,
+          animated_sticker_pack: false,
+          publisher_email: '',
+          publisher_website: '',
+          privacy_policy_website: '',
+          license_agreement_website: '',
+          stickers: pack.stickers.map((sticker) => ({
+            image_file: sticker.fileName,
+            emojis: this.cleanEmojis(sticker.emojis),
+            accessibility_text: sticker.accessibilityText ?? undefined,
+          })),
+        },
+      ],
+    };
+
+    archive.append(JSON.stringify(contents, null, 2), { name: 'contents.json' });
+    archive.file(join(packDir, 'tray_icon.webp'), { name: 'tray_icon.webp' });
+
+    for (const sticker of pack.stickers) {
+      archive.append(createReadStream(join(packDir, sticker.fileName)), { name: sticker.fileName });
+    }
+  }
+
+  createArchive(): Archive {
+    return archiver('zip', { zlib: { level: 9 } });
+  }
+
+  packDirectory(packId: string) {
+    const dataDir = this.config.get<string>('DATA_DIR', './data');
+    return join(dataDir, 'packs', packId);
+  }
+
+  private cleanEmojis(emojis: string[]) {
+    const cleaned = emojis.filter(Boolean).slice(0, WHATSAPP_LIMITS.maxStickerEmojis);
+    return cleaned.length > 0 ? cleaned : DEFAULT_STICKER_EMOJIS;
+  }
+}
