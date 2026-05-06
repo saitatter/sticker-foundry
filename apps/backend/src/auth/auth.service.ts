@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../prisma.service';
+import { ChangePasswordDto } from './dto/change-password.dto';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 
@@ -53,6 +54,22 @@ export class AuthService {
       select: { id: true, email: true, displayName: true, createdAt: true },
     });
     return user;
+  }
+
+  async changePassword(userId: string, dto: ChangePasswordDto) {
+    const user = await this.prisma.user.findUniqueOrThrow({ where: { id: userId } });
+    const ok = await bcrypt.compare(dto.currentPassword, user.passwordHash);
+    if (!ok) {
+      throw new UnauthorizedException('Current password is incorrect');
+    }
+
+    const passwordHash = await bcrypt.hash(dto.newPassword, 12);
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { passwordHash },
+    });
+
+    return { changed: true };
   }
 
   private authResponse(user: { id: string; email: string; displayName: string }) {

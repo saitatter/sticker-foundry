@@ -100,6 +100,14 @@ export class StickerFoundryApi {
     return this.request<User>('/auth/me', { auth: true });
   }
 
+  async changePassword(currentPassword: string, newPassword: string) {
+    return this.request<{ changed: boolean }>('/auth/password', {
+      method: 'PATCH',
+      auth: true,
+      body: JSON.stringify({ currentPassword, newPassword }),
+    });
+  }
+
   async packs() {
     return this.request<Pack[]>('/packs', { auth: true });
   }

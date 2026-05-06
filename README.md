@@ -15,6 +15,7 @@ StickerFoundry is a self-hosted collaborative WhatsApp sticker pack manager, sha
 - Self-hosted NestJS API with PostgreSQL and Prisma.
 - JWT register/login.
 - Registration mode control with `REGISTRATION_MODE=open|invite-only|disabled` and optional `REGISTRATION_INVITE_CODE`.
+- Authenticated password change endpoint and web account dialog.
 - Pack CRUD with ownership and public pack visibility.
 - Sticker upload with WebP conversion, 512x512 resize, and WhatsApp size validation.
 - Upload validation checks actual image content in addition to MIME headers.

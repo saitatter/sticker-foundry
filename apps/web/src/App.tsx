@@ -47,6 +47,7 @@ export function App() {
   const [selectedPack, setSelectedPack] = useState<Pack | null>(null);
   const [notice, setNotice] = useState<Notice | null>(null);
   const [loading, setLoading] = useState(false);
+  const [showAccountDialog, setShowAccountDialog] = useState(false);
 
   const api = useMemo(() => new StickerFoundryApi(() => token), [token]);
 
@@ -131,6 +132,9 @@ export function App() {
           </div>
         </div>
         <div className="topbar-actions">
+          <IconButton label="Account settings" onClick={() => setShowAccountDialog(true)}>
+            <KeyRound size={18} />
+          </IconButton>
           <IconButton label="Refresh packs" onClick={() => void refreshPacks()}>
             <RefreshCw size={18} />
           </IconButton>
@@ -190,6 +194,80 @@ export function App() {
           )}
         </main>
       </div>
+      {showAccountDialog ? (
+        <AccountDialog
+          api={api}
+          onClose={() => setShowAccountDialog(false)}
+          onChanged={() => setNotice({ tone: 'success', text: 'Password changed' })}
+          onError={reportError}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+function AccountDialog({
+  api,
+  onClose,
+  onChanged,
+  onError,
+}: {
+  api: StickerFoundryApi;
+  onClose: () => void;
+  onChanged: () => void;
+  onError: (error: unknown) => void;
+}) {
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    setSaving(true);
+    try {
+      await api.changePassword(currentPassword, newPassword);
+      onChanged();
+      onClose();
+    } catch (error) {
+      onError(error);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="modal-backdrop" role="presentation">
+      <form className="modal-panel form-grid" onSubmit={submit}>
+        <div className="section-heading">
+          <h2>Account</h2>
+          <button className="secondary-button" onClick={onClose} type="button">
+            Close
+          </button>
+        </div>
+        <label>
+          Current password
+          <input
+            value={currentPassword}
+            onChange={(event) => setCurrentPassword(event.target.value)}
+            type="password"
+            required
+          />
+        </label>
+        <label>
+          New password
+          <input
+            value={newPassword}
+            onChange={(event) => setNewPassword(event.target.value)}
+            type="password"
+            minLength={8}
+            required
+          />
+        </label>
+        <button className="primary-button" disabled={saving} type="submit">
+          <KeyRound size={17} />
+          {saving ? 'Saving' : 'Change password'}
+        </button>
+      </form>
     </div>
   );
 }
