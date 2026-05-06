@@ -17,6 +17,8 @@ import {
   LogOut,
   Plus,
   RefreshCw,
+  RotateCcw,
+  RotateCw,
   Trash2,
   Upload,
 } from 'lucide-react';
@@ -768,6 +770,7 @@ function UploadPanel({
   onError: (error: unknown) => void;
 }) {
   const [files, setFiles] = useState<File[]>([]);
+  const [editOptions, setEditOptions] = useState<ImageEditOptions>(defaultImageEditOptions);
   const [emojis, setEmojis] = useState('');
   const [accessibilityText, setAccessibilityText] = useState('');
   const [uploading, setUploading] = useState(false);
@@ -787,12 +790,14 @@ function UploadPanel({
         .slice(0, 3);
 
       for (const [index, file] of files.entries()) {
-        await api.uploadSticker(pack.id, file, uploadEmojis, accessibilityText);
+        const uploadFile = await editImageFile(file, editOptions);
+        await api.uploadSticker(pack.id, uploadFile, uploadEmojis, accessibilityText);
         setUploadedCount(index + 1);
       }
 
       const count = files.length;
       setFiles([]);
+      setEditOptions(defaultImageEditOptions);
       setEmojis('');
       setAccessibilityText('');
       await onChanged(count === 1 ? 'Sticker uploaded' : `${count} stickers uploaded`);
@@ -849,6 +854,7 @@ function UploadPanel({
           {uploading ? `Uploading ${uploadedCount}/${files.length}` : 'Upload'}
         </button>
       </form>
+      {files[0] ? <ImageEditControls file={files[0]} options={editOptions} onChange={setEditOptions} /> : null}
       {files.length > 1 ? <p className="upload-note">Files upload one by one in selection order.</p> : null}
     </section>
   );
@@ -892,6 +898,7 @@ function StickerTile({
   const [accessibilityText, setAccessibilityText] = useState(sticker.accessibilityText ?? '');
   const [saving, setSaving] = useState(false);
   const [replacementFile, setReplacementFile] = useState<File | null>(null);
+  const [replacementEditOptions, setReplacementEditOptions] = useState<ImageEditOptions>(defaultImageEditOptions);
   const [replacing, setReplacing] = useState(false);
 
   useEffect(() => {
@@ -953,8 +960,10 @@ function StickerTile({
     if (!replacementFile) return;
     setReplacing(true);
     try {
-      await api.replaceStickerImage(packId, sticker.id, replacementFile);
+      const editedFile = await editImageFile(replacementFile, replacementEditOptions);
+      await api.replaceStickerImage(packId, sticker.id, editedFile);
       setReplacementFile(null);
+      setReplacementEditOptions(defaultImageEditOptions);
       await onChanged();
     } catch (error) {
       onError(error);
@@ -1013,10 +1022,85 @@ function StickerTile({
           {replacing ? 'Replacing' : 'Replace'}
         </button>
       </form>
+      {replacementFile ? (
+        <ImageEditControls file={replacementFile} options={replacementEditOptions} onChange={setReplacementEditOptions} compact />
+      ) : null}
       <IconButton label="Delete sticker" onClick={() => void deleteSticker()} danger>
         <Trash2 size={16} />
       </IconButton>
     </article>
+  );
+}
+
+type ImageEditOptions = {
+  rotation: 0 | 90 | 180 | 270;
+  cropSquare: boolean;
+};
+
+const defaultImageEditOptions: ImageEditOptions = {
+  rotation: 0,
+  cropSquare: false,
+};
+
+function ImageEditControls({
+  file,
+  options,
+  onChange,
+  compact = false,
+}: {
+  file: File;
+  options: ImageEditOptions;
+  onChange: (options: ImageEditOptions) => void;
+  compact?: boolean;
+}) {
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    let objectUrl: string | null = null;
+    editImageFile(file, options)
+      .then((editedFile) => {
+        if (!alive) return;
+        objectUrl = URL.createObjectURL(editedFile);
+        setPreviewUrl(objectUrl);
+      })
+      .catch(() => setPreviewUrl(null));
+
+    return () => {
+      alive = false;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [file, options]);
+
+  function rotate(delta: 90 | -90) {
+    const nextRotation = (((options.rotation + delta + 360) % 360) as ImageEditOptions['rotation']);
+    onChange({ ...options, rotation: nextRotation });
+  }
+
+  return (
+    <div className={`image-edit-controls ${compact ? 'compact' : ''}`}>
+      {previewUrl ? (
+        <div className="image-edit-preview">
+          <img alt="Edited preview" src={previewUrl} />
+        </div>
+      ) : null}
+      <div className="image-edit-actions">
+        <IconButton label="Rotate left" onClick={() => rotate(-90)}>
+          <RotateCcw size={16} />
+        </IconButton>
+        <IconButton label="Rotate right" onClick={() => rotate(90)}>
+          <RotateCw size={16} />
+        </IconButton>
+        <label className="checkbox-row image-edit-toggle">
+          <input
+            checked={options.cropSquare}
+            onChange={(event) => onChange({ ...options, cropSquare: event.target.checked })}
+            type="checkbox"
+          />
+          Square crop
+        </label>
+      </div>
+    </div>
   );
 }
 
@@ -1082,6 +1166,55 @@ function EmptyState() {
 function exportFileName(pack: Pack) {
   const slug = pack.name.replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '').toLowerCase() || 'sticker-pack';
   return `${slug}-${pack.id.slice(0, 8)}.zip`;
+}
+
+async function editImageFile(file: File, options: ImageEditOptions) {
+  if (options.rotation === 0 && !options.cropSquare) return file;
+
+  const image = await loadImage(file);
+  const sourceSize = options.cropSquare ? Math.min(image.naturalWidth, image.naturalHeight) : undefined;
+  const sourceX = sourceSize ? Math.floor((image.naturalWidth - sourceSize) / 2) : 0;
+  const sourceY = sourceSize ? Math.floor((image.naturalHeight - sourceSize) / 2) : 0;
+  const sourceWidth = sourceSize ?? image.naturalWidth;
+  const sourceHeight = sourceSize ?? image.naturalHeight;
+  const rotated = options.rotation === 90 || options.rotation === 270;
+
+  const canvas = document.createElement('canvas');
+  canvas.width = rotated ? sourceHeight : sourceWidth;
+  canvas.height = rotated ? sourceWidth : sourceHeight;
+
+  const context = canvas.getContext('2d');
+  if (!context) return file;
+
+  context.translate(canvas.width / 2, canvas.height / 2);
+  context.rotate((options.rotation * Math.PI) / 180);
+  context.drawImage(image, sourceX, sourceY, sourceWidth, sourceHeight, -sourceWidth / 2, -sourceHeight / 2, sourceWidth, sourceHeight);
+
+  const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'));
+  if (!blob) return file;
+
+  return new File([blob], editedFileName(file), { type: 'image/png' });
+}
+
+function loadImage(file: File) {
+  return new Promise<HTMLImageElement>((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const image = new Image();
+    image.onload = () => {
+      URL.revokeObjectURL(url);
+      resolve(image);
+    };
+    image.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error('Image preview failed'));
+    };
+    image.src = url;
+  });
+}
+
+function editedFileName(file: File) {
+  const baseName = file.name.replace(/\.[^.]+$/, '') || 'sticker';
+  return `${baseName}-edited.png`;
 }
 
 function formatBytes(bytes: number) {

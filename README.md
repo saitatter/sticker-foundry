@@ -215,6 +215,7 @@ The web app lives in `apps/web` and provides:
 - Sticker emoji and accessibility text editing.
 - Sticker image replacement.
 - Sticker image replacement from web UI.
+- Client-side rotate and square crop before upload or replacement.
 - Sticker reorder controls.
 - Drag-and-drop sticker ordering.
 - Bulk sticker upload.
