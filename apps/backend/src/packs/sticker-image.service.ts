@@ -2,7 +2,7 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import { createHash } from 'crypto';
 import { mkdir, stat, writeFile } from 'fs/promises';
 import { dirname } from 'path';
-import sharp from 'sharp';
+import sharp = require('sharp');
 import { WHATSAPP_LIMITS } from './whatsapp-constraints';
 
 export type ProcessedImage = {
@@ -34,6 +34,7 @@ export class StickerImageService {
   }
 
   private async processWebp(input: Buffer, pixels: number, maxBytes: number): Promise<ProcessedImage> {
+    await this.assertSupportedImageContent(input);
     let last: Buffer | undefined;
 
     for (const quality of [90, 80, 70, 60, 50, 40, 32, 25]) {
@@ -65,5 +66,18 @@ export class StickerImageService {
     throw new BadRequestException(
       `Image cannot be compressed below ${maxBytes} bytes without excessive quality loss. Last size: ${last?.byteLength ?? 0} bytes`,
     );
+  }
+
+  private async assertSupportedImageContent(input: Buffer) {
+    let format: string | undefined;
+    try {
+      format = (await sharp(input, { animated: false }).metadata()).format;
+    } catch {
+      throw new BadRequestException('Upload is not a valid image file');
+    }
+
+    if (!format || !['avif', 'gif', 'heif', 'jpeg', 'jpg', 'png', 'tiff', 'webp'].includes(format)) {
+      throw new BadRequestException(`Unsupported image format: ${format ?? 'unknown'}`);
+    }
   }
 }
