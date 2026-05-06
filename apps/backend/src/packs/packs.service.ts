@@ -285,19 +285,18 @@ export class PacksService {
       throw new BadRequestException('Reorder request must include every sticker in this pack exactly once');
     }
 
-    await this.prisma.$transaction(
-      dto.stickerIds.map((id, position) =>
+    await this.prisma.$transaction([
+      ...dto.stickerIds.map((id, position) =>
         this.prisma.sticker.update({
           where: { id },
           data: { position },
         }),
       ),
-    );
-
-    await this.prisma.pack.update({
-      where: { id: packId },
-      data: { imageDataVersion: this.newImageDataVersion(pack.imageDataVersion) },
-    });
+      this.prisma.pack.update({
+        where: { id: packId },
+        data: { imageDataVersion: this.newImageDataVersion(pack.imageDataVersion) },
+      }),
+    ]);
 
     return this.get(ownerId, packId);
   }

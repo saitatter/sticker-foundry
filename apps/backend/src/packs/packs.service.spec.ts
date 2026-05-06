@@ -150,6 +150,7 @@ describe(PacksService, () => {
       { where: { id: 'sticker-c' }, data: { position: 0 } },
       { where: { id: 'sticker-a' }, data: { position: 1 } },
       { where: { id: 'sticker-b' }, data: { position: 2 } },
+      prisma.pack.update.mock.results[0].value,
     ]);
     expect(prisma.pack.update).toHaveBeenCalledWith({
       where: { id: 'pack-1' },
