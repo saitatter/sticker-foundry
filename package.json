@@ -9,6 +9,8 @@
     "packages/shared-types"
   ],
   "scripts": {
+    "dev": "concurrently -n backend,web -c cyan,green \"npm run dev:backend\" \"npm run dev:web\"",
+    "dev:seeded": "npm run prisma:migrate && npm run prisma:seed && npm run dev",
     "dev:backend": "npm --workspace apps/backend run start:dev",
     "dev:web": "npm --workspace apps/web run dev",
     "build:backend": "npm --workspace apps/backend run build",
@@ -30,6 +32,7 @@
     "@semantic-release/git": "^10.0.1",
     "@semantic-release/github": "^11.0.6",
     "@semantic-release/release-notes-generator": "^13.0.0",
+    "concurrently": "^9.2.1",
     "conventional-changelog-conventionalcommits": "^8.0.0",
     "semantic-release": "^24.2.9"
   }

@@ -91,8 +91,13 @@ cp apps/backend/.env.example apps/backend/.env
 docker compose up -d postgres
 npm run prisma:migrate
 npm run prisma:seed
-npm run dev:backend
+npm run dev
 ```
+
+`npm run dev` starts the backend and web app together. For a fresh database, use `npm run dev:seeded` after PostgreSQL is running; it applies migrations, seeds demo data, then starts both apps.
+
+- backend API: `http://localhost:3000/api`
+- web UI: `http://localhost:5173`
 
 The seed command creates a local demo account and a WhatsApp-compatible demo pack:
 
