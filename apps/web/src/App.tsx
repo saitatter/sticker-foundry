@@ -484,7 +484,13 @@ function PackDetail({
 
       <TrayIconPanel api={api} pack={pack} onChanged={onChanged} onError={onError} />
 
-      <UploadPanel api={api} pack={pack} disabled={stickers.length >= 30} onChanged={onChanged} onError={onError} />
+      <UploadPanel
+        api={api}
+        pack={pack}
+        remainingSlots={Math.max(0, 30 - stickers.length)}
+        onChanged={onChanged}
+        onError={onError}
+      />
 
       <section className="stickers-section">
         <div className="section-heading">
@@ -696,63 +702,84 @@ function TrayIconPanel({
 function UploadPanel({
   api,
   pack,
-  disabled,
+  remainingSlots,
   onChanged,
   onError,
 }: {
   api: StickerFoundryApi;
   pack: Pack;
-  disabled: boolean;
+  remainingSlots: number;
   onChanged: (message: string) => Promise<void>;
   onError: (error: unknown) => void;
 }) {
-  const [file, setFile] = useState<File | null>(null);
+  const [files, setFiles] = useState<File[]>([]);
   const [emojis, setEmojis] = useState('');
   const [accessibilityText, setAccessibilityText] = useState('');
   const [uploading, setUploading] = useState(false);
+  const [uploadedCount, setUploadedCount] = useState(0);
+  const disabled = remainingSlots <= 0;
 
   async function submit(event: FormEvent) {
     event.preventDefault();
-    if (!file) return;
+    if (files.length === 0) return;
     setUploading(true);
+    setUploadedCount(0);
     try {
-      await api.uploadSticker(
-        pack.id,
-        file,
-        emojis
-          .split(',')
-          .map((emoji) => emoji.trim())
-          .filter(Boolean)
-          .slice(0, 3),
-        accessibilityText,
-      );
-      setFile(null);
+      const uploadEmojis = emojis
+        .split(',')
+        .map((emoji) => emoji.trim())
+        .filter(Boolean)
+        .slice(0, 3);
+
+      for (const [index, file] of files.entries()) {
+        await api.uploadSticker(pack.id, file, uploadEmojis, accessibilityText);
+        setUploadedCount(index + 1);
+      }
+
+      const count = files.length;
+      setFiles([]);
       setEmojis('');
       setAccessibilityText('');
-      await onChanged('Sticker uploaded');
+      await onChanged(count === 1 ? 'Sticker uploaded' : `${count} stickers uploaded`);
     } catch (error) {
       onError(error);
     } finally {
       setUploading(false);
+      setUploadedCount(0);
     }
   }
+
+  function chooseFiles(fileList: FileList | null) {
+    const selected = Array.from(fileList ?? []).slice(0, remainingSlots);
+    setFiles(selected);
+  }
+
+  const fileLabel =
+    files.length === 0
+      ? disabled
+        ? 'Pack is full'
+        : 'Choose images'
+      : files.length === 1
+        ? files[0].name
+        : `${files.length} images selected`;
 
   return (
     <section className="upload-panel">
       <div className="section-heading">
         <h3>Upload</h3>
-        <Upload size={18} />
+        <span className="counter">{remainingSlots}</span>
       </div>
       <form className="upload-form" onSubmit={submit}>
         <label className="file-drop">
           <input
             accept="image/*"
             disabled={disabled}
-            onChange={(event) => setFile(event.target.files?.[0] ?? null)}
+            multiple
+            onChange={(event) => chooseFiles(event.target.files)}
             type="file"
           />
           <ImagePlus size={22} />
-          <span>{file ? file.name : 'Choose image'}</span>
+          <span>{fileLabel}</span>
         </label>
         <label>
           Emojis
@@ -762,11 +789,12 @@ function UploadPanel({
           Alt text
           <input value={accessibilityText} onChange={(event) => setAccessibilityText(event.target.value)} maxLength={125} />
         </label>
-        <button className="primary-button" disabled={!file || disabled || uploading} type="submit">
+        <button className="primary-button" disabled={files.length === 0 || disabled || uploading} type="submit">
           <Upload size={17} />
-          Upload
+          {uploading ? `Uploading ${uploadedCount}/${files.length}` : 'Upload'}
         </button>
       </form>
+      {files.length > 1 ? <p className="upload-note">Files upload one by one in selection order.</p> : null}
     </section>
   );
 }

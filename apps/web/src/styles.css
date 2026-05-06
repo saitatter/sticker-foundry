@@ -460,6 +460,12 @@ input:focus {
   gap: 12px;
 }
 
+.upload-note {
+  margin: 10px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
 .edit-form {
   display: grid;
   grid-template-columns: minmax(180px, 1fr) minmax(180px, 1fr) minmax(220px, 1.4fr) auto auto;
