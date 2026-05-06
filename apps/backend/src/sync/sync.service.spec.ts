@@ -27,6 +27,11 @@ describe(SyncService, () => {
         imageDataVersion: '4',
         updatedAt: new Date('2026-05-07T08:00:00.000Z'),
         _count: { stickers: 3 },
+        stickers: [
+          { fileName: 'a.webp', sha256: 'a-sha' },
+          { fileName: 'b.webp', sha256: 'b-sha' },
+          { fileName: 'c.webp', sha256: 'c-sha' },
+        ],
       },
       {
         id: 'public-pack',
@@ -38,6 +43,10 @@ describe(SyncService, () => {
         imageDataVersion: '9',
         updatedAt: new Date('2026-05-07T09:00:00.000Z'),
         _count: { stickers: 2 },
+        stickers: [
+          { fileName: 'one.webp', sha256: 'one-sha' },
+          { fileName: 'two.webp', sha256: 'two-sha' },
+        ],
       },
     ]);
 
@@ -50,6 +59,10 @@ describe(SyncService, () => {
       orderBy: [{ updatedAt: 'desc' }, { name: 'asc' }],
       include: {
         _count: { select: { stickers: true } },
+        stickers: {
+          orderBy: [{ position: 'asc' }, { createdAt: 'asc' }],
+          select: { fileName: true, sha256: true },
+        },
       },
     });
     expect(result.serverTime).toEqual(expect.any(String));
@@ -75,6 +88,9 @@ describe(SyncService, () => {
     ]);
     expect(result.packs[0].syncHash).toMatch(/^[a-f0-9]{64}$/);
     expect(result.packs[1].syncHash).toMatch(/^[a-f0-9]{64}$/);
+    expect(result.packs[0].contentHash).toMatch(/^[a-f0-9]{64}$/);
+    expect(result.packs[1].contentHash).toMatch(/^[a-f0-9]{64}$/);
     expect(result.packs[0].syncHash).not.toBe(result.packs[1].syncHash);
+    expect(result.packs[0].contentHash).not.toBe(result.packs[1].contentHash);
   });
 });

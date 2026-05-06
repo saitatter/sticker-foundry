@@ -159,7 +159,7 @@ curl http://localhost:3000/api/sync/packs \
   -H "Authorization: Bearer $TOKEN"
 ```
 
-`GET /sync/packs` is the Android sync index. It returns pack metadata, `imageDataVersion`, `updatedAt`, `syncHash`, `canExport`, and relative download paths so the app can skip unchanged or incomplete packs.
+`GET /sync/packs` is the Android sync index. It returns pack metadata, `imageDataVersion`, `updatedAt`, `contentHash`, `syncHash`, `canExport`, and relative download paths so the app can skip unchanged or incomplete packs.
 
 ```bash
 curl -i http://localhost:3000/api/packs/PACK_ID/manifest \

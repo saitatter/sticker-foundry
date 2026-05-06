@@ -45,6 +45,7 @@ data class SyncPackDto(
     val stickerCount: Int,
     val canExport: Boolean,
     val updatedAt: String,
+    val contentHash: String?,
     val syncHash: String,
     val exportPath: String,
     val trayIconPath: String,

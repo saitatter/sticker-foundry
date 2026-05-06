@@ -32,6 +32,7 @@ export type SyncPackDto = {
   stickerCount: number;
   canExport: boolean;
   updatedAt: string;
+  contentHash: string;
   syncHash: string;
   exportPath: string;
   trayIconPath: string;
