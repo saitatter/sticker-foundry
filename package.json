@@ -15,6 +15,7 @@
     "build:web": "npm --workspace apps/web run build",
     "prisma:generate": "npm --workspace apps/backend run prisma:generate",
     "prisma:migrate": "npm --workspace apps/backend run prisma:migrate",
+    "test:backend": "npm --workspace apps/backend run test",
     "build:shared-types": "npm --workspace packages/shared-types run build",
     "release:dry-run": "semantic-release --dry-run"
   },

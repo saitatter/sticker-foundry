@@ -93,6 +93,14 @@ npm run prisma:migrate
 npm run dev:backend
 ```
 
+### 🧪 Backend tests
+
+```bash
+npm run test:backend
+```
+
+The backend test suite covers pack/sticker business rules, sticker ordering, and WhatsApp export metadata.
+
 ### 🔌 API examples
 
 ```bash
@@ -285,7 +293,7 @@ Initial commit structure should include:
 
 ## 📝 Notes
 
-This project is a real starting point, not a complete production deployment. Before exposing it outside your LAN, add HTTPS, rate limiting, refresh tokens or short-lived access tokens, backups, stricter upload scanning, and an admin/web UI.
+This project is a real starting point, not a complete production deployment. Before exposing it outside your LAN, add HTTPS, rate limiting, refresh tokens or short-lived access tokens, backups, stricter upload scanning, and richer admin controls.
 
 WhatsApp limitations to remember:
 
