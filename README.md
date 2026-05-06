@@ -217,7 +217,7 @@ User flow:
 6. Owned packs show image actions for uploading a sticker or replacing the tray icon, with rotate and square-crop controls before upload.
 7. Packs show sticker count and disable WhatsApp import until they have at least 3 stickers.
 8. Tap `Add to WhatsApp`.
-9. WhatsApp opens its import confirmation and reads metadata/files from `StickerContentProvider`.
+9. WhatsApp or WhatsApp Business opens its import confirmation and reads metadata/files from `StickerContentProvider`.
 
 Sync strategy:
 

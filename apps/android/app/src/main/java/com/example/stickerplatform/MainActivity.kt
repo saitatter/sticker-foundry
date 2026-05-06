@@ -111,6 +111,7 @@ private fun StickerApp(viewModel: StickerViewModel = viewModel(factory = Sticker
                     PackRow(
                         pack = pack,
                         onAdd = { WhatsAppStickerLauncher.addPack(context, pack) },
+                        onAddBusiness = { WhatsAppStickerLauncher.addPackToBusiness(context, pack) },
                         onUploadSticker = {
                             stickerUploadPackId = pack.id
                             stickerPicker.launch("image/*")
@@ -242,6 +243,7 @@ private fun SettingsDialog(
 private fun PackRow(
     pack: PackEntity,
     onAdd: () -> Unit,
+    onAddBusiness: () -> Unit,
     onUploadSticker: () -> Unit,
     onReplaceTrayIcon: () -> Unit,
 ) {
@@ -261,7 +263,13 @@ private fun PackRow(
                     onClick = onAdd,
                     enabled = pack.stickerCount >= 3,
                 ) {
-                    Text("Add to WhatsApp")
+                    Text("WhatsApp")
+                }
+                Button(
+                    onClick = onAddBusiness,
+                    enabled = pack.stickerCount >= 3,
+                ) {
+                    Text("Business")
                 }
             }
             if (pack.stickerCount < 3) {
