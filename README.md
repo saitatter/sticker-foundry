@@ -30,7 +30,7 @@ Current state:
 - Android app: starter MVP implemented and debug build passes.
 - Web UI: starter MVP implemented in `apps/web`.
 
-See [docs/IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md) for the staged roadmap.
+See [docs/IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md) for the staged roadmap and [docs/FEATURES_TO_ADD.md](docs/FEATURES_TO_ADD.md) for the feature backlog.
 
 ## 🧱 Architecture
 
@@ -306,6 +306,7 @@ Release behavior:
 - `fix`, `perf`, `refactor`, `ci`, and `chore` create patch releases.
 - `docs` and `test` are included in release notes but do not create a release by themselves.
 - `BREAKING CHANGE:` or `!` creates a major release.
+- Release notes and generated changelog sections use emoji categories like `✨ Features`, `🐛 Fixes`, and `📚 Docs`.
 - `CHANGELOG.md`, root/backend/shared package versions, lockfile version, and Android `versionName`/`versionCode` are updated automatically.
 - The Android debug APK is attached to GitHub Releases as an early testing artifact.
 
