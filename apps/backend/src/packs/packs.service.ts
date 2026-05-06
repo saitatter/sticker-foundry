@@ -8,6 +8,7 @@ import { PrismaService } from '../prisma.service';
 import { CreatePackInviteDto } from './dto/create-pack-invite.dto';
 import { CreatePackDto } from './dto/create-pack.dto';
 import { ReorderStickersDto } from './dto/reorder-stickers.dto';
+import { UpdatePackMemberDto } from './dto/update-pack-member.dto';
 import { UpdatePackDto } from './dto/update-pack.dto';
 import { UpdateStickerDto } from './dto/update-sticker.dto';
 import { UploadStickerDto } from './dto/upload-sticker.dto';
@@ -111,6 +112,47 @@ export class PacksService {
     });
   }
 
+  async updateMember(ownerId: string, packId: string, memberId: string, dto: UpdatePackMemberDto) {
+    await this.requireManage(ownerId, packId);
+    if (dto.role === PackRole.OWNER) {
+      throw new BadRequestException('Owner role cannot be assigned to members');
+    }
+
+    const member = await this.prisma.packMember.findFirst({ where: { id: memberId, packId } });
+    if (!member) {
+      throw new NotFoundException('Member not found');
+    }
+
+    return this.prisma.packMember.update({
+      where: { id: memberId },
+      data: { role: dto.role },
+      include: { user: { select: { id: true, email: true, displayName: true } } },
+    });
+  }
+
+  async removeMember(ownerId: string, packId: string, memberId: string) {
+    await this.requireManage(ownerId, packId);
+    const member = await this.prisma.packMember.findFirst({ where: { id: memberId, packId } });
+    if (!member) {
+      throw new NotFoundException('Member not found');
+    }
+
+    await this.prisma.packMember.delete({ where: { id: memberId } });
+    return { deleted: true };
+  }
+
+  async invites(ownerId: string, packId: string) {
+    await this.requireManage(ownerId, packId);
+    return this.prisma.packInvite.findMany({
+      where: { packId },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        createdBy: { select: { id: true, email: true, displayName: true } },
+        acceptedBy: { select: { id: true, email: true, displayName: true } },
+      },
+    });
+  }
+
   async createInvite(ownerId: string, packId: string, dto: CreatePackInviteDto) {
     await this.requireManage(ownerId, packId);
     if (dto.role === PackRole.OWNER) {
@@ -127,6 +169,16 @@ export class PacksService {
         createdById: ownerId,
       },
     });
+  }
+
+  async revokeInvite(ownerId: string, packId: string, inviteId: string) {
+    await this.requireManage(ownerId, packId);
+    const result = await this.prisma.packInvite.deleteMany({ where: { id: inviteId, packId, acceptedAt: null } });
+    if (result.count === 0) {
+      throw new NotFoundException('Pending invite not found');
+    }
+
+    return { deleted: true };
   }
 
   async acceptInvite(userId: string, code: string) {

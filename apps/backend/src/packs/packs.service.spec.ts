@@ -21,11 +21,16 @@ function createService() {
       update: jest.fn((args: unknown) => args),
     },
     packMember: {
+      delete: jest.fn(),
+      findFirst: jest.fn(),
       findMany: jest.fn(),
+      update: jest.fn(),
       upsert: jest.fn((args: unknown) => args),
     },
     packInvite: {
       create: jest.fn(),
+      deleteMany: jest.fn(),
+      findMany: jest.fn(),
       findUnique: jest.fn(),
       update: jest.fn((args: unknown) => args),
     },
@@ -296,6 +301,44 @@ describe(PacksService, () => {
       data: { acceptedAt: expect.any(Date), acceptedById: 'editor-1' },
     });
     expect(pack).toEqual(expect.objectContaining({ role: PackRole.EDITOR, canEdit: true, canManage: false }));
+  });
+
+  it('lets owners update members, remove members, and revoke pending invites', async () => {
+    const { service, prisma } = createService();
+
+    prisma.pack.findUnique.mockResolvedValue({
+      id: 'pack-1',
+      ownerId: 'owner-1',
+      isPublic: false,
+      members: [],
+    });
+    prisma.packMember.findFirst.mockResolvedValue({
+      id: 'member-1',
+      packId: 'pack-1',
+      userId: 'editor-1',
+      role: PackRole.EDITOR,
+    });
+    prisma.packMember.update.mockResolvedValue({
+      id: 'member-1',
+      packId: 'pack-1',
+      userId: 'editor-1',
+      role: PackRole.VIEWER,
+      user: { id: 'editor-1', email: 'editor@example.com', displayName: 'Editor' },
+    });
+    prisma.packInvite.deleteMany.mockResolvedValue({ count: 1 });
+
+    await expect(
+      service.updateMember('owner-1', 'pack-1', 'member-1', {
+        role: PackRole.VIEWER,
+      }),
+    ).resolves.toEqual(expect.objectContaining({ role: PackRole.VIEWER }));
+    await expect(service.removeMember('owner-1', 'pack-1', 'member-1')).resolves.toEqual({ deleted: true });
+    await expect(service.revokeInvite('owner-1', 'pack-1', 'invite-1')).resolves.toEqual({ deleted: true });
+
+    expect(prisma.packMember.delete).toHaveBeenCalledWith({ where: { id: 'member-1' } });
+    expect(prisma.packInvite.deleteMany).toHaveBeenCalledWith({
+      where: { id: 'invite-1', packId: 'pack-1', acceptedAt: null },
+    });
   });
 
   it('replaces a sticker image without changing its metadata or file name', async () => {

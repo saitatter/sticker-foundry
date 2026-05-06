@@ -16,11 +16,11 @@ StickerFoundry is a self-hosted collaborative WhatsApp sticker pack manager, sha
 - JWT register/login.
 - Registration mode control with `REGISTRATION_MODE=open|invite-only|disabled` and optional `REGISTRATION_INVITE_CODE`.
 - Authenticated password change endpoint and web account dialog.
-- Pack CRUD with ownership, public visibility, viewer/editor collaboration roles, and invite codes.
+- Pack CRUD with ownership, public visibility, viewer/editor collaboration roles, invite codes, member management, and invite revocation.
 - Sticker upload with WebP conversion, 512x512 resize, and WhatsApp size validation.
 - Upload validation checks actual image content in addition to MIME headers.
 - WhatsApp-compatible ZIP export with `contents.json`, `tray_icon.webp`, and sticker files.
-- Web collaboration panel for owner-managed invite creation and member visibility.
+- Web collaboration panel for owner-managed invite creation, invite revocation, member visibility, member removal, and role changes.
 - Android Kotlin app with Retrofit sync, Room cache, local ZIP extraction, owner image uploads, rotate/crop editing, and WhatsApp import intent.
 - Android `ContentProvider` for WhatsApp metadata and sticker file access.
 - Docker Compose stack for backend + PostgreSQL.
@@ -222,6 +222,25 @@ curl -X POST http://localhost:3000/api/packs/invites/INVITE_CODE/accept \
 ```
 
 Editors can mutate sticker content and tray images, viewers can sync/export, and only owners can edit pack metadata, delete packs, or create invites.
+
+Owners can also list members/invites, change a member between `EDITOR` and `VIEWER`, remove a member, or revoke a pending invite:
+
+```bash
+curl http://localhost:3000/api/packs/PACK_ID/members \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+```bash
+curl -X PATCH http://localhost:3000/api/packs/PACK_ID/members/MEMBER_ID \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"role":"VIEWER"}'
+```
+
+```bash
+curl -X DELETE http://localhost:3000/api/packs/PACK_ID/invites/INVITE_ID \
+  -H "Authorization: Bearer $TOKEN"
+```
 
 ## 📱 Android
 

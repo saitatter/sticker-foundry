@@ -46,12 +46,15 @@ export type PackMember = {
 
 export type PackInvite = {
   id: string;
+  packId: string;
   code: string;
   email?: string | null;
-  role: Exclude<PackRole, 'OWNER'>;
+  role: PackRole;
   expiresAt?: string | null;
   acceptedAt?: string | null;
   createdAt: string;
+  createdBy?: User;
+  acceptedBy?: User | null;
 };
 
 export type ExportContents = {
@@ -172,11 +175,37 @@ export class StickerFoundryApi {
     return this.request<PackMember[]>(`/packs/${id}/members`, { auth: true });
   }
 
+  async updatePackMember(packId: string, memberId: string, role: Exclude<PackRole, 'OWNER'>) {
+    return this.request<PackMember>(`/packs/${packId}/members/${memberId}`, {
+      method: 'PATCH',
+      auth: true,
+      body: JSON.stringify({ role }),
+    });
+  }
+
+  async removePackMember(packId: string, memberId: string) {
+    return this.request<{ deleted: boolean }>(`/packs/${packId}/members/${memberId}`, {
+      method: 'DELETE',
+      auth: true,
+    });
+  }
+
+  async packInvites(id: string) {
+    return this.request<PackInvite[]>(`/packs/${id}/invites`, { auth: true });
+  }
+
   async createPackInvite(id: string, role: Exclude<PackRole, 'OWNER'>, email?: string) {
     return this.request<PackInvite>(`/packs/${id}/invites`, {
       method: 'POST',
       auth: true,
       body: JSON.stringify({ role, email: email?.trim() || undefined }),
+    });
+  }
+
+  async revokePackInvite(packId: string, inviteId: string) {
+    return this.request<{ deleted: boolean }>(`/packs/${packId}/invites/${inviteId}`, {
+      method: 'DELETE',
+      auth: true,
     });
   }
 

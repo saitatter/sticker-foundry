@@ -854,29 +854,29 @@ function CollaborationPanel({
   onNotice: (message: string) => void;
 }) {
   const [members, setMembers] = useState<PackMember[]>([]);
+  const [invites, setInvites] = useState<PackInvite[]>([]);
   const [email, setEmail] = useState('');
   const [role, setRole] = useState<Exclude<PackRole, 'OWNER'>>('EDITOR');
   const [invite, setInvite] = useState<PackInvite | null>(null);
   const [loading, setLoading] = useState(false);
   const [creating, setCreating] = useState(false);
 
-  useEffect(() => {
-    let alive = true;
+  const loadCollaboration = useCallback(async () => {
     setLoading(true);
-    api
-      .packMembers(pack.id)
-      .then((nextMembers) => {
-        if (alive) setMembers(nextMembers);
-      })
-      .catch(onError)
-      .finally(() => {
-        if (alive) setLoading(false);
-      });
-
-    return () => {
-      alive = false;
-    };
+    try {
+      const [nextMembers, nextInvites] = await Promise.all([api.packMembers(pack.id), api.packInvites(pack.id)]);
+      setMembers(nextMembers);
+      setInvites(nextInvites);
+    } catch (error) {
+      onError(error);
+    } finally {
+      setLoading(false);
+    }
   }, [api, onError, pack.id]);
+
+  useEffect(() => {
+    void loadCollaboration();
+  }, [loadCollaboration]);
 
   async function createInvite(event: FormEvent) {
     event.preventDefault();
@@ -884,6 +884,7 @@ function CollaborationPanel({
     try {
       const nextInvite = await api.createPackInvite(pack.id, role, email);
       setInvite(nextInvite);
+      setInvites((current) => [nextInvite, ...current]);
       setEmail('');
       onNotice('Invite created');
     } catch (error) {
@@ -903,6 +904,38 @@ function CollaborationPanel({
     }
   }
 
+  async function changeMemberRole(memberId: string, nextRole: Exclude<PackRole, 'OWNER'>) {
+    try {
+      const updated = await api.updatePackMember(pack.id, memberId, nextRole);
+      setMembers((current) => current.map((member) => (member.id === memberId ? updated : member)));
+      onNotice('Member role updated');
+    } catch (error) {
+      onError(error);
+    }
+  }
+
+  async function removeMember(memberId: string) {
+    if (!confirm('Remove this member from the pack?')) return;
+    try {
+      await api.removePackMember(pack.id, memberId);
+      setMembers((current) => current.filter((member) => member.id !== memberId));
+      onNotice('Member removed');
+    } catch (error) {
+      onError(error);
+    }
+  }
+
+  async function revokeInvite(inviteId: string) {
+    try {
+      await api.revokePackInvite(pack.id, inviteId);
+      setInvites((current) => current.filter((item) => item.id !== inviteId));
+      if (invite?.id === inviteId) setInvite(null);
+      onNotice('Invite revoked');
+    } catch (error) {
+      onError(error);
+    }
+  }
+
   return (
     <section className="collaboration-panel">
       <div className="section-heading">
@@ -918,7 +951,19 @@ function CollaborationPanel({
                 <strong>{member.user.displayName}</strong>
                 <small>{member.user.email}</small>
               </span>
-              <span className="status-pill">{roleLabel(member.role)}</span>
+              <span className="member-actions">
+                <select
+                  aria-label={`Role for ${member.user.email}`}
+                  value={member.role}
+                  onChange={(event) => void changeMemberRole(member.id, event.target.value as Exclude<PackRole, 'OWNER'>)}
+                >
+                  <option value="EDITOR">Editor</option>
+                  <option value="VIEWER">Viewer</option>
+                </select>
+                <IconButton label="Remove member" onClick={() => void removeMember(member.id)} danger>
+                  <Trash2 size={16} />
+                </IconButton>
+              </span>
             </div>
           ))}
           {!loading && members.length === 0 ? <span className="muted-row">Only the owner has access right now.</span> : null}
@@ -945,6 +990,24 @@ function CollaborationPanel({
             </button>
           ) : null}
         </form>
+        <div className="invite-list">
+          {invites.map((item) => (
+            <div className="invite-row" key={item.id}>
+              <span>
+                <strong>{item.email ?? 'Open invite'}</strong>
+                <small>{item.acceptedAt ? `Accepted by ${item.acceptedBy?.email ?? 'member'}` : roleLabel(item.role)}</small>
+              </span>
+              {item.acceptedAt ? (
+                <span className="status-pill ready">Accepted</span>
+              ) : (
+                <IconButton label="Revoke invite" onClick={() => void revokeInvite(item.id)} danger>
+                  <Trash2 size={16} />
+                </IconButton>
+              )}
+            </div>
+          ))}
+          {!loading && invites.length === 0 ? <span className="muted-row">No invites yet.</span> : null}
+        </div>
       </div>
     </section>
   );

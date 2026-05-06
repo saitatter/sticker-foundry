@@ -12,8 +12,8 @@ Already implemented:
 - Sharp media pipeline with real image-content validation, WebP conversion, 512x512 sticker resize, tray icon processing, compression limits, and WhatsApp pack constraints.
 - Export API with `contents.json`, `tray_icon.webp`, sticker files, `GET /packs/:id/contents`, `GET /packs/:id/manifest`, `ETag`, and OpenAPI docs.
 - Sync API with `contentHash`, `syncHash`, ownership flags, export readiness, and relative export/tray paths.
-- Pack collaboration with owner/viewer/editor roles, invite creation/acceptance, member listing, role-aware mutation checks, and sync capability flags.
-- Web UI with auth, demo login, pack dashboard search/filter/sort/status badges, pack detail, create/edit/delete/clone, collaboration invites, sticker upload, drag-and-drop uploads, image rotate/square crop, sticker replacement, tray replacement, ordering, ZIP download, contents preview, and account password change.
+- Pack collaboration with owner/viewer/editor roles, invite creation/acceptance/revocation, member listing, member removal, member role editing, role-aware mutation checks, and sync capability flags.
+- Web UI with auth, demo login, pack dashboard search/filter/sort/status badges, pack detail, create/edit/delete/clone, collaboration invites/member management, sticker upload, drag-and-drop uploads, image rotate/square crop, sticker replacement, tray replacement, ordering, ZIP download, contents preview, and account password change.
 - Android app with MVVM, Retrofit, Room cache, local ZIP extraction, WhatsApp `ContentProvider`, import intents for WhatsApp and WhatsApp Business, owner image upload/tray replacement, image rotate/square crop, server URL settings, logout, cache size/clear cache, import readiness, content-hash sync, and stale cache pruning.
 - Docker Compose with backend, web, PostgreSQL, `.env.example`, backend healthcheck, backup/restore docs, Unraid notes, and reverse proxy examples.
 - Semantic-release with emoji release sections, release APK artifact, Dependabot, PR title validation, and issue templates.
@@ -23,7 +23,7 @@ Known gaps:
 - Real-device WhatsApp and WhatsApp Business import still need hands-on validation.
 - No Playwright/web smoke tests yet.
 - No Android lint/test job yet, only debug build validation.
-- Collaboration invite revocation and member removal/role editing are not implemented yet.
+- Android does not yet hide editing actions based on shared pack capability flags.
 - No refresh tokens/session revocation yet.
 - No background media queue, audit log, quotas, or advanced upload abuse protection beyond current validation/rate limits.
 
@@ -64,22 +64,22 @@ Acceptance criteria:
 - Integration tests run in CI or a documented local command.
 - The WhatsApp export path is covered end to end.
 
-## Milestone 3: Collaboration Hardening
+## Milestone 3: Collaboration Client Polish
 
-Goal: finish the management flows around the shipped owner/viewer/editor model.
+Goal: make shared-pack roles feel native across clients.
 
 Tasks:
 
-- Add invite revocation and expiration controls in the web UI.
-- Add member removal and member role editing.
-- Add backend tests for invite acceptance and editor/viewer authorization.
 - Add Android read-only/editable state based on sync capability flags.
+- Add invite expiration controls in the web UI.
+- Add clearer accepted/pending invite history.
+- Consider optional email matching for invite acceptance.
 
 Acceptance criteria:
 
-- Owners can fully manage existing collaborators and open invites.
-- Editors and viewers see role-appropriate controls in web and Android.
-- Authorization tests cover private shared packs.
+- Editors and viewers see role-appropriate controls in Android.
+- Owners can audit pending and accepted invites clearly.
+- Private shared packs stay covered by backend authorization tests.
 
 ## Milestone 4: Sticker Workflow UX
 
@@ -154,7 +154,7 @@ Acceptance criteria:
 ## Near-Term Recommended Order
 
 1. Real-device WhatsApp import validation.
-2. Collaboration hardening: invite revocation, member role edits, member removal.
+2. Android shared-pack role controls.
 3. Web bulk sticker actions.
 4. Android local sticker grid preview.
 5. Refresh-token/session revocation.

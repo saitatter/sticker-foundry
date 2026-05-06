@@ -560,13 +560,15 @@ select:focus {
 }
 
 .member-list,
+.invite-list,
 .invite-form {
   display: grid;
   gap: 10px;
   align-content: start;
 }
 
-.member-row {
+.member-row,
+.invite-row {
   min-height: 46px;
   display: flex;
   align-items: center;
@@ -578,14 +580,17 @@ select:focus {
   background: var(--surface-muted);
 }
 
-.member-row span:first-child {
+.member-row span:first-child,
+.invite-row span:first-child {
   display: grid;
   gap: 2px;
   min-width: 0;
 }
 
 .member-row strong,
-.member-row small {
+.member-row small,
+.invite-row strong,
+.invite-row small {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -600,6 +605,21 @@ select:focus {
 .invite-form {
   grid-template-columns: minmax(160px, 1fr) 140px auto;
   align-items: end;
+}
+
+.member-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
+.member-actions select {
+  width: 118px;
+}
+
+.invite-list {
+  grid-column: 1 / -1;
 }
 
 .invite-code-button {

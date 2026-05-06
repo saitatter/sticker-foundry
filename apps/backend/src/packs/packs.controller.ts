@@ -21,6 +21,7 @@ import { JwtAuthGuard } from '../common/jwt-auth.guard';
 import { CreatePackInviteDto } from './dto/create-pack-invite.dto';
 import { CreatePackDto } from './dto/create-pack.dto';
 import { ReorderStickersDto } from './dto/reorder-stickers.dto';
+import { UpdatePackMemberDto } from './dto/update-pack-member.dto';
 import { UpdatePackDto } from './dto/update-pack.dto';
 import { UpdateStickerDto } from './dto/update-sticker.dto';
 import { UploadStickerDto } from './dto/upload-sticker.dto';
@@ -68,9 +69,34 @@ export class PacksController {
     return this.packsService.members(user.sub, id);
   }
 
+  @Patch(':id/members/:memberId')
+  updateMember(
+    @CurrentUser() user: RequestUser,
+    @Param('id') id: string,
+    @Param('memberId') memberId: string,
+    @Body() dto: UpdatePackMemberDto,
+  ) {
+    return this.packsService.updateMember(user.sub, id, memberId, dto);
+  }
+
+  @Delete(':id/members/:memberId')
+  removeMember(@CurrentUser() user: RequestUser, @Param('id') id: string, @Param('memberId') memberId: string) {
+    return this.packsService.removeMember(user.sub, id, memberId);
+  }
+
+  @Get(':id/invites')
+  invites(@CurrentUser() user: RequestUser, @Param('id') id: string) {
+    return this.packsService.invites(user.sub, id);
+  }
+
   @Post(':id/invites')
   createInvite(@CurrentUser() user: RequestUser, @Param('id') id: string, @Body() dto: CreatePackInviteDto) {
     return this.packsService.createInvite(user.sub, id, dto);
+  }
+
+  @Delete(':id/invites/:inviteId')
+  revokeInvite(@CurrentUser() user: RequestUser, @Param('id') id: string, @Param('inviteId') inviteId: string) {
+    return this.packsService.revokeInvite(user.sub, id, inviteId);
   }
 
   @Post('invites/:code/accept')

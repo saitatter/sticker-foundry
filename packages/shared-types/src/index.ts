@@ -93,6 +93,16 @@ export type PackInviteDto = {
   expiresAt?: string | null;
   acceptedAt?: string | null;
   createdAt: string;
+  createdBy?: {
+    id: string;
+    email: string;
+    displayName: string;
+  };
+  acceptedBy?: {
+    id: string;
+    email: string;
+    displayName: string;
+  } | null;
 };
 
 export type AuthResponseDto = {
