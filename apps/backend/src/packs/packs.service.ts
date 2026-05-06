@@ -4,6 +4,7 @@ import { join, resolve } from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import { PrismaService } from '../prisma.service';
 import { CreatePackDto } from './dto/create-pack.dto';
+import { ReorderStickersDto } from './dto/reorder-stickers.dto';
 import { UpdatePackDto } from './dto/update-pack.dto';
 import { UpdateStickerDto } from './dto/update-sticker.dto';
 import { UploadStickerDto } from './dto/upload-sticker.dto';
@@ -52,7 +53,7 @@ export class PacksService {
     const pack = await this.prisma.pack.findUnique({
       where: { id },
       include: {
-        stickers: { orderBy: { createdAt: 'asc' } },
+        stickers: { orderBy: [{ position: 'asc' }, { createdAt: 'asc' }] },
         _count: { select: { stickers: true } },
       },
     });
@@ -149,6 +150,7 @@ export class PacksService {
         accessibilityText: dto.accessibilityText,
         sizeBytes: processed.sizeBytes,
         sha256: processed.sha256,
+        position: pack._count.stickers,
       },
     });
 
@@ -224,6 +226,7 @@ export class PacksService {
 
     await this.prisma.sticker.delete({ where: { id: stickerId } });
     await rm(join(this.exportService.packDirectory(packId), sticker.fileName), { force: true });
+    await this.compactStickerPositions(packId);
     await this.prisma.pack.update({
       where: { id: packId },
       data: { imageDataVersion: this.newImageDataVersion(pack.imageDataVersion) },
@@ -264,8 +267,60 @@ export class PacksService {
     return updated;
   }
 
+  async reorderStickers(ownerId: string, packId: string, dto: ReorderStickersDto) {
+    const pack = await this.prisma.pack.findUnique({
+      where: { id: packId },
+      include: { stickers: { select: { id: true } } },
+    });
+    if (!pack) {
+      throw new NotFoundException('Pack not found');
+    }
+    if (pack.ownerId !== ownerId) {
+      throw new ForbiddenException('Only the owner can reorder stickers');
+    }
+
+    const existingIds = pack.stickers.map((sticker) => sticker.id).sort();
+    const requestedIds = [...dto.stickerIds].sort();
+    if (existingIds.length !== requestedIds.length || existingIds.some((id, index) => id !== requestedIds[index])) {
+      throw new BadRequestException('Reorder request must include every sticker in this pack exactly once');
+    }
+
+    await this.prisma.$transaction(
+      dto.stickerIds.map((id, position) =>
+        this.prisma.sticker.update({
+          where: { id },
+          data: { position },
+        }),
+      ),
+    );
+
+    await this.prisma.pack.update({
+      where: { id: packId },
+      data: { imageDataVersion: this.newImageDataVersion(pack.imageDataVersion) },
+    });
+
+    return this.get(ownerId, packId);
+  }
+
   async assertCanExport(userId: string, packId: string) {
     await this.get(userId, packId);
+  }
+
+  private async compactStickerPositions(packId: string) {
+    const stickers = await this.prisma.sticker.findMany({
+      where: { packId },
+      orderBy: [{ position: 'asc' }, { createdAt: 'asc' }],
+      select: { id: true },
+    });
+
+    await this.prisma.$transaction(
+      stickers.map((sticker, position) =>
+        this.prisma.sticker.update({
+          where: { id: sticker.id },
+          data: { position },
+        }),
+      ),
+    );
   }
 
   private newImageDataVersion(previous: string) {

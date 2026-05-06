@@ -465,6 +465,22 @@ input:focus {
   background: rgba(255, 255, 255, 0.92);
 }
 
+.sticker-order-actions {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  display: flex;
+  gap: 6px;
+  z-index: 1;
+}
+
+.sticker-order-actions .icon-button {
+  position: static;
+  width: 34px;
+  min-height: 34px;
+  background: rgba(255, 255, 255, 0.92);
+}
+
 .sticker-preview {
   aspect-ratio: 1;
   display: grid;

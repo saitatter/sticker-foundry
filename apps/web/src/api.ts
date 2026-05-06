@@ -16,6 +16,7 @@ export type Sticker = {
   accessibilityText?: string | null;
   sizeBytes: number;
   sha256: string;
+  position: number;
   createdAt: string;
 };
 
@@ -167,6 +168,14 @@ export class StickerFoundryApi {
         emojis: emojis.slice(0, 3),
         accessibilityText,
       }),
+    });
+  }
+
+  async reorderStickers(packId: string, stickerIds: string[]) {
+    return this.request<Pack>(`/packs/${packId}/stickers`, {
+      method: 'PATCH',
+      auth: true,
+      body: JSON.stringify({ stickerIds }),
     });
   }
 

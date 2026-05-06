@@ -16,6 +16,7 @@ import { Response } from 'express';
 import { CurrentUser, RequestUser } from '../common/current-user.decorator';
 import { JwtAuthGuard } from '../common/jwt-auth.guard';
 import { CreatePackDto } from './dto/create-pack.dto';
+import { ReorderStickersDto } from './dto/reorder-stickers.dto';
 import { UpdatePackDto } from './dto/update-pack.dto';
 import { UpdateStickerDto } from './dto/update-sticker.dto';
 import { UploadStickerDto } from './dto/upload-sticker.dto';
@@ -95,6 +96,11 @@ export class PacksController {
     @Body() dto: UploadStickerDto,
   ) {
     return this.packsService.uploadSticker(user.sub, id, file, dto);
+  }
+
+  @Patch(':id/stickers')
+  reorderStickers(@CurrentUser() user: RequestUser, @Param('id') id: string, @Body() dto: ReorderStickersDto) {
+    return this.packsService.reorderStickers(user.sub, id, dto);
   }
 
   @Delete(':id/stickers/:stickerId')

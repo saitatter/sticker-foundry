@@ -43,8 +43,10 @@ model Sticker {
   accessibilityText String?
   sizeBytes         Int
   sha256            String
+  position          Int      @default(0)
   createdAt         DateTime @default(now())
 
   @@unique([packId, fileName])
   @@index([packId])
+  @@index([packId, position])
 }

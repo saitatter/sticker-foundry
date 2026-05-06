@@ -1,4 +1,6 @@
 import {
+  ArrowDown,
+  ArrowUp,
   Archive,
   Download,
   Edit3,
@@ -404,6 +406,22 @@ function PackDetail({
     }
   }
 
+  async function moveSticker(stickerId: string, direction: -1 | 1) {
+    const currentIndex = stickers.findIndex((sticker) => sticker.id === stickerId);
+    const nextIndex = currentIndex + direction;
+    if (currentIndex < 0 || nextIndex < 0 || nextIndex >= stickers.length) return;
+
+    const nextOrder = stickers.map((sticker) => sticker.id);
+    [nextOrder[currentIndex], nextOrder[nextIndex]] = [nextOrder[nextIndex], nextOrder[currentIndex]];
+
+    try {
+      await api.reorderStickers(pack.id, nextOrder);
+      await onChanged('Sticker order updated');
+    } catch (error) {
+      onError(error);
+    }
+  }
+
   return (
     <section className="detail">
       <div className="detail-header">
@@ -442,15 +460,19 @@ function PackDetail({
         </div>
         {stickers.length > 0 ? (
           <div className="sticker-grid">
-            {stickers.map((sticker) => (
+            {stickers.map((sticker, index) => (
               <StickerTile
                 api={api}
                 key={sticker.id}
                 packId={pack.id}
                 sticker={sticker}
+                canMoveDown={index < stickers.length - 1}
+                canMoveUp={index > 0}
                 onChanged={() => onChanged('Sticker updated')}
                 onDeleted={() => onChanged('Sticker deleted')}
                 onError={onError}
+                onMoveDown={() => moveSticker(sticker.id, 1)}
+                onMoveUp={() => moveSticker(sticker.id, -1)}
               />
             ))}
           </div>
@@ -699,16 +721,24 @@ function StickerTile({
   api,
   packId,
   sticker,
+  canMoveDown,
+  canMoveUp,
   onChanged,
   onDeleted,
   onError,
+  onMoveDown,
+  onMoveUp,
 }: {
   api: StickerFoundryApi;
   packId: string;
   sticker: Sticker;
+  canMoveDown: boolean;
+  canMoveUp: boolean;
   onChanged: () => Promise<void>;
   onDeleted: () => Promise<void>;
   onError: (error: unknown) => void;
+  onMoveDown: () => void;
+  onMoveUp: () => void;
 }) {
   const [url, setUrl] = useState<string | null>(null);
   const [emojis, setEmojis] = useState(sticker.emojis.join(','));
@@ -773,6 +803,14 @@ function StickerTile({
 
   return (
     <article className="sticker-tile">
+      <div className="sticker-order-actions">
+        <IconButton label="Move sticker up" onClick={onMoveUp} disabled={!canMoveUp}>
+          <ArrowUp size={15} />
+        </IconButton>
+        <IconButton label="Move sticker down" onClick={onMoveDown} disabled={!canMoveDown}>
+          <ArrowDown size={15} />
+        </IconButton>
+      </div>
       <div className="sticker-preview">{url ? <img alt={sticker.accessibilityText ?? sticker.fileName} src={url} /> : null}</div>
       <div className="sticker-meta">
         <span>{formatBytes(sticker.sizeBytes)}</span>
@@ -825,14 +863,23 @@ function IconButton({
   onClick,
   children,
   danger = false,
+  disabled = false,
 }: {
   label: string;
   onClick: () => void;
   children: React.ReactNode;
   danger?: boolean;
+  disabled?: boolean;
 }) {
   return (
-    <button className={`icon-button ${danger ? 'danger' : ''}`} onClick={onClick} title={label} type="button" aria-label={label}>
+    <button
+      className={`icon-button ${danger ? 'danger' : ''}`}
+      disabled={disabled}
+      onClick={onClick}
+      title={label}
+      type="button"
+      aria-label={label}
+    >
       {children}
     </button>
   );

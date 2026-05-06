@@ -180,6 +180,7 @@ The web app lives in `apps/web` and provides:
 - Processed WebP preview.
 - Tray icon preview and replacement.
 - Sticker emoji and accessibility text editing.
+- Sticker reorder controls.
 - Sticker delete action.
 - Export ZIP download.
 - Public/private pack creation.

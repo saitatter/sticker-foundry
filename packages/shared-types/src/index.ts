@@ -5,6 +5,7 @@ export type StickerDto = {
   accessibilityText?: string | null;
   sizeBytes: number;
   sha256: string;
+  position: number;
   createdAt: string;
 };
 

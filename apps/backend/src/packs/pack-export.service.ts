@@ -19,7 +19,7 @@ export class PackExportService {
   async buildZip(packId: string, archive: Archive) {
     const pack = await this.prisma.pack.findUnique({
       where: { id: packId },
-      include: { stickers: { orderBy: { createdAt: 'asc' } } },
+      include: { stickers: { orderBy: [{ position: 'asc' }, { createdAt: 'asc' }] } },
     });
 
     if (!pack) {
