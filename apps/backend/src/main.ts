@@ -6,7 +6,11 @@ import { AppModule } from './app.module';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
-  app.enableCors();
+  const config = app.get(ConfigService);
+  const corsOrigin = config.get<string>('CORS_ORIGIN', '*');
+  app.enableCors({
+    origin: corsOrigin === '*' ? true : corsOrigin.split(',').map((origin) => origin.trim()).filter(Boolean),
+  });
   app.setGlobalPrefix('api');
   app.useGlobalPipes(
     new ValidationPipe({
@@ -27,7 +31,6 @@ async function bootstrap() {
     jsonDocumentUrl: 'api/docs-json',
   });
 
-  const config = app.get(ConfigService);
   const port = config.get<number>('PORT', 3000);
   await app.listen(port);
 }

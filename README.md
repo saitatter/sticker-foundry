@@ -111,6 +111,12 @@ The web login screen includes a **Use demo account** button that fills these see
 
 Registration is open by default. For public deployments, set `REGISTRATION_MODE=invite-only` with `REGISTRATION_INVITE_CODE`, or set `REGISTRATION_MODE=disabled` after creating your admin account.
 
+CORS is open by default for local development. For production, set `CORS_ORIGIN` to a comma-separated allowlist, for example:
+
+```bash
+CORS_ORIGIN=https://stickers.example.com,https://admin.example.com
+```
+
 ### 🧪 Backend tests
 
 ```bash
