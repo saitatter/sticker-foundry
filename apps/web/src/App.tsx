@@ -203,6 +203,7 @@ function AuthScreen({
   const [email, setEmail] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [password, setPassword] = useState('');
+  const [inviteCode, setInviteCode] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
@@ -212,7 +213,7 @@ function AuthScreen({
     try {
       const response =
         mode === 'register'
-          ? await api.register(email, displayName || email.split('@')[0], password)
+          ? await api.register(email, displayName || email.split('@')[0], password, inviteCode)
           : await api.login(email, password);
       onSignedIn(response.accessToken, response.user);
     } catch (error) {
@@ -226,6 +227,7 @@ function AuthScreen({
     setMode('login');
     setEmail(DEMO_EMAIL);
     setDisplayName('');
+    setInviteCode('');
     setPassword(DEMO_PASSWORD);
   }
 
@@ -265,6 +267,12 @@ function AuthScreen({
             <label>
               Display name
               <input value={displayName} onChange={(event) => setDisplayName(event.target.value)} />
+            </label>
+          ) : null}
+          {mode === 'register' ? (
+            <label>
+              Invite code
+              <input value={inviteCode} onChange={(event) => setInviteCode(event.target.value)} />
             </label>
           ) : null}
           <label>

@@ -82,10 +82,10 @@ async function readError(response: Response) {
 export class StickerFoundryApi {
   constructor(private readonly getToken: () => string | null) {}
 
-  async register(email: string, displayName: string, password: string) {
+  async register(email: string, displayName: string, password: string, inviteCode?: string) {
     return this.request<AuthResponse>('/auth/register', {
       method: 'POST',
-      body: JSON.stringify({ email, displayName, password }),
+      body: JSON.stringify({ email, displayName, password, inviteCode: inviteCode || undefined }),
     });
   }
 
