@@ -38,6 +38,16 @@ services:
     ports:
       - "3000:3000"
 
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "8080:80"
+
 volumes:
   postgres-data:
   foundry-data:

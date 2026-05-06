@@ -230,16 +230,17 @@ By default, Vite proxies `/api` to `http://localhost:3000`. Set `VITE_API_URL` w
 
 ## 🐳 Docker Setup
 
-Run backend + PostgreSQL:
+Run web + backend + PostgreSQL:
 
 ```bash
 cd sticker-foundry
 docker compose up -d --build
 ```
 
-Backend listens on:
+Services listen on:
 
 ```text
+http://localhost:8080
 http://localhost:3000/api
 ```
 
