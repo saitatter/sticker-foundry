@@ -17,7 +17,7 @@ StickerFoundry is a self-hosted collaborative WhatsApp sticker pack manager, sha
 - Pack CRUD with ownership and public pack visibility.
 - Sticker upload with WebP conversion, 512x512 resize, and WhatsApp size validation.
 - WhatsApp-compatible ZIP export with `contents.json`, `tray_icon.webp`, and sticker files.
-- Android Kotlin app with Retrofit sync, Room cache, local ZIP extraction, and WhatsApp import intent.
+- Android Kotlin app with Retrofit sync, Room cache, local ZIP extraction, owner image uploads, and WhatsApp import intent.
 - Android `ContentProvider` for WhatsApp metadata and sticker file access.
 - Docker Compose stack for backend + PostgreSQL.
 - Semantic-release workflow with Conventional Commits, changelog generation, GitHub Releases, and Android debug APK release asset.
@@ -192,15 +192,16 @@ User flow:
 3. The app fetches packs from the server.
 4. For changed packs, it downloads `/packs/{id}/export`.
 5. It extracts the ZIP into app-private local storage.
-6. Tap `Add to WhatsApp`.
-7. WhatsApp opens its import confirmation and reads metadata/files from `StickerContentProvider`.
+6. Owned packs show image actions for uploading a sticker or replacing the tray icon.
+7. Tap `Add to WhatsApp`.
+8. WhatsApp opens its import confirmation and reads metadata/files from `StickerContentProvider`.
 
 Sync strategy:
 
 - Server is source of truth.
 - Android stores a cache in Room and app-private files.
 - Backend increments `imageDataVersion` whenever sticker content changes.
-- Android compares local `imageDataVersion` with the server value and downloads only changed packs.
+- Android stores the server `syncHash` and downloads only changed packs.
 
 ## 🌐 Web UI
 

@@ -1,6 +1,7 @@
 package com.example.stickerplatform
 
 import android.content.Context
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -34,6 +35,24 @@ class StickerViewModel(
             runCatching { repository.sync() }
                 .onSuccess { status.value = "Sync complete" }
                 .onFailure { status.value = it.message ?: "Sync failed" }
+        }
+    }
+
+    fun uploadSticker(packId: String, uri: Uri) {
+        viewModelScope.launch {
+            status.value = "Uploading sticker"
+            runCatching { repository.uploadSticker(packId, uri) }
+                .onSuccess { status.value = "Sticker uploaded" }
+                .onFailure { status.value = it.message ?: "Sticker upload failed" }
+        }
+    }
+
+    fun replaceTrayIcon(packId: String, uri: Uri) {
+        viewModelScope.launch {
+            status.value = "Replacing tray icon"
+            runCatching { repository.replaceTrayIcon(packId, uri) }
+                .onSuccess { status.value = "Tray icon replaced" }
+                .onFailure { status.value = it.message ?: "Tray icon update failed" }
         }
     }
 

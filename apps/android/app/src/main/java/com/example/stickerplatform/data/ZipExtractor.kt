@@ -45,6 +45,7 @@ class ZipExtractor(
                 syncHash = "",
                 localPath = packDir.absolutePath,
                 isPublic = true,
+                isOwner = false,
                 updatedAt = System.currentTimeMillis().toString(),
             ),
             stickers = pack.stickers.map {

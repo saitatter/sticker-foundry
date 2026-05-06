@@ -3,13 +3,13 @@ package com.example.stickerplatform
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -51,6 +51,22 @@ private fun StickerApp(viewModel: StickerViewModel = viewModel(factory = Sticker
     val packs by viewModel.packs.collectAsState()
     val status by viewModel.status.collectAsState()
     val context = LocalContext.current
+    var stickerUploadPackId by remember { mutableStateOf<String?>(null) }
+    var trayIconPackId by remember { mutableStateOf<String?>(null) }
+    val stickerPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        val packId = stickerUploadPackId
+        stickerUploadPackId = null
+        if (uri != null && packId != null) {
+            viewModel.uploadSticker(packId, uri)
+        }
+    }
+    val trayIconPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        val packId = trayIconPackId
+        trayIconPackId = null
+        if (uri != null && packId != null) {
+            viewModel.replaceTrayIcon(packId, uri)
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -69,6 +85,14 @@ private fun StickerApp(viewModel: StickerViewModel = viewModel(factory = Sticker
                 PackRow(
                     pack = pack,
                     onAdd = { WhatsAppStickerLauncher.addPack(context, pack) },
+                    onUploadSticker = {
+                        stickerUploadPackId = pack.id
+                        stickerPicker.launch("image/*")
+                    },
+                    onReplaceTrayIcon = {
+                        trayIconPackId = pack.id
+                        trayIconPicker.launch("image/*")
+                    },
                 )
             }
         }
@@ -113,15 +137,34 @@ private fun LoginBox(
 }
 
 @Composable
-private fun PackRow(pack: PackEntity, onAdd: () -> Unit) {
+private fun PackRow(
+    pack: PackEntity,
+    onAdd: () -> Unit,
+    onUploadSticker: () -> Unit,
+    onReplaceTrayIcon: () -> Unit,
+) {
     Card(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(12.dp)) {
+        Column(
+            modifier = Modifier.padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
             Text(pack.name, style = MaterialTheme.typography.titleMedium)
             Text(pack.publisher, style = MaterialTheme.typography.bodyMedium)
             Text("Version ${pack.imageDataVersion}", style = MaterialTheme.typography.bodySmall)
-            Spacer(modifier = Modifier.height(8.dp))
-            Button(onClick = onAdd) {
-                Text("Add to WhatsApp")
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(onClick = onAdd) {
+                    Text("Add to WhatsApp")
+                }
+            }
+            if (pack.isOwner) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(onClick = onUploadSticker) {
+                        Text("Upload sticker")
+                    }
+                    Button(onClick = onReplaceTrayIcon) {
+                        Text("Replace tray")
+                    }
+                }
             }
         }
     }
