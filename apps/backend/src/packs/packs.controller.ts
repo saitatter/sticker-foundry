@@ -23,6 +23,9 @@ import { UploadStickerDto } from './dto/upload-sticker.dto';
 import { PackExportService } from './pack-export.service';
 import { PacksService } from './packs.service';
 
+const stickerUploadOptions = { limits: { fileSize: 10 * 1024 * 1024 } };
+const trayIconUploadOptions = { limits: { fileSize: 5 * 1024 * 1024 } };
+
 @Controller('packs')
 @UseGuards(JwtAuthGuard)
 export class PacksController {
@@ -65,7 +68,7 @@ export class PacksController {
   }
 
   @Post(':id/tray-icon')
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(FileInterceptor('file', trayIconUploadOptions))
   uploadTrayIcon(
     @CurrentUser() user: RequestUser,
     @Param('id') id: string,
@@ -88,7 +91,7 @@ export class PacksController {
   }
 
   @Post(':id/stickers')
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(FileInterceptor('file', stickerUploadOptions))
   uploadSticker(
     @CurrentUser() user: RequestUser,
     @Param('id') id: string,
