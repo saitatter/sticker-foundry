@@ -17,7 +17,7 @@ function createService() {
       delete: jest.fn(),
       findFirst: jest.fn(),
       findMany: jest.fn(),
-      update: jest.fn(({ where, data }) => ({ where, data })),
+      update: jest.fn((args: unknown) => args),
     },
     $transaction: jest.fn(async (operations: unknown[]) => operations),
   };
@@ -176,5 +176,55 @@ describe(PacksService, () => {
     ).rejects.toBeInstanceOf(BadRequestException);
     expect(prisma.$transaction).not.toHaveBeenCalled();
     expect(prisma.pack.update).not.toHaveBeenCalled();
+  });
+
+  it('replaces a sticker image without changing its metadata or file name', async () => {
+    const { service, prisma, imageService } = createService();
+    const processed = { buffer: Buffer.from('new-sticker'), sizeBytes: 77, sha256: 'new-sha' };
+
+    prisma.pack.findUnique.mockResolvedValue({
+      id: 'pack-1',
+      ownerId: 'owner-1',
+      imageDataVersion: '12',
+    });
+    prisma.sticker.findFirst.mockResolvedValue({
+      id: 'sticker-1',
+      packId: 'pack-1',
+      fileName: 'existing.webp',
+      emojis: ['\uD83D\uDE00'],
+      accessibilityText: 'same metadata',
+      position: 0,
+    });
+    imageService.processSticker.mockResolvedValue(processed);
+    prisma.sticker.update.mockImplementationOnce(async () => ({
+      id: 'sticker-1',
+      fileName: 'existing.webp',
+      emojis: ['\uD83D\uDE00'],
+      accessibilityText: 'same metadata',
+      position: 0,
+      sizeBytes: 77,
+      sha256: 'new-sha',
+    }));
+
+    const result = await service.replaceStickerImage(
+      'owner-1',
+      'pack-1',
+      'sticker-1',
+      { buffer: Buffer.from('source'), mimetype: 'image/png' } as Express.Multer.File,
+    );
+
+    expect(imageService.writeProcessedImage).toHaveBeenCalledWith(expect.stringContaining('existing.webp'), processed);
+    expect(prisma.sticker.update).toHaveBeenCalledWith({
+      where: { id: 'sticker-1' },
+      data: {
+        sizeBytes: 77,
+        sha256: 'new-sha',
+      },
+    });
+    expect(prisma.pack.update).toHaveBeenCalledWith({
+      where: { id: 'pack-1' },
+      data: { imageDataVersion: '13' },
+    });
+    expect(result).toEqual(expect.objectContaining({ fileName: 'existing.webp', sha256: 'new-sha' }));
   });
 });

@@ -6,6 +6,7 @@ import {
   Param,
   Patch,
   Post,
+  Put,
   Res,
   UploadedFile,
   UseGuards,
@@ -88,6 +89,17 @@ export class PacksController {
     response.setHeader('Content-Type', 'image/webp');
     response.setHeader('Cache-Control', 'private, max-age=300');
     return response.sendFile(file.path);
+  }
+
+  @Put(':id/stickers/:stickerId/file')
+  @UseInterceptors(FileInterceptor('file', stickerUploadOptions))
+  replaceStickerImage(
+    @CurrentUser() user: RequestUser,
+    @Param('id') id: string,
+    @Param('stickerId') stickerId: string,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    return this.packsService.replaceStickerImage(user.sub, id, stickerId, file);
   }
 
   @Post(':id/stickers')

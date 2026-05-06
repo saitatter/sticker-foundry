@@ -235,6 +235,57 @@ export class PacksService {
     return { deleted: true };
   }
 
+  async replaceStickerImage(
+    ownerId: string,
+    packId: string,
+    stickerId: string,
+    file: Express.Multer.File | undefined,
+  ) {
+    if (!file) {
+      throw new BadRequestException('A multipart file field named "file" is required');
+    }
+
+    if (!file.mimetype.startsWith('image/')) {
+      throw new BadRequestException('Only image uploads are accepted');
+    }
+
+    const pack = await this.prisma.pack.findUnique({ where: { id: packId } });
+    if (!pack) {
+      throw new NotFoundException('Pack not found');
+    }
+    if (pack.ownerId !== ownerId) {
+      throw new ForbiddenException('Only the owner can replace sticker images');
+    }
+
+    const sticker = await this.prisma.sticker.findFirst({
+      where: { id: stickerId, packId },
+    });
+    if (!sticker) {
+      throw new NotFoundException('Sticker not found');
+    }
+
+    const processed = await this.imageService.processSticker(file.buffer);
+    await this.imageService.writeProcessedImage(
+      join(this.exportService.packDirectory(packId), sticker.fileName),
+      processed,
+    );
+
+    const updated = await this.prisma.sticker.update({
+      where: { id: stickerId },
+      data: {
+        sizeBytes: processed.sizeBytes,
+        sha256: processed.sha256,
+      },
+    });
+
+    await this.prisma.pack.update({
+      where: { id: packId },
+      data: { imageDataVersion: this.newImageDataVersion(pack.imageDataVersion) },
+    });
+
+    return updated;
+  }
+
   async updateSticker(ownerId: string, packId: string, stickerId: string, dto: UpdateStickerDto) {
     const pack = await this.prisma.pack.findUnique({ where: { id: packId } });
     if (!pack) {
