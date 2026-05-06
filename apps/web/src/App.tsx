@@ -24,7 +24,7 @@ import {
   Trash2,
   Upload,
 } from 'lucide-react';
-import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
+import { DragEvent, FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { ApiError, Pack, Sticker, StickerFoundryApi, User } from './api';
 
 const TOKEN_KEY = 'stickerfoundry.token';
@@ -940,6 +940,7 @@ function UploadPanel({
   const [accessibilityText, setAccessibilityText] = useState('');
   const [uploading, setUploading] = useState(false);
   const [uploadedCount, setUploadedCount] = useState(0);
+  const [isFileDragActive, setIsFileDragActive] = useState(false);
   const disabled = remainingSlots <= 0;
 
   async function submit(event: FormEvent) {
@@ -979,6 +980,13 @@ function UploadPanel({
     setFiles(selected);
   }
 
+  function dropFiles(event: DragEvent<HTMLLabelElement>) {
+    event.preventDefault();
+    setIsFileDragActive(false);
+    if (disabled) return;
+    chooseFiles(event.dataTransfer.files);
+  }
+
   const fileLabel =
     files.length === 0
       ? disabled
@@ -995,7 +1003,19 @@ function UploadPanel({
         <span className="counter">{remainingSlots}</span>
       </div>
       <form className="upload-form" onSubmit={submit}>
-        <label className="file-drop">
+        <label
+          className={`file-drop ${isFileDragActive ? 'drag-active' : ''}`}
+          onDragEnter={(event) => {
+            event.preventDefault();
+            setIsFileDragActive(true);
+          }}
+          onDragLeave={(event) => {
+            event.preventDefault();
+            setIsFileDragActive(false);
+          }}
+          onDragOver={(event) => event.preventDefault()}
+          onDrop={dropFiles}
+        >
           <input
             accept="image/*"
             disabled={disabled}

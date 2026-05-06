@@ -662,6 +662,16 @@ select:focus {
   gap: 9px;
 }
 
+.file-drop:hover,
+.file-drop.drag-active {
+  border-color: var(--primary);
+  background: #e8f5f2;
+}
+
+.file-drop.drag-active {
+  box-shadow: inset 0 0 0 2px rgba(11, 127, 117, 0.18);
+}
+
 .file-drop input {
   display: none;
 }

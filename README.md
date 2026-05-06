@@ -258,6 +258,7 @@ The web app lives in `apps/web` and provides:
 - Client-side rotate and square crop before upload or replacement.
 - Sticker reorder controls.
 - Drag-and-drop sticker ordering.
+- Drag-and-drop image upload zone.
 - Bulk sticker upload.
 - Sticker delete action.
 - Export ZIP download.
