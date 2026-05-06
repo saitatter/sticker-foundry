@@ -555,6 +555,7 @@ function PackDetail({
                 key={sticker.id}
                 packId={pack.id}
                 sticker={sticker}
+                version={pack.imageDataVersion}
                 canMoveDown={index < stickers.length - 1}
                 canMoveUp={index > 0}
                 isDragging={draggingStickerId === sticker.id}
@@ -857,6 +858,7 @@ function StickerTile({
   api,
   packId,
   sticker,
+  version,
   canMoveDown,
   canMoveUp,
   isDragging,
@@ -872,6 +874,7 @@ function StickerTile({
   api: StickerFoundryApi;
   packId: string;
   sticker: Sticker;
+  version: string;
   canMoveDown: boolean;
   canMoveUp: boolean;
   isDragging: boolean;
@@ -888,6 +891,8 @@ function StickerTile({
   const [emojis, setEmojis] = useState(sticker.emojis.join(','));
   const [accessibilityText, setAccessibilityText] = useState(sticker.accessibilityText ?? '');
   const [saving, setSaving] = useState(false);
+  const [replacementFile, setReplacementFile] = useState<File | null>(null);
+  const [replacing, setReplacing] = useState(false);
 
   useEffect(() => {
     setEmojis(sticker.emojis.join(','));
@@ -910,7 +915,7 @@ function StickerTile({
       alive = false;
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [api, onError, packId, sticker.id]);
+  }, [api, onError, packId, sticker.id, version]);
 
   async function deleteSticker() {
     try {
@@ -940,6 +945,21 @@ function StickerTile({
       onError(error);
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function replaceImage(event: FormEvent) {
+    event.preventDefault();
+    if (!replacementFile) return;
+    setReplacing(true);
+    try {
+      await api.replaceStickerImage(packId, sticker.id, replacementFile);
+      setReplacementFile(null);
+      await onChanged();
+    } catch (error) {
+      onError(error);
+    } finally {
+      setReplacing(false);
     }
   }
 
@@ -981,6 +1001,16 @@ function StickerTile({
         </label>
         <button className="secondary-button sticker-save" disabled={!dirty || saving} type="submit">
           Save
+        </button>
+      </form>
+      <form className="sticker-replace-form" onSubmit={replaceImage}>
+        <label className="file-drop sticker-replace-drop">
+          <input accept="image/*" onChange={(event) => setReplacementFile(event.target.files?.[0] ?? null)} type="file" />
+          <ImagePlus size={18} />
+          <span>{replacementFile ? replacementFile.name : 'Replace image'}</span>
+        </label>
+        <button className="secondary-button sticker-save" disabled={!replacementFile || replacing} type="submit">
+          {replacing ? 'Replacing' : 'Replace'}
         </button>
       </form>
       <IconButton label="Delete sticker" onClick={() => void deleteSticker()} danger>

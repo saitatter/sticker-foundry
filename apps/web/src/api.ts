@@ -187,6 +187,18 @@ export class StickerFoundryApi {
     });
   }
 
+  async replaceStickerImage(packId: string, stickerId: string, file: File) {
+    const form = new FormData();
+    form.append('file', file);
+
+    return this.request<Sticker>(`/packs/${packId}/stickers/${stickerId}/file`, {
+      method: 'PUT',
+      auth: true,
+      body: form,
+      isMultipart: true,
+    });
+  }
+
   async reorderStickers(packId: string, stickerIds: string[]) {
     return this.request<Pack>(`/packs/${packId}/stickers`, {
       method: 'PATCH',

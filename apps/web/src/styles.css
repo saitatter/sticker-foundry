@@ -633,8 +633,19 @@ input:focus {
   gap: 8px;
 }
 
+.sticker-replace-form {
+  display: grid;
+  gap: 8px;
+}
+
 .sticker-edit-form input {
   height: 36px;
+}
+
+.sticker-replace-drop {
+  min-height: 48px;
+  padding: 8px;
+  font-size: 12px;
 }
 
 .sticker-save {
