@@ -15,6 +15,9 @@ interface StickerApi {
     @GET("packs")
     suspend fun packs(@Header("Authorization") bearerToken: String): List<PackDto>
 
+    @GET("sync/packs")
+    suspend fun syncPacks(@Header("Authorization") bearerToken: String): SyncPacksResponse
+
     @Streaming
     @GET("packs/{id}/export")
     suspend fun exportPack(

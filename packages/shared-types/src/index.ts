@@ -21,6 +21,27 @@ export type PackDto = {
   stickers?: StickerDto[];
 };
 
+export type SyncPackDto = {
+  id: string;
+  name: string;
+  publisher: string;
+  description?: string | null;
+  isPublic: boolean;
+  isOwner: boolean;
+  imageDataVersion: string;
+  stickerCount: number;
+  canExport: boolean;
+  updatedAt: string;
+  syncHash: string;
+  exportPath: string;
+  trayIconPath: string;
+};
+
+export type SyncPacksResponseDto = {
+  serverTime: string;
+  packs: SyncPackDto[];
+};
+
 export type AuthResponseDto = {
   accessToken: string;
   user: {

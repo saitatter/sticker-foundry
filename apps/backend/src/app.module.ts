@@ -3,6 +3,7 @@ import { ConfigModule } from '@nestjs/config';
 import { AuthModule } from './auth/auth.module';
 import { PacksModule } from './packs/packs.module';
 import { PrismaService } from './prisma.service';
+import { SyncModule } from './sync/sync.module';
 
 @Module({
   imports: [
@@ -11,6 +12,7 @@ import { PrismaService } from './prisma.service';
     }),
     AuthModule,
     PacksModule,
+    SyncModule,
   ],
   providers: [PrismaService],
 })
