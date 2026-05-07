@@ -1,4 +1,5 @@
-import { Body, Controller, Get, Patch, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Patch, Query, Res, UseGuards } from '@nestjs/common';
+import { Response } from 'express';
 import { CurrentUser, RequestUser } from '../common/current-user.decorator';
 import { JwtAuthGuard } from '../common/jwt-auth.guard';
 import { AdminService } from './admin.service';
@@ -22,5 +23,13 @@ export class AdminController {
   @Get('audit-log')
   auditLog(@CurrentUser() user: RequestUser, @Query('limit') limit?: string) {
     return this.adminService.auditLog(user.sub, limit ? Number.parseInt(limit, 10) : undefined);
+  }
+
+  @Get('audit-log/export')
+  async auditLogExport(@CurrentUser() user: RequestUser, @Query('limit') limit: string | undefined, @Res() response: Response) {
+    const csv = await this.adminService.auditLogCsv(user.sub, limit ? Number.parseInt(limit, 10) : undefined);
+    response.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    response.setHeader('Content-Disposition', 'attachment; filename="stickerfoundry-audit-log.csv"');
+    return response.send(csv);
   }
 }

@@ -86,6 +86,11 @@ export class AdminService {
     return this.audit.list(limit);
   }
 
+  async auditLogCsv(userId: string, limit: number | undefined) {
+    await this.assertAdmin(userId);
+    return this.audit.csv(limit);
+  }
+
   private async assertAdmin(userId: string) {
     const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { isAdmin: true } });
     if (!user?.isAdmin) {

@@ -390,6 +390,16 @@ describe('StickerFoundry API e2e', () => {
         );
       });
 
+    await request(server)
+      .get('/api/admin/audit-log/export?limit=5')
+      .set('Authorization', `Bearer ${token}`)
+      .expect(200)
+      .expect('Content-Type', /text\/csv/)
+      .expect((response) => {
+        expect(response.text).toContain('"createdAt","actorEmail","action"');
+        expect(response.text).toContain('"auth.register"');
+      });
+
     const refreshed = await request(server)
       .post('/api/auth/refresh')
       .send({ refreshToken: auth.body.refreshToken })

@@ -301,6 +301,7 @@ function AccountDialog({
   const [instanceName, setInstanceName] = useState(instanceSettings.instanceName);
   const [instanceDescription, setInstanceDescription] = useState(instanceSettings.instanceDescription);
   const [savingAdmin, setSavingAdmin] = useState(false);
+  const [exportingAudit, setExportingAudit] = useState(false);
 
   useEffect(() => {
     api.sessions().then(setSessions).catch(onError);
@@ -388,6 +389,18 @@ function AccountDialog({
       onError(error);
     } finally {
       setSavingAdmin(false);
+    }
+  }
+
+  async function exportAuditLog() {
+    setExportingAudit(true);
+    try {
+      const blob = await api.exportAuditLog();
+      downloadBlob(blob, `stickerfoundry-audit-${new Date().toISOString().slice(0, 10)}.csv`);
+    } catch (error) {
+      onError(error);
+    } finally {
+      setExportingAudit(false);
     }
   }
 
@@ -507,7 +520,10 @@ function AccountDialog({
           <div className="audit-list">
             <div className="section-heading">
               <h3>Audit log</h3>
-              <span className="counter">{auditLog.length}</span>
+              <button className="secondary-button" disabled={exportingAudit} onClick={() => void exportAuditLog()} type="button">
+                <Download size={17} />
+                {exportingAudit ? 'Exporting' : 'Export CSV'}
+              </button>
             </div>
             {auditLog.map((entry) => (
               <div className="audit-row" key={entry.id}>
@@ -2036,6 +2052,17 @@ function EmptyState() {
 function exportFileName(pack: Pack) {
   const slug = pack.name.replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '').toLowerCase() || 'sticker-pack';
   return `${slug}-${pack.id.slice(0, 8)}.zip`;
+}
+
+function downloadBlob(blob: Blob, fileName: string) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = fileName;
+  document.body.append(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
 }
 
 function roleLabel(role?: PackRole) {

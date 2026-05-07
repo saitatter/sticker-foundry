@@ -40,4 +40,30 @@ export class AuditService {
       include: { actor: { select: { id: true, email: true, displayName: true } } },
     });
   }
+
+  async csv(limit = 1000) {
+    const entries = await this.prisma.auditLog.findMany({
+      orderBy: { createdAt: 'desc' },
+      take: Math.min(Math.max(limit, 1), 5000),
+      include: { actor: { select: { email: true } } },
+    });
+    const rows = [
+      ['createdAt', 'actorEmail', 'action', 'entityType', 'entityId', 'ipAddress', 'userAgent', 'metadata'],
+      ...entries.map((entry) => [
+        entry.createdAt.toISOString(),
+        entry.actor?.email ?? '',
+        entry.action,
+        entry.entityType,
+        entry.entityId ?? '',
+        entry.ipAddress ?? '',
+        entry.userAgent ?? '',
+        entry.metadata ? JSON.stringify(entry.metadata) : '',
+      ]),
+    ];
+    return rows.map((row) => row.map((value) => this.csvCell(value)).join(',')).join('\n');
+  }
+
+  private csvCell(value: string) {
+    return `"${value.replace(/"/g, '""')}"`;
+  }
 }

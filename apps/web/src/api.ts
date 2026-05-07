@@ -227,6 +227,16 @@ export class StickerFoundryApi {
     return this.request<AuditLogEntry[]>(`/admin/audit-log?limit=${limit}`, { auth: true });
   }
 
+  async exportAuditLog(limit = 1000) {
+    const response = await fetch(`${API_BASE_URL}/admin/audit-log/export?limit=${limit}`, {
+      headers: new Headers(this.authHeaders()),
+    });
+    if (!response.ok) {
+      throw new ApiError(await readError(response), response.status);
+    }
+    return response.blob();
+  }
+
   async packs() {
     return this.request<Pack[]>('/packs', { auth: true });
   }
