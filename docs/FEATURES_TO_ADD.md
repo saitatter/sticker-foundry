@@ -12,7 +12,6 @@ This is the live feature backlog. It should only contain work that still needs t
 
 ## Sticker Workflow UX
 
-- Activity feed showing who changed pack metadata or images.
 - Public share page for a pack with install instructions.
 - Optimistic UI updates with rollback on API failure.
 

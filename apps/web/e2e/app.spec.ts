@@ -207,6 +207,9 @@ async function mockApi(page: Page, state: ReturnType<typeof createMockState>) {
     if (method === 'GET' && path.match(/^\/packs\/[^/]+\/(members|invites)$/)) {
       return json(route, []);
     }
+    if (method === 'GET' && path.match(/^\/packs\/[^/]+\/activity$/)) {
+      return json(route, []);
+    }
 
     return json(route, { message: `Unhandled ${method} ${path}` }, 404);
   });

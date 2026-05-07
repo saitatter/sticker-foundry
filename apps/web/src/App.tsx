@@ -1417,6 +1417,8 @@ function PackDetail({
 
       {canManage ? <CollaborationPanel api={api} pack={pack} onChanged={onChanged} onError={onError} onNotice={onNotice} /> : null}
 
+      <ActivityPanel api={api} pack={pack} onError={onError} />
+
       {canManage ? <PackEditForm api={api} pack={pack} onChanged={onChanged} onError={onError} /> : null}
 
       {canEdit ? <TrayIconPanel api={api} pack={pack} onChanged={onChanged} onError={onError} /> : null}
@@ -1545,6 +1547,59 @@ function PackDetail({
           </div>
         )}
       </section>
+    </section>
+  );
+}
+
+function ActivityPanel({
+  api,
+  pack,
+  onError,
+}: {
+  api: StickerFoundryApi;
+  pack: Pack;
+  onError: (error: unknown) => void;
+}) {
+  const [entries, setEntries] = useState<AuditLogEntry[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    setLoading(true);
+    api
+      .packActivity(pack.id)
+      .then((nextEntries) => {
+        if (alive) setEntries(nextEntries);
+      })
+      .catch(onError)
+      .finally(() => {
+        if (alive) setLoading(false);
+      });
+
+    return () => {
+      alive = false;
+    };
+  }, [api, onError, pack.id]);
+
+  return (
+    <section className="activity-panel">
+      <div className="section-heading">
+        <h3>Activity</h3>
+        <Archive size={18} />
+      </div>
+      <div className="activity-list">
+        {loading ? <span className="muted-row">Loading activity</span> : null}
+        {entries.map((entry) => (
+          <div className="activity-row" key={entry.id}>
+            <span>
+              <strong>{auditActionLabel(entry.action)}</strong>
+              <small>{entry.actor?.email ?? 'System'} · {new Date(entry.createdAt).toLocaleString()}</small>
+            </span>
+            <small>{entry.entityType}</small>
+          </div>
+        ))}
+        {!loading && entries.length === 0 ? <span className="muted-row">No activity yet.</span> : null}
+      </div>
     </section>
   );
 }

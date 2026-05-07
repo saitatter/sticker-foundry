@@ -129,6 +129,7 @@ button:disabled {
 .edit-panel,
 .tray-panel,
 .collaboration-panel,
+.activity-panel,
 .export-panel,
 .stickers-section,
 .auth-panel {
@@ -143,6 +144,7 @@ button:disabled {
 .edit-panel,
 .tray-panel,
 .collaboration-panel,
+.activity-panel,
 .export-panel,
 .stickers-section {
   padding: 16px;
@@ -575,6 +577,7 @@ select:focus {
 .admin-settings,
 .audit-list,
 .invite-form,
+.activity-list,
 .team-list {
   display: grid;
   gap: 10px;
@@ -595,6 +598,7 @@ select:focus {
 .team-row,
 .invite-row,
 .session-row,
+.activity-row,
 .audit-row {
   min-height: 46px;
   display: flex;
@@ -637,6 +641,7 @@ select:focus {
 .member-row span:first-child,
 .invite-row span:first-child,
 .session-row span:first-child,
+.activity-row span:first-child,
 .audit-row span:first-child {
   display: grid;
   gap: 2px;

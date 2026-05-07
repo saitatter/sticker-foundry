@@ -91,6 +91,11 @@ export class PacksController {
     return this.packsService.invites(user.sub, id);
   }
 
+  @Get(':id/activity')
+  activity(@CurrentUser() user: RequestUser, @Param('id') id: string) {
+    return this.packsService.activity(user.sub, id);
+  }
+
   @Post(':id/invites')
   createInvite(@CurrentUser() user: RequestUser, @Param('id') id: string, @Body() dto: CreatePackInviteDto) {
     return this.packsService.createInvite(user.sub, id, dto);

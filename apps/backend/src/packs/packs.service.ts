@@ -199,6 +199,29 @@ export class PacksService {
     });
   }
 
+  async activity(userId: string, packId: string) {
+    const pack = await this.loadPackForAccess(userId, packId);
+    if (!pack) {
+      throw new NotFoundException('Pack not found');
+    }
+    if (!this.canView(userId, pack)) {
+      throw new ForbiddenException('You do not have access to this pack');
+    }
+
+    return this.prisma.auditLog.findMany({
+      where: {
+        OR: [
+          { entityType: 'pack', entityId: packId },
+          { metadata: { path: ['packId'], equals: packId } },
+          { metadata: { path: ['sourcePackId'], equals: packId } },
+        ],
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 30,
+      include: { actor: { select: { id: true, email: true, displayName: true } } },
+    });
+  }
+
   async createInvite(ownerId: string, packId: string, dto: CreatePackInviteDto) {
     await this.requireManage(ownerId, packId);
     if (dto.role === PackRole.OWNER) {
