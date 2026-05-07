@@ -2920,6 +2920,10 @@ type ImageEditOptions = {
   cropSquare: boolean;
   normalizeSquare: boolean;
   removeLightBackground: boolean;
+  backgroundThreshold: number;
+  backgroundFeather: number;
+  cleanupSpeckles: boolean;
+  speckleSize: number;
   outline: boolean;
   shadow: boolean;
   zoom: number;
@@ -2932,6 +2936,10 @@ const defaultImageEditOptions: ImageEditOptions = {
   cropSquare: false,
   normalizeSquare: false,
   removeLightBackground: false,
+  backgroundThreshold: 238,
+  backgroundFeather: 14,
+  cleanupSpeckles: true,
+  speckleSize: 24,
   outline: false,
   shadow: false,
   zoom: 1,
@@ -3029,6 +3037,53 @@ function ImageEditControls({
           Shadow
         </label>
       </div>
+      {options.removeLightBackground ? (
+        <div className="image-edit-sliders background-sliders">
+          <label>
+            Threshold
+            <input
+              max="255"
+              min="180"
+              onChange={(event) => onChange({ ...options, backgroundThreshold: Number(event.target.value) })}
+              step="1"
+              type="range"
+              value={options.backgroundThreshold}
+            />
+          </label>
+          <label>
+            Soft edge
+            <input
+              max="48"
+              min="0"
+              onChange={(event) => onChange({ ...options, backgroundFeather: Number(event.target.value) })}
+              step="1"
+              type="range"
+              value={options.backgroundFeather}
+            />
+          </label>
+          <label className="checkbox-row image-edit-toggle">
+            <input
+              checked={options.cleanupSpeckles}
+              onChange={(event) => onChange({ ...options, cleanupSpeckles: event.target.checked })}
+              type="checkbox"
+            />
+            Cleanup speckles
+          </label>
+          {options.cleanupSpeckles ? (
+            <label>
+              Speckle size
+              <input
+                max="180"
+                min="4"
+                onChange={(event) => onChange({ ...options, speckleSize: Number(event.target.value) })}
+                step="1"
+                type="range"
+                value={options.speckleSize}
+              />
+            </label>
+          ) : null}
+        </div>
+      ) : null}
       {options.cropSquare ? (
         <div className="image-edit-sliders">
           <label>
@@ -3240,7 +3295,7 @@ async function editImageFile(file: File, options: ImageEditOptions) {
   context.drawImage(image, sourceX, sourceY, sourceWidth, sourceHeight, -sourceWidth / 2, -sourceHeight / 2, sourceWidth, sourceHeight);
 
   if (options.removeLightBackground) {
-    removeLightBackground(context, canvas.width, canvas.height);
+    removeLightBackground(context, canvas.width, canvas.height, options);
   }
   if (options.outline) {
     applyOutline(context, canvas.width, canvas.height);
@@ -3255,20 +3310,78 @@ async function editImageFile(file: File, options: ImageEditOptions) {
   return new File([blob], editedFileName(file), { type: 'image/png' });
 }
 
-function removeLightBackground(context: CanvasRenderingContext2D, width: number, height: number) {
+function removeLightBackground(context: CanvasRenderingContext2D, width: number, height: number, options: ImageEditOptions) {
   const imageData = context.getImageData(0, 0, width, height);
   const data = imageData.data;
+  const threshold = clamp(options.backgroundThreshold, 180, 255);
+  const feather = clamp(options.backgroundFeather, 0, 48);
+  const tolerance = 28;
+
   for (let index = 0; index < data.length; index += 4) {
     const red = data[index];
     const green = data[index + 1];
     const blue = data[index + 2];
     const brightness = (red + green + blue) / 3;
     const colorSpread = Math.max(red, green, blue) - Math.min(red, green, blue);
-    if (brightness > 238 && colorSpread < 22) {
+    if (colorSpread > tolerance) continue;
+
+    if (brightness >= threshold) {
       data[index + 3] = 0;
+      continue;
+    }
+
+    if (feather > 0 && brightness >= threshold - feather) {
+      const distance = (threshold - brightness) / feather;
+      data[index + 3] = Math.round(data[index + 3] * clamp(distance, 0, 1));
     }
   }
+
+  if (options.cleanupSpeckles) {
+    removeSmallAlphaIslands(imageData, width, height, options.speckleSize);
+  }
+
   context.putImageData(imageData, 0, 0);
+}
+
+function removeSmallAlphaIslands(imageData: ImageData, width: number, height: number, maxArea: number) {
+  const data = imageData.data;
+  const visited = new Uint8Array(width * height);
+  const stack: number[] = [];
+  const component: number[] = [];
+  const areaLimit = clamp(Math.round(maxArea), 4, 180);
+
+  for (let start = 0; start < visited.length; start += 1) {
+    if (visited[start] || data[start * 4 + 3] <= 12) continue;
+
+    stack.length = 0;
+    component.length = 0;
+    stack.push(start);
+    visited[start] = 1;
+
+    while (stack.length > 0) {
+      const current = stack.pop() as number;
+      component.push(current);
+      const x = current % width;
+      const y = Math.floor(current / width);
+      const neighbors = [current - 1, current + 1, current - width, current + width];
+
+      for (const neighbor of neighbors) {
+        if (neighbor < 0 || neighbor >= visited.length || visited[neighbor]) continue;
+        const neighborX = neighbor % width;
+        const neighborY = Math.floor(neighbor / width);
+        if (Math.abs(neighborX - x) + Math.abs(neighborY - y) !== 1) continue;
+        if (data[neighbor * 4 + 3] <= 12) continue;
+        visited[neighbor] = 1;
+        stack.push(neighbor);
+      }
+    }
+
+    if (component.length <= areaLimit) {
+      for (const pixel of component) {
+        data[pixel * 4 + 3] = 0;
+      }
+    }
+  }
 }
 
 function applyOutline(context: CanvasRenderingContext2D, width: number, height: number) {

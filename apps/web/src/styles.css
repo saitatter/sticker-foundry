@@ -792,6 +792,10 @@ select:focus {
   gap: 10px;
 }
 
+.background-sliders {
+  grid-template-columns: repeat(4, minmax(120px, 1fr));
+}
+
 .image-edit-sliders input {
   padding: 0;
 }
