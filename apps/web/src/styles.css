@@ -768,10 +768,17 @@ select:focus {
   width: 72px;
 }
 
-.image-edit-preview img {
+.image-edit-preview img,
+.image-edit-preview canvas {
   width: 100%;
   height: 100%;
   object-fit: contain;
+}
+
+.image-edit-preview canvas {
+  display: block;
+  touch-action: none;
+  cursor: crosshair;
 }
 
 .image-edit-actions {
@@ -794,6 +801,20 @@ select:focus {
 
 .background-sliders {
   grid-template-columns: repeat(4, minmax(120px, 1fr));
+}
+
+.brush-sliders {
+  grid-template-columns: minmax(160px, 1fr) auto;
+  align-items: center;
+}
+
+.brush-status {
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
 }
 
 .image-edit-sliders input {
@@ -1459,6 +1480,12 @@ select:focus {
   .bulk-toolbar,
   .invite-form,
   .image-edit-controls {
+    grid-template-columns: 1fr;
+  }
+
+  .image-edit-sliders,
+  .background-sliders,
+  .brush-sliders {
     grid-template-columns: 1fr;
   }
 

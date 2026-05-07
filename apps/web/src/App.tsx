@@ -7,6 +7,7 @@ import {
   Copy,
   Download,
   Edit3,
+  Eraser,
   Eye,
   EyeOff,
   FileJson,
@@ -20,6 +21,7 @@ import {
   MessageSquare,
   MoveRight,
   Plus,
+  Redo2,
   RefreshCw,
   RotateCcw,
   RotateCw,
@@ -27,10 +29,11 @@ import {
   ShieldCheck,
   Trash2,
   Upload,
+  Undo2,
   UserPlus,
   Users,
 } from 'lucide-react';
-import { DragEvent, FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
+import { type Dispatch, type DragEvent, type FormEvent, type PointerEvent, type SetStateAction, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AdminSettings,
   ApiError,
@@ -2929,6 +2932,23 @@ type ImageEditOptions = {
   zoom: number;
   offsetX: number;
   offsetY: number;
+  brushMode: BrushMode;
+  brushSize: number;
+  brushStrokes: BrushStroke[];
+};
+
+type BrushMode = 'erase' | 'restore';
+
+type BrushPoint = {
+  x: number;
+  y: number;
+};
+
+type BrushStroke = {
+  id: string;
+  mode: BrushMode;
+  size: number;
+  points: BrushPoint[];
 };
 
 const defaultImageEditOptions: ImageEditOptions = {
@@ -2945,6 +2965,9 @@ const defaultImageEditOptions: ImageEditOptions = {
   zoom: 1,
   offsetX: 0,
   offsetY: 0,
+  brushMode: 'erase',
+  brushSize: 28,
+  brushStrokes: [],
 };
 
 function ImageEditControls({
@@ -2955,21 +2978,47 @@ function ImageEditControls({
 }: {
   file: File;
   options: ImageEditOptions;
-  onChange: (options: ImageEditOptions) => void;
+  onChange: Dispatch<SetStateAction<ImageEditOptions>>;
   compact?: boolean;
 }) {
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const previewBoundsRef = useRef({ x: 0, y: 0, width: 1, height: 1 });
+  const activeStrokeIdRef = useRef<string | null>(null);
+  const [redoStrokes, setRedoStrokes] = useState<BrushStroke[]>([]);
 
   useEffect(() => {
     let alive = true;
     let objectUrl: string | null = null;
+    const canvas = canvasRef.current;
+    if (!canvas) return undefined;
+    canvas.width = 512;
+    canvas.height = 512;
+    const context = canvas.getContext('2d');
+    if (!context) return undefined;
+
+    drawCheckerboard(context, canvas.width, canvas.height, 16);
     editImageFile(file, options)
       .then((editedFile) => {
-        if (!alive) return;
         objectUrl = URL.createObjectURL(editedFile);
-        setPreviewUrl(objectUrl);
+        return loadImageFromUrl(objectUrl);
       })
-      .catch(() => setPreviewUrl(null));
+      .then((image) => {
+        if (!alive || !image) return;
+        drawCheckerboard(context, canvas.width, canvas.height, 16);
+        const scale = Math.min(canvas.width / image.naturalWidth, canvas.height / image.naturalHeight);
+        const width = image.naturalWidth * scale;
+        const height = image.naturalHeight * scale;
+        const x = (canvas.width - width) / 2;
+        const y = (canvas.height - height) / 2;
+        previewBoundsRef.current = {
+          x: x / canvas.width,
+          y: y / canvas.height,
+          width: width / canvas.width,
+          height: height / canvas.height,
+        };
+        context.drawImage(image, x, y, width, height);
+      })
+      .catch(() => drawCheckerboard(context, canvas.width, canvas.height, 16));
 
     return () => {
       alive = false;
@@ -2977,24 +3026,114 @@ function ImageEditControls({
     };
   }, [file, options]);
 
+  useEffect(() => {
+    setRedoStrokes([]);
+  }, [file]);
+
   function rotate(delta: 90 | -90) {
     const nextRotation = (((options.rotation + delta + 360) % 360) as ImageEditOptions['rotation']);
     onChange({ ...options, rotation: nextRotation });
   }
 
+  function setBrushMode(mode: BrushMode) {
+    onChange((current) => ({ ...current, brushMode: mode }));
+  }
+
+  function pointFromEvent(event: PointerEvent<HTMLCanvasElement>): BrushPoint | null {
+    const canvas = canvasRef.current;
+    if (!canvas) return null;
+    const rect = canvas.getBoundingClientRect();
+    const canvasX = (event.clientX - rect.left) / rect.width;
+    const canvasY = (event.clientY - rect.top) / rect.height;
+    const bounds = previewBoundsRef.current;
+    const x = (canvasX - bounds.x) / bounds.width;
+    const y = (canvasY - bounds.y) / bounds.height;
+    if (x < 0 || y < 0 || x > 1 || y > 1) return null;
+    return { x: clamp(x, 0, 1), y: clamp(y, 0, 1) };
+  }
+
+  function startBrushStroke(event: PointerEvent<HTMLCanvasElement>) {
+    const point = pointFromEvent(event);
+    if (!point) return;
+    const stroke: BrushStroke = {
+      id: crypto.randomUUID(),
+      mode: options.brushMode,
+      size: options.brushSize,
+      points: [point],
+    };
+    activeStrokeIdRef.current = stroke.id;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    setRedoStrokes([]);
+    onChange((current) => ({ ...current, brushStrokes: [...current.brushStrokes, stroke] }));
+  }
+
+  function continueBrushStroke(event: PointerEvent<HTMLCanvasElement>) {
+    const activeStrokeId = activeStrokeIdRef.current;
+    if (!activeStrokeId) return;
+    const point = pointFromEvent(event);
+    if (!point) return;
+    onChange((current) => ({
+      ...current,
+      brushStrokes: current.brushStrokes.map((stroke) => {
+        if (stroke.id !== activeStrokeId) return stroke;
+        const previous = stroke.points.at(-1);
+        if (previous && Math.hypot(previous.x - point.x, previous.y - point.y) < 0.004) return stroke;
+        return { ...stroke, points: [...stroke.points, point] };
+      }),
+    }));
+  }
+
+  function finishBrushStroke() {
+    activeStrokeIdRef.current = null;
+  }
+
+  function undoBrushStroke() {
+    onChange((current) => {
+      const previousStroke = current.brushStrokes.at(-1);
+      if (!previousStroke) return current;
+      setRedoStrokes((strokes) => [...strokes, previousStroke]);
+      return { ...current, brushStrokes: current.brushStrokes.slice(0, -1) };
+    });
+  }
+
+  function redoBrushStroke() {
+    const stroke = redoStrokes.at(-1);
+    if (!stroke) return;
+    setRedoStrokes((strokes) => strokes.slice(0, -1));
+    onChange((current) => ({ ...current, brushStrokes: [...current.brushStrokes, stroke] }));
+  }
+
   return (
     <div className={`image-edit-controls ${compact ? 'compact' : ''}`}>
-      {previewUrl ? (
-        <div className="image-edit-preview">
-          <img alt="Edited preview" src={previewUrl} />
-        </div>
-      ) : null}
+      <div className="image-edit-preview">
+        <canvas
+          aria-label="Edited preview canvas"
+          onPointerCancel={finishBrushStroke}
+          onPointerDown={startBrushStroke}
+          onPointerLeave={finishBrushStroke}
+          onPointerMove={continueBrushStroke}
+          onPointerUp={finishBrushStroke}
+          ref={canvasRef}
+        />
+      </div>
       <div className="image-edit-actions">
         <IconButton label="Rotate left" onClick={() => rotate(-90)}>
           <RotateCcw size={16} />
         </IconButton>
         <IconButton label="Rotate right" onClick={() => rotate(90)}>
           <RotateCw size={16} />
+        </IconButton>
+        <IconButton label="Undo brush" disabled={options.brushStrokes.length === 0} onClick={undoBrushStroke}>
+          <Undo2 size={16} />
+        </IconButton>
+        <IconButton label="Redo brush" disabled={redoStrokes.length === 0} onClick={redoBrushStroke}>
+          <Redo2 size={16} />
+        </IconButton>
+        <IconButton label="Erase brush" onClick={() => setBrushMode('erase')}>
+          <Eraser size={16} />
+        </IconButton>
+        <IconButton label="Restore brush" onClick={() => setBrushMode('restore')}>
+          <RefreshCw size={16} />
         </IconButton>
         <label className="checkbox-row image-edit-toggle">
           <input
@@ -3036,6 +3175,20 @@ function ImageEditControls({
           <input checked={options.shadow} onChange={(event) => onChange({ ...options, shadow: event.target.checked })} type="checkbox" />
           Shadow
         </label>
+      </div>
+      <div className="image-edit-sliders brush-sliders">
+        <label>
+          Brush size
+          <input
+            max="120"
+            min="4"
+            onChange={(event) => onChange((current) => ({ ...current, brushSize: Number(event.target.value) }))}
+            step="1"
+            type="range"
+            value={options.brushSize}
+          />
+        </label>
+        <span className="brush-status">{options.brushMode === 'erase' ? 'Erasing pixels' : 'Restoring pixels'}</span>
       </div>
       {options.removeLightBackground ? (
         <div className="image-edit-sliders background-sliders">
@@ -3255,7 +3408,8 @@ async function editImageFile(file: File, options: ImageEditOptions) {
     !options.normalizeSquare &&
     !options.removeLightBackground &&
     !options.outline &&
-    !options.shadow
+    !options.shadow &&
+    options.brushStrokes.length === 0
   ) {
     return file;
   }
@@ -3293,9 +3447,18 @@ async function editImageFile(file: File, options: ImageEditOptions) {
   context.translate(canvas.width / 2, canvas.height / 2);
   context.rotate((options.rotation * Math.PI) / 180);
   context.drawImage(image, sourceX, sourceY, sourceWidth, sourceHeight, -sourceWidth / 2, -sourceHeight / 2, sourceWidth, sourceHeight);
+  context.setTransform(1, 0, 0, 1, 0, 0);
+
+  const restoreSource = document.createElement('canvas');
+  restoreSource.width = canvas.width;
+  restoreSource.height = canvas.height;
+  restoreSource.getContext('2d')?.drawImage(canvas, 0, 0);
 
   if (options.removeLightBackground) {
     removeLightBackground(context, canvas.width, canvas.height, options);
+  }
+  if (options.brushStrokes.length > 0) {
+    applyBrushStrokes(context, canvas.width, canvas.height, options.brushStrokes, restoreSource);
   }
   if (options.outline) {
     applyOutline(context, canvas.width, canvas.height);
@@ -3384,6 +3547,74 @@ function removeSmallAlphaIslands(imageData: ImageData, width: number, height: nu
   }
 }
 
+function applyBrushStrokes(
+  context: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  strokes: BrushStroke[],
+  restoreSource: HTMLCanvasElement,
+) {
+  const restoreMask = document.createElement('canvas');
+  restoreMask.width = width;
+  restoreMask.height = height;
+  const restoreMaskContext = restoreMask.getContext('2d');
+  const restoreLayer = document.createElement('canvas');
+  restoreLayer.width = width;
+  restoreLayer.height = height;
+  const restoreLayerContext = restoreLayer.getContext('2d');
+
+  for (const stroke of strokes) {
+    if (stroke.mode === 'erase') {
+      context.save();
+      context.globalCompositeOperation = 'destination-out';
+      drawBrushStroke(context, stroke, width, height);
+      context.restore();
+      continue;
+    }
+
+    if (!restoreMaskContext || !restoreLayerContext) continue;
+    restoreMaskContext.clearRect(0, 0, width, height);
+    drawBrushStroke(restoreMaskContext, stroke, width, height);
+    restoreLayerContext.clearRect(0, 0, width, height);
+    restoreLayerContext.globalCompositeOperation = 'source-over';
+    restoreLayerContext.drawImage(restoreSource, 0, 0);
+    restoreLayerContext.globalCompositeOperation = 'destination-in';
+    restoreLayerContext.drawImage(restoreMask, 0, 0);
+    restoreLayerContext.globalCompositeOperation = 'source-over';
+    context.drawImage(restoreLayer, 0, 0);
+  }
+}
+
+function drawBrushStroke(context: CanvasRenderingContext2D, stroke: BrushStroke, width: number, height: number) {
+  if (stroke.points.length === 0) return;
+  const brushSize = Math.max(1, stroke.size * (Math.max(width, height) / 512));
+  context.save();
+  context.lineCap = 'round';
+  context.lineJoin = 'round';
+  context.lineWidth = brushSize;
+  context.strokeStyle = '#000';
+  context.fillStyle = '#000';
+
+  const [firstPoint, ...remainingPoints] = stroke.points;
+  const firstX = firstPoint.x * width;
+  const firstY = firstPoint.y * height;
+  if (remainingPoints.length === 0) {
+    context.beginPath();
+    context.arc(firstX, firstY, brushSize / 2, 0, Math.PI * 2);
+    context.fill();
+    context.restore();
+    return;
+  }
+
+  context.beginPath();
+  context.moveTo(firstX, firstY);
+  for (const point of remainingPoints) {
+    context.lineTo(point.x * width, point.y * height);
+  }
+  context.stroke();
+  context.restore();
+}
+
 function applyOutline(context: CanvasRenderingContext2D, width: number, height: number) {
   const original = context.getImageData(0, 0, width, height);
   const output = context.createImageData(width, height);
@@ -3440,6 +3671,16 @@ function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
 }
 
+function drawCheckerboard(context: CanvasRenderingContext2D, width: number, height: number, tileSize: number) {
+  context.clearRect(0, 0, width, height);
+  for (let y = 0; y < height; y += tileSize) {
+    for (let x = 0; x < width; x += tileSize) {
+      context.fillStyle = (x / tileSize + y / tileSize) % 2 === 0 ? '#f7faf9' : '#d8e2df';
+      context.fillRect(x, y, tileSize, tileSize);
+    }
+  }
+}
+
 function loadImage(file: File) {
   return new Promise<HTMLImageElement>((resolve, reject) => {
     const url = URL.createObjectURL(file);
@@ -3452,6 +3693,15 @@ function loadImage(file: File) {
       URL.revokeObjectURL(url);
       reject(new Error('Image preview failed'));
     };
+    image.src = url;
+  });
+}
+
+function loadImageFromUrl(url: string) {
+  return new Promise<HTMLImageElement>((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error('Image preview failed'));
     image.src = url;
   });
 }
