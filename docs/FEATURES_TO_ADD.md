@@ -12,7 +12,7 @@ This backlog intentionally contains only work that is not implemented yet or can
 
 ## Sticker Editing
 
-- Evaluate AI subject segmentation/background removal model integration for web or backend processing.
+- Add first-party ONNX model packaging/profile docs after choosing the default model and runtime image.
 
 ## Deployment And Ops
 

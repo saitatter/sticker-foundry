@@ -14,6 +14,7 @@ StickerFoundry is a self-hosted collaborative WhatsApp sticker pack manager: web
 - Sticker upload pipeline with WebP conversion, 512x512 normalization, static/animated validation, duplicate detection, image bomb safeguards, and queued media processing.
 - Disk storage by default, optional S3-compatible storage, cached ZIP exports, manifest/ETag sync, and Prometheus metrics.
 - Web UI for pack management, collaboration, public share pages, image editing, review status, comments, bulk actions, keyboard shortcuts, and responsive sticker grids.
+- Background removal can run in-browser, on the backend threshold pipeline, or through an optional self-hosted AI command with threshold fallback.
 - Android Kotlin app with Retrofit, Room cache, retry-safe ZIP extraction, local extraction status, image upload/editing, WhatsApp and WhatsApp Business import intents, and stale-edit conflict handling.
 - Docker Compose stack for PostgreSQL, backend, and web.
 - Semantic-release with emoji changelog sections and Android debug APK release asset.
@@ -76,6 +77,16 @@ Services:
 - PostgreSQL: internal service `postgres`
 
 Set strong `POSTGRES_PASSWORD` and `JWT_SECRET` before exposing anything outside your LAN.
+
+### 🖼️ AI Background Removal
+
+The backend can call a local self-hosted remover command for `Server bg: AI/fallback` uploads. The command must write a transparent PNG to `{output}`:
+
+```env
+BACKGROUND_REMOVAL_COMMAND="rembg i {input} {output}"
+```
+
+Any compatible local tool works here, including a Python ONNX/RMBG/U²-Net/MODNet script. If the command is empty or fails, StickerFoundry automatically uses the backend threshold remover instead.
 
 ## 📱 Android
 
