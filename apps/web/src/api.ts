@@ -75,10 +75,12 @@ export type Pack = {
   publisher: string;
   description?: string | null;
   isPublic: boolean;
+  requiresApproval: boolean;
   teamId?: string | null;
   teamName?: string | null;
   imageDataVersion: string;
   stickerCount: number;
+  exportStickerCount?: number;
   updatedAt: string;
   role?: PackRole;
   canEdit?: boolean;
@@ -147,6 +149,7 @@ export type CreatePackInput = {
   publisher: string;
   description?: string;
   isPublic: boolean;
+  requiresApproval?: boolean;
   teamId?: string;
 };
 

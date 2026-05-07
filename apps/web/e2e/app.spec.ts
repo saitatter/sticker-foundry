@@ -23,6 +23,7 @@ type Pack = {
   publisher: string;
   description?: string | null;
   isPublic: boolean;
+  requiresApproval: boolean;
   imageDataVersion: string;
   stickerCount: number;
   updatedAt: string;
@@ -88,6 +89,7 @@ function createMockState() {
       publisher: 'StickerFoundry',
       description: null,
       isPublic: false,
+      requiresApproval: false,
       imageDataVersion: '1',
       stickerCount: stickers.length,
       updatedAt: new Date().toISOString(),
@@ -132,6 +134,7 @@ async function mockApi(page: Page, state: ReturnType<typeof createMockState>) {
         publisher: body.publisher,
         description: null,
         isPublic: body.isPublic ?? false,
+        requiresApproval: false,
         imageDataVersion: '1',
         stickerCount: 0,
         updatedAt: new Date().toISOString(),

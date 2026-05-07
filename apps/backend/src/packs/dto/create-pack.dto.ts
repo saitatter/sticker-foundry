@@ -21,6 +21,10 @@ export class CreatePackDto {
   isPublic?: boolean;
 
   @IsOptional()
+  @IsBoolean()
+  requiresApproval?: boolean;
+
+  @IsOptional()
   @IsUUID()
   teamId?: string;
 }

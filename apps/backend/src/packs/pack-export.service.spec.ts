@@ -118,6 +118,39 @@ describe(PackExportService, () => {
     await expect(service.buildZip('pack-1', createArchive() as never)).rejects.toBeInstanceOf(BadRequestException);
   });
 
+  it('exports only approved stickers when pack approval is required', async () => {
+    const pack = {
+      id: 'pack-review',
+      name: 'Reviewed',
+      publisher: 'Sticker Foundry',
+      requiresApproval: true,
+      imageDataVersion: '2',
+      stickers: [
+        { fileName: 'one.webp', emojis: ['😀'], accessibilityText: null, reviewStatus: 'APPROVED' },
+        { fileName: 'two.webp', emojis: ['😀'], accessibilityText: null, reviewStatus: 'NEEDS_WORK' },
+        { fileName: 'three.webp', emojis: ['😀'], accessibilityText: null, reviewStatus: 'APPROVED' },
+        { fileName: 'four.webp', emojis: ['😀'], accessibilityText: null, reviewStatus: 'PENDING' },
+        { fileName: 'five.webp', emojis: ['😀'], accessibilityText: null, reviewStatus: 'APPROVED' },
+      ],
+    };
+    const { service } = await createService(pack);
+    const packDir = service.packDirectory(pack.id);
+    await mkdir(packDir, { recursive: true });
+    await writeFile(join(packDir, 'tray_icon.webp'), 'tray');
+    await Promise.all(pack.stickers.map((sticker) => writeFile(join(packDir, sticker.fileName), 'sticker')));
+
+    const archive = createArchive();
+    await service.buildZip(pack.id, archive as never);
+
+    const contents = JSON.parse(archive.append.mock.calls[0][0]);
+    expect(contents.sticker_packs[0].stickers.map((sticker: { image_file: string }) => sticker.image_file)).toEqual([
+      'one.webp',
+      'three.webp',
+      'five.webp',
+    ]);
+    expect(archive.append).toHaveBeenCalledTimes(4);
+  });
+
   it('builds a manifest with a stable content hash and export paths', async () => {
     const pack = {
       id: 'pack-manifest',

@@ -13,7 +13,6 @@ This is the live feature backlog. It should only contain work that still needs t
 ## Collaboration
 
 - Comments per sticker.
-- Optional approval flow before a sticker becomes part of an exported pack.
 
 ## Sticker Workflow UX
 

@@ -23,6 +23,7 @@ describe(SyncService, () => {
         publisher: 'Me',
         description: null,
         isPublic: false,
+        requiresApproval: false,
         ownerId: 'user-1',
         imageDataVersion: '4',
         updatedAt: new Date('2026-05-07T08:00:00.000Z'),
@@ -39,6 +40,7 @@ describe(SyncService, () => {
         publisher: 'Friend',
         description: 'Shared',
         isPublic: true,
+        requiresApproval: false,
         ownerId: 'user-2',
         imageDataVersion: '9',
         updatedAt: new Date('2026-05-07T09:00:00.000Z'),
@@ -66,7 +68,7 @@ describe(SyncService, () => {
         _count: { select: { stickers: true } },
         stickers: {
           orderBy: [{ position: 'asc' }, { createdAt: 'asc' }],
-          select: { fileName: true, sha256: true },
+          select: { fileName: true, sha256: true, reviewStatus: true },
         },
         members: { where: { userId: 'user-1' }, select: { userId: true, role: true } },
         team: { include: { members: { where: { userId: 'user-1' }, select: { userId: true, role: true } } } },
@@ -77,6 +79,7 @@ describe(SyncService, () => {
       expect.objectContaining({
         id: 'owned-pack',
         isOwner: true,
+        requiresApproval: false,
         role: 'OWNER',
         canEdit: true,
         canManage: true,
@@ -89,6 +92,7 @@ describe(SyncService, () => {
       expect.objectContaining({
         id: 'public-pack',
         isOwner: false,
+        requiresApproval: false,
         role: 'VIEWER',
         canEdit: false,
         canManage: false,

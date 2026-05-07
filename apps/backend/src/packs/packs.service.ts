@@ -1,6 +1,6 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { PackRole } from '@prisma/client';
+import { PackRole, StickerReviewStatus } from '@prisma/client';
 import { randomBytes } from 'crypto';
 import { cp, mkdir, rm } from 'fs/promises';
 import { join, resolve } from 'path';
@@ -52,6 +52,7 @@ export class PacksService {
         publisher: dto.publisher,
         description: dto.description,
         isPublic: dto.isPublic ?? false,
+        requiresApproval: dto.requiresApproval ?? false,
       },
     });
     await this.audit.record({ actorId: ownerId, action: 'pack.create', entityType: 'pack', entityId: pack.id });
@@ -66,15 +67,17 @@ export class PacksService {
       orderBy: { updatedAt: 'desc' },
       include: {
         _count: { select: { stickers: true } },
+        stickers: { where: { reviewStatus: StickerReviewStatus.APPROVED }, select: { id: true } },
         members: { where: { userId }, select: { userId: true, role: true } },
         team: { include: { members: { where: { userId }, select: { userId: true, role: true } } } },
       },
     });
 
-    return packs.map(({ _count, ...pack }) => ({
+    return packs.map(({ _count, stickers, ...pack }) => ({
       ...pack,
       teamName: pack.team?.name,
       stickerCount: _count.stickers,
+      exportStickerCount: pack.requiresApproval ? stickers.length : _count.stickers,
       ...this.accessSummary(userId, pack),
     }));
   }
@@ -101,6 +104,9 @@ export class PacksService {
       ...rest,
       teamName: pack.team?.name,
       stickerCount: _count.stickers,
+      exportStickerCount: pack.requiresApproval
+        ? pack.stickers.filter((sticker) => sticker.reviewStatus === StickerReviewStatus.APPROVED).length
+        : _count.stickers,
       ...this.accessSummary(userId, pack),
     };
   }
@@ -360,6 +366,7 @@ export class PacksService {
         publisher: dto.publisher,
         description: dto.description,
         isPublic: dto.isPublic,
+        requiresApproval: dto.requiresApproval,
       },
     });
     await this.audit.record({ actorId: ownerId, action: 'pack.update', entityType: 'pack', entityId: id });

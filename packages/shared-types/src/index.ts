@@ -19,10 +19,12 @@ export type PackDto = {
   publisher: string;
   description?: string | null;
   isPublic: boolean;
+  requiresApproval: boolean;
   teamId?: string | null;
   teamName?: string | null;
   imageDataVersion: string;
   stickerCount: number;
+  exportStickerCount?: number;
   role?: PackRole;
   canEdit?: boolean;
   canManage?: boolean;
@@ -36,6 +38,7 @@ export type SyncPackDto = {
   publisher: string;
   description?: string | null;
   isPublic: boolean;
+  requiresApproval: boolean;
   isOwner: boolean;
   teamId?: string | null;
   teamName?: string | null;
@@ -70,6 +73,7 @@ export type PackManifestDto = {
   name: string;
   publisher: string;
   imageDataVersion: string;
+  requiresApproval?: boolean;
   stickerCount: number;
   canExport: boolean;
   contentHash: string;

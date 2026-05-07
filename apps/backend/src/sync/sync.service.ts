@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { PackRole } from '@prisma/client';
+import { PackRole, StickerReviewStatus } from '@prisma/client';
 import { createHash } from 'crypto';
 import { PrismaService } from '../prisma.service';
 import { WHATSAPP_LIMITS } from '../packs/whatsapp-constraints';
@@ -18,7 +18,7 @@ export class SyncService {
         _count: { select: { stickers: true } },
         stickers: {
           orderBy: [{ position: 'asc' }, { createdAt: 'asc' }],
-          select: { fileName: true, sha256: true },
+          select: { fileName: true, sha256: true, reviewStatus: true },
         },
         members: { where: { userId }, select: { userId: true, role: true } },
         team: { include: { members: { where: { userId }, select: { userId: true, role: true } } } },
@@ -28,11 +28,14 @@ export class SyncService {
     return {
       serverTime: new Date().toISOString(),
       packs: packs.map(({ _count, stickers, members, team, ...pack }) => {
-        const stickerCount = _count.stickers;
+        const exportStickers = pack.requiresApproval
+          ? stickers.filter((sticker) => sticker.reviewStatus === StickerReviewStatus.APPROVED)
+          : stickers;
+        const stickerCount = exportStickers.length;
         const updatedAt = pack.updatedAt.toISOString();
         const canExport =
           stickerCount >= WHATSAPP_LIMITS.minStickersPerPack && stickerCount <= WHATSAPP_LIMITS.maxStickersPerPack;
-        const contentHash = this.contentHash(pack.id, pack.imageDataVersion, stickers);
+        const contentHash = this.contentHash(pack.id, pack.imageDataVersion, exportStickers);
 
         const role =
           pack.ownerId === userId
@@ -45,6 +48,7 @@ export class SyncService {
           publisher: pack.publisher,
           description: pack.description,
           isPublic: pack.isPublic,
+          requiresApproval: pack.requiresApproval,
           isOwner: pack.ownerId === userId,
           role,
           teamId: pack.teamId,

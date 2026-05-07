@@ -783,7 +783,7 @@ select:focus {
 
 .edit-form {
   display: grid;
-  grid-template-columns: minmax(180px, 1fr) minmax(180px, 1fr) minmax(220px, 1.4fr) auto auto;
+  grid-template-columns: minmax(180px, 1fr) minmax(180px, 1fr) minmax(220px, 1.4fr) auto auto auto;
   align-items: end;
   gap: 12px;
 }

@@ -691,6 +691,7 @@ function PackCreateForm({
   const [name, setName] = useState('');
   const [publisher, setPublisher] = useState('');
   const [isPublic, setIsPublic] = useState(false);
+  const [requiresApproval, setRequiresApproval] = useState(false);
   const [teamId, setTeamId] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
@@ -698,10 +699,11 @@ function PackCreateForm({
     event.preventDefault();
     setSubmitting(true);
     try {
-      const pack = await api.createPack({ name, publisher, isPublic, teamId: teamId || undefined });
+      const pack = await api.createPack({ name, publisher, isPublic, requiresApproval, teamId: teamId || undefined });
       setName('');
       setPublisher('');
       setIsPublic(false);
+      setRequiresApproval(false);
       setTeamId('');
       onCreated(pack);
     } catch (error) {
@@ -729,6 +731,14 @@ function PackCreateForm({
         <label className="checkbox-row">
           <input checked={isPublic} onChange={(event) => setIsPublic(event.target.checked)} type="checkbox" />
           Public
+        </label>
+        <label className="checkbox-row">
+          <input
+            checked={requiresApproval}
+            onChange={(event) => setRequiresApproval(event.target.checked)}
+            type="checkbox"
+          />
+          Require approval
         </label>
         {teams.length > 0 ? (
           <label>
@@ -1149,9 +1159,11 @@ function PackDetail({
   onNotice: (message: string) => void;
 }) {
   const stickers = pack.stickers ?? [];
+  const exportStickerCount =
+    pack.requiresApproval ? stickers.filter((sticker) => sticker.reviewStatus === 'APPROVED').length : stickers.length;
   const canEdit = pack.canEdit ?? true;
   const canManage = pack.canManage ?? false;
-  const canExport = stickers.length >= 3 && stickers.length <= 30;
+  const canExport = exportStickerCount >= 3 && exportStickerCount <= 30;
   const [exporting, setExporting] = useState(false);
   const [contentsPreview, setContentsPreview] = useState<string | null>(null);
   const [loadingContents, setLoadingContents] = useState(false);
@@ -1363,12 +1375,17 @@ function PackDetail({
 
       <div className="stats-grid">
         <Metric label="Stickers" value={`${stickers.length}/30`} />
+        <Metric label="Export" value={`${exportStickerCount}/30`} />
         <Metric label="Role" value={roleLabel(pack.role)} />
         <Metric label="Version" value={pack.imageDataVersion} />
         <Metric label="Updated" value={new Date(pack.updatedAt).toLocaleDateString()} />
       </div>
 
-      <ExportReadiness stickerCount={stickers.length} canExport={canExport} />
+      <ExportReadiness
+        stickerCount={exportStickerCount}
+        canExport={canExport}
+        requiresApproval={pack.requiresApproval}
+      />
 
       {contentsPreview ? <pre className="contents-preview">{contentsPreview}</pre> : null}
 
@@ -1497,7 +1514,15 @@ function PackDetail({
   );
 }
 
-function ExportReadiness({ stickerCount, canExport }: { stickerCount: number; canExport: boolean }) {
+function ExportReadiness({
+  stickerCount,
+  canExport,
+  requiresApproval,
+}: {
+  stickerCount: number;
+  canExport: boolean;
+  requiresApproval: boolean;
+}) {
   const missing = Math.max(0, 3 - stickerCount);
 
   return (
@@ -1508,8 +1533,8 @@ function ExportReadiness({ stickerCount, canExport }: { stickerCount: number; ca
           <h3>{canExport ? 'WhatsApp export ready' : 'WhatsApp export blocked'}</h3>
           <p>
             {canExport
-              ? 'ZIP includes contents.json, tray icon, and ordered stickers.'
-              : `${missing} more sticker${missing === 1 ? '' : 's'} needed.`}
+              ? `${requiresApproval ? 'Approved stickers' : 'Ordered stickers'} are included in contents.json and the ZIP.`
+              : `${missing} more ${requiresApproval ? 'approved ' : ''}sticker${missing === 1 ? '' : 's'} needed.`}
           </p>
         </div>
       </div>
@@ -1730,6 +1755,7 @@ function PackEditForm({
   const [publisher, setPublisher] = useState(pack.publisher);
   const [description, setDescription] = useState(pack.description ?? '');
   const [isPublic, setIsPublic] = useState(pack.isPublic);
+  const [requiresApproval, setRequiresApproval] = useState(pack.requiresApproval);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -1737,13 +1763,15 @@ function PackEditForm({
     setPublisher(pack.publisher);
     setDescription(pack.description ?? '');
     setIsPublic(pack.isPublic);
-  }, [pack.description, pack.isPublic, pack.name, pack.publisher]);
+    setRequiresApproval(pack.requiresApproval);
+  }, [pack.description, pack.isPublic, pack.name, pack.publisher, pack.requiresApproval]);
 
   const dirty =
     name !== pack.name ||
     publisher !== pack.publisher ||
     description !== (pack.description ?? '') ||
-    isPublic !== pack.isPublic;
+    isPublic !== pack.isPublic ||
+    requiresApproval !== pack.requiresApproval;
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -1754,6 +1782,7 @@ function PackEditForm({
         publisher,
         description,
         isPublic,
+        requiresApproval,
       });
       await onChanged('Pack updated');
     } catch (error) {
@@ -1785,6 +1814,14 @@ function PackEditForm({
         <label className="checkbox-row edit-toggle">
           <input checked={isPublic} onChange={(event) => setIsPublic(event.target.checked)} type="checkbox" />
           Public
+        </label>
+        <label className="checkbox-row edit-toggle">
+          <input
+            checked={requiresApproval}
+            onChange={(event) => setRequiresApproval(event.target.checked)}
+            type="checkbox"
+          />
+          Require approval
         </label>
         <button className="secondary-button" disabled={!dirty || saving} type="submit">
           <Edit3 size={17} />

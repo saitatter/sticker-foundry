@@ -5,6 +5,7 @@ import { createHash } from 'crypto';
 import { createReadStream } from 'fs';
 import { mkdir, readFile } from 'fs/promises';
 import { join } from 'path';
+import { StickerReviewStatus } from '@prisma/client';
 import { PrismaService } from '../prisma.service';
 import { DEFAULT_STICKER_EMOJIS, WHATSAPP_LIMITS } from './whatsapp-constraints';
 
@@ -13,11 +14,13 @@ type ExportPack = {
   id: string;
   name: string;
   publisher: string;
+  requiresApproval: boolean;
   imageDataVersion: string;
   stickers: Array<{
     fileName: string;
     emojis: string[];
     accessibilityText: string | null;
+    reviewStatus?: StickerReviewStatus;
   }>;
 };
 
@@ -52,22 +55,24 @@ export class PackExportService {
       throw new NotFoundException('Pack not found');
     }
 
-    const stickerCount = pack.stickers.length;
+    const exportPack = this.exportablePack(pack);
+    const stickerCount = exportPack.stickers.length;
     const canExport =
       stickerCount >= WHATSAPP_LIMITS.minStickersPerPack && stickerCount <= WHATSAPP_LIMITS.maxStickersPerPack;
-    const contentHash = await this.contentHash(pack);
+    const contentHash = await this.contentHash(exportPack);
 
     return {
       id: pack.id,
       name: pack.name,
       publisher: pack.publisher,
+      requiresApproval: pack.requiresApproval,
       imageDataVersion: pack.imageDataVersion,
       stickerCount,
       canExport,
       contentHash,
       exportPath: `/packs/${pack.id}/export`,
       trayIconPath: `/packs/${pack.id}/tray-icon`,
-      stickers: pack.stickers.map((sticker) => ({
+      stickers: exportPack.stickers.map((sticker) => ({
         fileName: sticker.fileName,
         emojis: this.cleanEmojis(sticker.emojis),
         accessibilityText: sticker.accessibilityText,
@@ -123,15 +128,16 @@ export class PackExportService {
       throw new NotFoundException('Pack not found');
     }
 
-    if (pack.stickers.length < WHATSAPP_LIMITS.minStickersPerPack) {
+    const exportPack = this.exportablePack(pack);
+    if (exportPack.stickers.length < WHATSAPP_LIMITS.minStickersPerPack) {
       throw new BadRequestException(`A WhatsApp pack needs at least ${WHATSAPP_LIMITS.minStickersPerPack} stickers`);
     }
 
-    if (pack.stickers.length > WHATSAPP_LIMITS.maxStickersPerPack) {
+    if (exportPack.stickers.length > WHATSAPP_LIMITS.maxStickersPerPack) {
       throw new BadRequestException(`A WhatsApp pack cannot exceed ${WHATSAPP_LIMITS.maxStickersPerPack} stickers`);
     }
 
-    return pack;
+    return exportPack;
   }
 
   private loadExportPack(packId: string) {
@@ -139,6 +145,14 @@ export class PackExportService {
       where: { id: packId },
       include: { stickers: { orderBy: [{ position: 'asc' }, { createdAt: 'asc' }] } },
     });
+  }
+
+  private exportablePack<T extends ExportPack>(pack: T): T {
+    if (!pack.requiresApproval) return pack;
+    return {
+      ...pack,
+      stickers: pack.stickers.filter((sticker) => sticker.reviewStatus === StickerReviewStatus.APPROVED),
+    };
   }
 
   private async contentHash(pack: ExportPack & { stickers: Array<ExportPack['stickers'][number] & { sha256?: string }> }) {

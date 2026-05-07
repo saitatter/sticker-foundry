@@ -26,6 +26,7 @@ type PackRecord = {
   publisher: string;
   description: string | null;
   isPublic: boolean;
+  requiresApproval: boolean;
   imageDataVersion: string;
   createdAt: Date;
   updatedAt: Date;
@@ -205,6 +206,7 @@ class InMemoryPrisma {
         publisher: data.publisher ?? 'StickerFoundry',
         description: data.description ?? null,
         isPublic: data.isPublic ?? false,
+        requiresApproval: data.requiresApproval ?? false,
         imageDataVersion: data.imageDataVersion ?? '1',
         createdAt: now,
         updatedAt: now,
