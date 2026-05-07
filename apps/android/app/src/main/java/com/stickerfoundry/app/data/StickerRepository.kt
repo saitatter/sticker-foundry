@@ -3,7 +3,13 @@ package com.stickerfoundry.app.data
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Canvas
+import android.graphics.Color
+import android.graphics.ColorMatrix
+import android.graphics.ColorMatrixColorFilter
 import android.graphics.Matrix
+import android.graphics.Paint
+import android.graphics.Typeface
 import android.net.Uri
 import android.provider.OpenableColumns
 import com.squareup.moshi.Moshi
@@ -286,11 +292,7 @@ class StickerRepository private constructor(context: Context) {
 
     private fun multipartFromUri(uri: Uri, options: ImageEditOptions): MultipartBody.Part {
         val resolver = appContext.contentResolver
-        val hasEdits = options.rotationDegrees.floorMod(360) != 0 ||
-            options.cropSquare ||
-            options.zoom != 1f ||
-            options.offsetX != 0f ||
-            options.offsetY != 0f
+        val hasEdits = options.hasEdits()
         val mediaType = if (hasEdits) "image/png" else resolver.getType(uri) ?: "image/*"
         val fileName = if (hasEdits) {
             "sticker-foundry-edited-${System.currentTimeMillis()}.png"
@@ -328,17 +330,95 @@ class StickerRepository private constructor(context: Context) {
         }
 
         val rotation = options.rotationDegrees.floorMod(360)
-        val output = if (rotation == 0) {
+        val rotated = if (rotation == 0) {
             cropped
         } else {
             val matrix = Matrix().apply { postRotate(rotation.toFloat()) }
             Bitmap.createBitmap(cropped, 0, 0, cropped.width, cropped.height, matrix, true)
         }
+        val colorAdjusted = applyColorAdjustments(rotated, options)
+        val output = drawTextOverlay(colorAdjusted, options)
 
         return ByteArrayOutputStream().use { stream ->
             output.compress(Bitmap.CompressFormat.PNG, 100, stream)
             stream.toByteArray()
         }
+    }
+
+    private fun applyColorAdjustments(bitmap: Bitmap, options: ImageEditOptions): Bitmap {
+        if (!options.hasColorEdits()) return bitmap
+
+        val output = Bitmap.createBitmap(bitmap.width, bitmap.height, Bitmap.Config.ARGB_8888)
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            colorFilter = ColorMatrixColorFilter(options.colorMatrix())
+        }
+        Canvas(output).drawBitmap(bitmap, 0f, 0f, paint)
+        return output
+    }
+
+    private fun drawTextOverlay(bitmap: Bitmap, options: ImageEditOptions): Bitmap {
+        if (!options.hasTextEdit()) return bitmap
+
+        val output = bitmap.copy(Bitmap.Config.ARGB_8888, true)
+        val canvas = Canvas(output)
+        val scale = maxOf(output.width, output.height) / 512f
+        val textSize = options.textSize.coerceIn(18f, 140f) * scale
+        val x = output.width / 2f
+        val y = output.height * 0.84f
+        val text = options.textContent.trim().take(80)
+        val strokeWidth = maxOf(3f, textSize * 0.1f)
+
+        val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.BLACK
+            style = Paint.Style.STROKE
+            this.strokeWidth = strokeWidth
+            this.textSize = textSize
+            textAlign = Paint.Align.CENTER
+            typeface = Typeface.DEFAULT_BOLD
+        }
+        val fillPaint = Paint(strokePaint).apply {
+            color = Color.WHITE
+            style = Paint.Style.FILL
+        }
+
+        canvas.drawText(text, x, y, strokePaint)
+        canvas.drawText(text, x, y, fillPaint)
+        return output
+    }
+
+    private fun ImageEditOptions.colorMatrix(): ColorMatrix {
+        val saturationValue = if (grayscale) 0f else (1f + saturation / 100f).coerceIn(0f, 2f)
+        val contrastValue = (1f + contrast / 100f).coerceIn(0f, 2f)
+        val brightnessValue = brightness.coerceIn(-100f, 100f) * 2.55f
+        val translate = ((-0.5f * contrastValue + 0.5f) * 255f) + brightnessValue
+
+        val matrix = ColorMatrix().apply { setSaturation(saturationValue) }
+        val contrastMatrix = ColorMatrix(
+            floatArrayOf(
+                contrastValue,
+                0f,
+                0f,
+                0f,
+                translate,
+                0f,
+                contrastValue,
+                0f,
+                0f,
+                translate,
+                0f,
+                0f,
+                contrastValue,
+                0f,
+                translate,
+                0f,
+                0f,
+                0f,
+                1f,
+                0f,
+            ),
+        )
+        matrix.postConcat(contrastMatrix)
+        return matrix
     }
 
     private fun displayName(uri: Uri): String? =

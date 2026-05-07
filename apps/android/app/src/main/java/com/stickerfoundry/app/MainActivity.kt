@@ -20,6 +20,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -53,6 +55,7 @@ import com.stickerfoundry.app.data.EXTRACTION_SYNCING
 import com.stickerfoundry.app.data.ImageEditOptions
 import com.stickerfoundry.app.data.PackEntity
 import com.stickerfoundry.app.data.StickerEntity
+import com.stickerfoundry.app.data.hasEdits
 import com.stickerfoundry.app.whatsapp.WhatsAppStickerLauncher
 import java.io.File
 
@@ -434,28 +437,43 @@ private fun ImageEditDialog(
     var zoom by remember(edit.uri) { mutableStateOf(1f) }
     var offsetX by remember(edit.uri) { mutableStateOf(0f) }
     var offsetY by remember(edit.uri) { mutableStateOf(0f) }
+    var brightness by remember(edit.uri) { mutableStateOf(0f) }
+    var contrast by remember(edit.uri) { mutableStateOf(0f) }
+    var saturation by remember(edit.uri) { mutableStateOf(0f) }
+    var grayscale by remember(edit.uri) { mutableStateOf(false) }
+    var textEnabled by remember(edit.uri) { mutableStateOf(false) }
+    var textContent by remember(edit.uri) { mutableStateOf("") }
+    var textSize by remember(edit.uri) { mutableStateOf(64f) }
     val title = when (edit.target) {
         ImageEditTarget.Sticker -> "Edit sticker"
         ImageEditTarget.TrayIcon -> "Edit tray icon"
     }
+    val currentOptions = ImageEditOptions(
+        rotationDegrees = rotation,
+        cropSquare = cropSquare,
+        zoom = zoom,
+        offsetX = offsetX,
+        offsetY = offsetY,
+        brightness = brightness,
+        contrast = contrast,
+        saturation = saturation,
+        grayscale = grayscale,
+        textEnabled = textEnabled,
+        textContent = textContent,
+        textSize = textSize,
+    )
     val estimatedBytes = sourceInfo?.let {
-        estimateEditedBytes(
-            it,
-            ImageEditOptions(
-                rotationDegrees = rotation,
-                cropSquare = cropSquare,
-                zoom = zoom,
-                offsetX = offsetX,
-                offsetY = offsetY,
-            ),
-        )
+        estimateEditedBytes(it, currentOptions)
     }
 
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(title) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
                 if (preview != null) {
                     Image(
                         bitmap = preview,
@@ -507,6 +525,42 @@ private fun ImageEditDialog(
                     Text("Vertical", style = MaterialTheme.typography.bodySmall)
                     Slider(value = offsetY, onValueChange = { offsetY = it }, valueRange = -100f..100f)
                 }
+                Text("Brightness", style = MaterialTheme.typography.bodySmall)
+                Slider(value = brightness, onValueChange = { brightness = it }, valueRange = -100f..100f)
+                Text("Contrast", style = MaterialTheme.typography.bodySmall)
+                Slider(value = contrast, onValueChange = { contrast = it }, valueRange = -100f..100f)
+                Text("Saturation", style = MaterialTheme.typography.bodySmall)
+                Slider(value = saturation, onValueChange = { saturation = it }, valueRange = -100f..100f)
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Checkbox(checked = grayscale, onCheckedChange = { grayscale = it })
+                    Text("Grayscale")
+                }
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Checkbox(
+                        checked = textEnabled,
+                        onCheckedChange = {
+                            textEnabled = it
+                            if (!it) textContent = ""
+                        },
+                    )
+                    Text("Text")
+                }
+                if (textEnabled) {
+                    OutlinedTextField(
+                        value = textContent,
+                        onValueChange = { textContent = it.take(80) },
+                        label = { Text("Sticker text") },
+                        singleLine = true,
+                    )
+                    Text("Text size", style = MaterialTheme.typography.bodySmall)
+                    Slider(value = textSize, onValueChange = { textSize = it }, valueRange = 18f..140f)
+                }
                 Text(
                     text = estimatedBytes?.let { "Estimated upload: ~${formatBytes(it)}" } ?: "Estimated upload: unavailable",
                     style = MaterialTheme.typography.bodySmall,
@@ -516,15 +570,7 @@ private fun ImageEditDialog(
         confirmButton = {
             Button(
                 onClick = {
-                    onSubmit(
-                        ImageEditOptions(
-                            rotationDegrees = rotation,
-                            cropSquare = cropSquare,
-                            zoom = zoom,
-                            offsetX = offsetX,
-                            offsetY = offsetY,
-                        ),
-                    )
+                    onSubmit(currentOptions)
                 },
             ) {
                 Text("Upload")
@@ -580,12 +626,7 @@ private fun imageSourceInfo(context: Context, uri: Uri): ImageSourceInfo? {
 }
 
 private fun estimateEditedBytes(source: ImageSourceInfo, options: ImageEditOptions): Long {
-    val hasEdits = options.rotationDegrees.floorMod(360) != 0 ||
-        options.cropSquare ||
-        options.zoom != 1f ||
-        options.offsetX != 0f ||
-        options.offsetY != 0f
-    if (!hasEdits) return source.bytes
+    if (!options.hasEdits()) return source.bytes
 
     val sourcePixels = source.width.toLong() * source.height.toLong()
     val outputPixels = if (options.cropSquare) {
@@ -606,5 +647,3 @@ private fun formatBytes(bytes: Long): String =
     } else {
         "${(bytes + 1023) / 1024} KB"
     }
-
-private fun Int.floorMod(divisor: Int): Int = ((this % divisor) + divisor) % divisor
