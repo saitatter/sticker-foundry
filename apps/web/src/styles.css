@@ -569,6 +569,7 @@ select:focus {
 .invite-list,
 .session-list,
 .admin-settings,
+.audit-list,
 .invite-form {
   display: grid;
   gap: 10px;
@@ -580,9 +581,15 @@ select:focus {
   border-top: 1px solid var(--border);
 }
 
+.audit-list {
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
 .member-row,
 .invite-row,
-.session-row {
+.session-row,
+.audit-row {
   min-height: 46px;
   display: flex;
   align-items: center;
@@ -596,7 +603,8 @@ select:focus {
 
 .member-row span:first-child,
 .invite-row span:first-child,
-.session-row span:first-child {
+.session-row span:first-child,
+.audit-row span:first-child {
   display: grid;
   gap: 2px;
   min-width: 0;
@@ -607,13 +615,16 @@ select:focus {
 .invite-row strong,
 .invite-row small,
 .session-row strong,
-.session-row small {
+.session-row small,
+.audit-row strong,
+.audit-row small {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .member-row small,
+.audit-row small,
 .muted-row {
   color: var(--muted);
   font-size: 12px;

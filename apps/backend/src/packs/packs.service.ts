@@ -5,6 +5,7 @@ import { randomBytes } from 'crypto';
 import { cp, mkdir, rm } from 'fs/promises';
 import { join, resolve } from 'path';
 import { v4 as uuidv4 } from 'uuid';
+import { AuditService } from '../audit/audit.service';
 import { PrismaService } from '../prisma.service';
 import { CreatePackInviteDto } from './dto/create-pack-invite.dto';
 import { CreatePackDto } from './dto/create-pack.dto';
@@ -34,10 +35,11 @@ export class PacksService {
     private readonly exportService: PackExportService,
     private readonly imageService: StickerImageService,
     private readonly config: ConfigService,
+    private readonly audit: AuditService,
   ) {}
 
   async create(ownerId: string, dto: CreatePackDto) {
-    return this.prisma.pack.create({
+    const pack = await this.prisma.pack.create({
       data: {
         ownerId,
         name: dto.name,
@@ -46,6 +48,8 @@ export class PacksService {
         isPublic: dto.isPublic ?? false,
       },
     });
+    await this.audit.record({ actorId: ownerId, action: 'pack.create', entityType: 'pack', entityId: pack.id });
+    return pack;
   }
 
   async list(userId: string) {
@@ -105,6 +109,7 @@ export class PacksService {
 
     await this.prisma.pack.delete({ where: { id } });
     await rm(this.exportService.packDirectory(id), { recursive: true, force: true });
+    await this.audit.record({ actorId: ownerId, action: 'pack.delete', entityType: 'pack', entityId: id });
 
     return { deleted: true };
   }
@@ -129,11 +134,19 @@ export class PacksService {
       throw new NotFoundException('Member not found');
     }
 
-    return this.prisma.packMember.update({
+    const updated = await this.prisma.packMember.update({
       where: { id: memberId },
       data: { role: dto.role },
       include: { user: { select: { id: true, email: true, displayName: true } } },
     });
+    await this.audit.record({
+      actorId: ownerId,
+      action: 'pack.member.update',
+      entityType: 'packMember',
+      entityId: memberId,
+      metadata: { packId, role: dto.role },
+    });
+    return updated;
   }
 
   async removeMember(ownerId: string, packId: string, memberId: string) {
@@ -144,6 +157,13 @@ export class PacksService {
     }
 
     await this.prisma.packMember.delete({ where: { id: memberId } });
+    await this.audit.record({
+      actorId: ownerId,
+      action: 'pack.member.remove',
+      entityType: 'packMember',
+      entityId: memberId,
+      metadata: { packId, userId: member.userId },
+    });
     return { deleted: true };
   }
 
@@ -169,7 +189,7 @@ export class PacksService {
       throw new BadRequestException('Invite expiration must be in the future');
     }
 
-    return this.prisma.packInvite.create({
+    const invite = await this.prisma.packInvite.create({
       data: {
         packId,
         email: dto.email?.toLowerCase(),
@@ -179,6 +199,14 @@ export class PacksService {
         createdById: ownerId,
       },
     });
+    await this.audit.record({
+      actorId: ownerId,
+      action: 'pack.invite.create',
+      entityType: 'packInvite',
+      entityId: invite.id,
+      metadata: { packId, role: invite.role, email: invite.email ?? null, expiresAt: invite.expiresAt?.toISOString() ?? null },
+    });
+    return invite;
   }
 
   async revokeInvite(ownerId: string, packId: string, inviteId: string) {
@@ -188,6 +216,13 @@ export class PacksService {
       throw new NotFoundException('Pending invite not found');
     }
 
+    await this.audit.record({
+      actorId: ownerId,
+      action: 'pack.invite.revoke',
+      entityType: 'packInvite',
+      entityId: inviteId,
+      metadata: { packId },
+    });
     return { deleted: true };
   }
 
@@ -214,6 +249,13 @@ export class PacksService {
         data: { acceptedAt: new Date(), acceptedById: userId },
       }),
     ]);
+    await this.audit.record({
+      actorId: userId,
+      action: 'pack.invite.accept',
+      entityType: 'packInvite',
+      entityId: invite.id,
+      metadata: { packId: invite.packId, role: invite.role },
+    });
 
     return this.get(userId, invite.packId);
   }
@@ -265,6 +307,13 @@ export class PacksService {
       throw error;
     }
 
+    await this.audit.record({
+      actorId: userId,
+      action: 'pack.clone',
+      entityType: 'pack',
+      entityId: cloned.id,
+      metadata: { sourcePackId: source.id },
+    });
     return this.get(userId, cloned.id);
   }
 
@@ -289,6 +338,7 @@ export class PacksService {
         isPublic: dto.isPublic,
       },
     });
+    await this.audit.record({ actorId: ownerId, action: 'pack.update', entityType: 'pack', entityId: id });
 
     return this.get(ownerId, id);
   }
@@ -348,6 +398,13 @@ export class PacksService {
       where: { id: packId },
       data: { imageDataVersion: this.newImageDataVersion(pack.imageDataVersion) },
     });
+    await this.audit.record({
+      actorId: ownerId,
+      action: 'sticker.upload',
+      entityType: 'sticker',
+      entityId: sticker.id,
+      metadata: { packId, sizeBytes: sticker.sizeBytes },
+    });
 
     return sticker;
   }
@@ -372,10 +429,12 @@ export class PacksService {
     const tray = await this.imageService.processTrayIcon(file.buffer);
     await this.imageService.writeProcessedImage(join(this.exportService.packDirectory(packId), 'tray_icon.webp'), tray);
 
-    return this.prisma.pack.update({
+    const updated = await this.prisma.pack.update({
       where: { id: packId },
       data: { imageDataVersion: this.newImageDataVersion(pack.imageDataVersion) },
     });
+    await this.audit.record({ actorId: ownerId, action: 'pack.trayIcon.replace', entityType: 'pack', entityId: packId });
+    return updated;
   }
 
   async getTrayIconFilePath(userId: string, packId: string) {
@@ -420,6 +479,13 @@ export class PacksService {
     await this.prisma.pack.update({
       where: { id: packId },
       data: { imageDataVersion: this.newImageDataVersion(pack.imageDataVersion) },
+    });
+    await this.audit.record({
+      actorId: ownerId,
+      action: 'sticker.delete',
+      entityType: 'sticker',
+      entityId: stickerId,
+      metadata: { packId },
     });
 
     return { deleted: true };
@@ -474,6 +540,13 @@ export class PacksService {
       where: { id: packId },
       data: { imageDataVersion: this.newImageDataVersion(pack.imageDataVersion) },
     });
+    await this.audit.record({
+      actorId: ownerId,
+      action: 'sticker.image.replace',
+      entityType: 'sticker',
+      entityId: stickerId,
+      metadata: { packId, sizeBytes: updated.sizeBytes },
+    });
 
     return updated;
   }
@@ -505,6 +578,13 @@ export class PacksService {
     await this.prisma.pack.update({
       where: { id: packId },
       data: { imageDataVersion: this.newImageDataVersion(pack.imageDataVersion) },
+    });
+    await this.audit.record({
+      actorId: ownerId,
+      action: 'sticker.update',
+      entityType: 'sticker',
+      entityId: stickerId,
+      metadata: { packId },
     });
 
     return updated;
@@ -543,6 +623,13 @@ export class PacksService {
         data: { imageDataVersion: this.newImageDataVersion(pack.imageDataVersion) },
       }),
     ]);
+    await this.audit.record({
+      actorId: ownerId,
+      action: 'sticker.reorder',
+      entityType: 'pack',
+      entityId: packId,
+      metadata: { stickerCount: dto.stickerIds.length },
+    });
 
     return this.get(ownerId, packId);
   }
@@ -596,6 +683,13 @@ export class PacksService {
       throw error;
     }
 
+    await this.audit.record({
+      actorId: userId,
+      action: 'sticker.copy',
+      entityType: 'pack',
+      entityId: dto.targetPackId,
+      metadata: { sourcePackId, stickerCount: stickers.length },
+    });
     return this.get(userId, dto.targetPackId);
   }
 
@@ -659,6 +753,13 @@ export class PacksService {
       throw error;
     }
 
+    await this.audit.record({
+      actorId: userId,
+      action: 'sticker.move',
+      entityType: 'pack',
+      entityId: dto.targetPackId,
+      metadata: { sourcePackId, stickerCount: stickers.length },
+    });
     return this.get(userId, dto.targetPackId);
   }
 

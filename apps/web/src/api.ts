@@ -26,6 +26,17 @@ export type AdminSettings = {
   storageQuotaBytes: number | null;
 };
 
+export type AuditLogEntry = {
+  id: string;
+  actorId?: string | null;
+  action: string;
+  entityType: string;
+  entityId?: string | null;
+  metadata?: unknown;
+  createdAt: string;
+  actor?: User | null;
+};
+
 export type UpdateAdminSettingsInput = {
   registrationMode?: RegistrationMode;
   registrationInviteCode?: string | null;
@@ -195,6 +206,10 @@ export class StickerFoundryApi {
       auth: true,
       body: JSON.stringify(input),
     });
+  }
+
+  async adminAuditLog(limit = 25) {
+    return this.request<AuditLogEntry[]>(`/admin/audit-log?limit=${limit}`, { auth: true });
   }
 
   async packs() {

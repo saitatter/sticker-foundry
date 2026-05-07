@@ -61,8 +61,12 @@ function createService() {
     get: jest.fn((_key: string, fallback?: string) => fallback),
   };
 
-  const service = new PacksService(prisma as never, exportService as never, imageService as never, config as never);
-  return { service, prisma, exportService, imageService };
+  const audit = {
+    record: jest.fn().mockResolvedValue({ id: 'audit-1' }),
+  };
+
+  const service = new PacksService(prisma as never, exportService as never, imageService as never, config as never, audit as never);
+  return { service, prisma, exportService, imageService, audit };
 }
 
 describe(PacksService, () => {

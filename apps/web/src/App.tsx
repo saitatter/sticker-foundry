@@ -31,6 +31,7 @@ import { DragEvent, FormEvent, useCallback, useEffect, useMemo, useState } from 
 import {
   AdminSettings,
   ApiError,
+  AuditLogEntry,
   AuthResponse,
   Pack,
   PackInvite,
@@ -277,6 +278,7 @@ function AccountDialog({
   const [sessions, setSessions] = useState<UserSession[]>([]);
   const [saving, setSaving] = useState(false);
   const [adminSettings, setAdminSettings] = useState<AdminSettings | null>(null);
+  const [auditLog, setAuditLog] = useState<AuditLogEntry[]>([]);
   const [registrationMode, setRegistrationMode] = useState<RegistrationMode>('open');
   const [registrationInviteCode, setRegistrationInviteCode] = useState('');
   const [storageQuotaMb, setStorageQuotaMb] = useState('');
@@ -297,6 +299,7 @@ function AccountDialog({
         setStorageQuotaMb(settings.storageQuotaBytes ? String(Math.round(settings.storageQuotaBytes / 1024 / 1024)) : '');
       })
       .catch(onError);
+    api.adminAuditLog().then(setAuditLog).catch(onError);
   }, [api, isAdmin, onError]);
 
   async function submit(event: FormEvent) {
@@ -352,6 +355,7 @@ function AccountDialog({
       setRegistrationMode(settings.registrationMode);
       setRegistrationInviteCode(settings.registrationInviteCode ?? '');
       setStorageQuotaMb(settings.storageQuotaBytes ? String(Math.round(settings.storageQuotaBytes / 1024 / 1024)) : '');
+      setAuditLog(await api.adminAuditLog());
       onChanged('Admin settings saved');
     } catch (error) {
       onError(error);
@@ -455,6 +459,23 @@ function AccountDialog({
               {savingAdmin ? 'Saving' : 'Save admin settings'}
             </button>
           </form>
+        ) : null}
+        {isAdmin ? (
+          <div className="audit-list">
+            <div className="section-heading">
+              <h3>Audit log</h3>
+              <span className="counter">{auditLog.length}</span>
+            </div>
+            {auditLog.map((entry) => (
+              <div className="audit-row" key={entry.id}>
+                <span>
+                  <strong>{auditActionLabel(entry.action)}</strong>
+                  <small>{entry.actor?.email ?? 'System'} · {new Date(entry.createdAt).toLocaleString()}</small>
+                </span>
+                <small>{entry.entityType}</small>
+              </div>
+            ))}
+          </div>
         ) : null}
       </div>
     </div>
@@ -1977,6 +1998,13 @@ function roleLabel(role?: PackRole) {
   if (role === 'EDITOR') return 'Editor';
   if (role === 'VIEWER') return 'Viewer';
   return 'Private';
+}
+
+function auditActionLabel(action: string) {
+  return action
+    .split('.')
+    .map((part) => part.slice(0, 1).toUpperCase() + part.slice(1))
+    .join(' ');
 }
 
 function isExpiredInvite(invite: PackInvite) {

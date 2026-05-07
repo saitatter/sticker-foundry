@@ -34,6 +34,7 @@ function createService(mode = 'open', inviteCode = 'let-me-in') {
     },
   };
   const jwt = { sign: jest.fn().mockReturnValue('jwt-token') };
+  const audit = { record: jest.fn().mockResolvedValue({ id: 'audit-1' }) };
   const config = {
     get: jest.fn((key: string, fallback?: string) => {
       if (key === 'REGISTRATION_MODE') return mode;
@@ -45,14 +46,15 @@ function createService(mode = 'open', inviteCode = 'let-me-in') {
   };
 
   return {
-    service: new AuthService(prisma as never, jwt as unknown as JwtService, config as never),
+    service: new AuthService(prisma as never, jwt as unknown as JwtService, config as never, audit as never),
     prisma,
+    audit,
   };
 }
 
 describe(AuthService, () => {
   it('allows open registration by default', async () => {
-    const { service, prisma } = createService();
+    const { service, prisma, audit } = createService();
 
     await expect(
       service.register({
@@ -75,6 +77,12 @@ describe(AuthService, () => {
         data: expect.objectContaining({ email: 'demo@example.com', isAdmin: true }),
       }),
     );
+    expect(audit.record).toHaveBeenCalledWith({
+      actorId: 'user-1',
+      action: 'auth.register',
+      entityType: 'user',
+      entityId: 'user-1',
+    });
   });
 
   it('blocks registration when disabled', async () => {

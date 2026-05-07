@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { JwtService, JwtSignOptions } from '@nestjs/jwt';
 import * as bcrypt from 'bcryptjs';
 import { createHash, randomBytes } from 'crypto';
+import { AuditService } from '../audit/audit.service';
 import { PrismaService } from '../prisma.service';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { LoginDto } from './dto/login.dto';
@@ -15,6 +16,7 @@ export class AuthService {
     private readonly prisma: PrismaService,
     private readonly jwt: JwtService,
     private readonly config: ConfigService,
+    private readonly audit: AuditService,
   ) {}
 
   async register(dto: RegisterDto) {
@@ -35,7 +37,9 @@ export class AuthService {
       },
     });
 
-    return this.authResponse(user);
+    const response = await this.authResponse(user);
+    await this.audit.record({ actorId: user.id, action: 'auth.register', entityType: 'user', entityId: user.id });
+    return response;
   }
 
   async login(dto: LoginDto) {
@@ -49,7 +53,9 @@ export class AuthService {
       throw new UnauthorizedException('Invalid email or password');
     }
 
-    return this.authResponse(user);
+    const response = await this.authResponse(user);
+    await this.audit.record({ actorId: user.id, action: 'auth.login', entityType: 'user', entityId: user.id });
+    return response;
   }
 
   async refresh(dto: RefreshTokenDto) {
@@ -88,6 +94,7 @@ export class AuthService {
       where: { userId, revokedAt: null },
       data: { revokedAt: new Date() },
     });
+    await this.audit.record({ actorId: userId, action: 'auth.password.change', entityType: 'user', entityId: userId });
 
     return { changed: true };
   }
@@ -116,6 +123,12 @@ export class AuthService {
     if (result.count === 0) {
       throw new NotFoundException('Active session not found');
     }
+    await this.audit.record({
+      actorId: userId,
+      action: 'auth.session.revoke',
+      entityType: 'userSession',
+      entityId: sessionId,
+    });
     return { revoked: true };
   }
 
@@ -124,6 +137,7 @@ export class AuthService {
       where: { userId, revokedAt: null },
       data: { revokedAt: new Date() },
     });
+    await this.audit.record({ actorId: userId, action: 'auth.sessions.revokeAll', entityType: 'user', entityId: userId });
     return { revoked: true };
   }
 

@@ -1,5 +1,6 @@
 import { ForbiddenException, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { AuditService } from '../audit/audit.service';
 import { PrismaService } from '../prisma.service';
 import { UpdateAdminSettingsDto } from './dto/update-admin-settings.dto';
 
@@ -14,6 +15,7 @@ export class AdminService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
+    private readonly audit: AuditService,
   ) {}
 
   async settings(userId: string) {
@@ -45,7 +47,23 @@ export class AdminService {
     }
 
     await Promise.all(writes);
+    await this.audit.record({
+      actorId: userId,
+      action: 'admin.settings.update',
+      entityType: 'appSetting',
+      metadata: {
+        changedFields: Object.keys(dto),
+        registrationMode: dto.registrationMode ?? null,
+        registrationInviteCodeChanged: dto.registrationInviteCode !== undefined,
+        storageQuotaBytes: dto.storageQuotaBytes ?? null,
+      },
+    });
     return this.settings(userId);
+  }
+
+  async auditLog(userId: string, limit: number | undefined) {
+    await this.assertAdmin(userId);
+    return this.audit.list(limit);
   }
 
   private async assertAdmin(userId: string) {

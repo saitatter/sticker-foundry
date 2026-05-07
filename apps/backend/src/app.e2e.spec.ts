@@ -58,16 +58,28 @@ type AppSettingRecord = {
   updatedAt: Date;
 };
 
+type AuditLogRecord = {
+  id: string;
+  actorId: string | null;
+  action: string;
+  entityType: string;
+  entityId: string | null;
+  metadata: unknown;
+  createdAt: Date;
+};
+
 class InMemoryPrisma {
   users: UserRecord[] = [];
   packs: PackRecord[] = [];
   stickers: StickerRecord[] = [];
   sessions: UserSessionRecord[] = [];
   appSettings: AppSettingRecord[] = [];
+  auditLogs: AuditLogRecord[] = [];
   userSeq = 1;
   packSeq = 1;
   stickerSeq = 1;
   sessionSeq = 1;
+  auditSeq = 1;
 
   user = {
     count: jest.fn(async () => this.users.length),
@@ -116,6 +128,31 @@ class InMemoryPrisma {
       this.appSettings.push(setting);
       return setting;
     }),
+  };
+
+  auditLog = {
+    create: jest.fn(async ({ data }: { data: Omit<AuditLogRecord, 'id' | 'createdAt'> }) => {
+      const log: AuditLogRecord = {
+        id: `audit-${this.auditSeq++}`,
+        actorId: data.actorId ?? null,
+        action: data.action,
+        entityType: data.entityType,
+        entityId: data.entityId ?? null,
+        metadata: data.metadata ?? null,
+        createdAt: new Date(),
+      };
+      this.auditLogs.push(log);
+      return log;
+    }),
+    findMany: jest.fn(async ({ take }: { take: number }) =>
+      [...this.auditLogs]
+        .sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime())
+        .slice(0, take)
+        .map((log) => ({
+          ...log,
+          actor: log.actorId ? this.users.find((user) => user.id === log.actorId) ?? null : null,
+        })),
+    ),
   };
 
   userSession = {
@@ -315,6 +352,15 @@ describe('StickerFoundry API e2e', () => {
       .set('Authorization', `Bearer ${token}`)
       .send({ registrationMode: 'open', registrationInviteCode: null, storageQuotaBytes: null })
       .expect(200);
+
+    await request(server)
+      .get('/api/admin/audit-log?limit=5')
+      .set('Authorization', `Bearer ${token}`)
+      .expect(200)
+      .expect((response) => {
+        expect(response.body.map((entry: { action: string }) => entry.action)).toContain('admin.settings.update');
+        expect(response.body.map((entry: { action: string }) => entry.action)).toContain('auth.register');
+      });
 
     const refreshed = await request(server)
       .post('/api/auth/refresh')

@@ -18,6 +18,7 @@ model User {
   memberships     PackMember[]
   createdInvites  PackInvite[]  @relation("CreatedInvites")
   acceptedInvites PackInvite[]  @relation("AcceptedInvites")
+  auditLogs       AuditLog[]
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
 }
@@ -40,6 +41,22 @@ model UserSession {
   @@index([userId])
   @@index([expiresAt])
   @@index([revokedAt])
+}
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  actorId    String?
+  actor      User?    @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  action     String
+  entityType String
+  entityId   String?
+  metadata   Json?
+  createdAt  DateTime @default(now())
+
+  @@index([actorId])
+  @@index([action])
+  @@index([entityType, entityId])
+  @@index([createdAt])
 }
 
 model Pack {

@@ -17,6 +17,7 @@ StickerFoundry is a self-hosted collaborative WhatsApp sticker pack manager, sha
 - Short-lived access tokens with refresh-token sessions, logout revocation, and web session management.
 - Registration mode control with `REGISTRATION_MODE=open|invite-only|disabled` and optional `REGISTRATION_INVITE_CODE`.
 - First-user admin bootstrap plus web admin settings for registration mode, invite code, and per-owner storage quota.
+- Admin audit log for auth, admin setting, pack, collaboration, and sticker mutation events.
 - Authenticated password change endpoint and web account dialog.
 - Pack CRUD with ownership, public visibility, viewer/editor collaboration roles, invite codes, member management, and invite revocation.
 - Sticker upload with WebP conversion, 512x512 resize, and WhatsApp size validation.
@@ -92,6 +93,7 @@ Key files:
 
 - `apps/backend/src/auth/*`: JWT register/login.
 - `apps/backend/src/admin/*`: admin-only instance settings API.
+- `apps/backend/src/audit/*`: append-only audit logging service.
 - `apps/backend/src/packs/packs.controller.ts`: pack CRUD, sticker upload, ZIP export.
 - `apps/backend/src/packs/sticker-image.service.ts`: WebP conversion, resize, compression.
 - `apps/backend/src/packs/pack-export.service.ts`: `contents.json`, `tray_icon.webp`, sticker ZIP generation.

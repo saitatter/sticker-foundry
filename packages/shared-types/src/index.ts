@@ -130,3 +130,18 @@ export type AdminSettingsDto = {
   registrationInviteCode: string;
   storageQuotaBytes: number | null;
 };
+
+export type AuditLogEntryDto = {
+  id: string;
+  actorId?: string | null;
+  action: string;
+  entityType: string;
+  entityId?: string | null;
+  metadata?: unknown;
+  createdAt: string;
+  actor?: {
+    id: string;
+    email: string;
+    displayName: string;
+  } | null;
+};
