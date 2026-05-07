@@ -1,8 +1,14 @@
 import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { PackRole } from '@prisma/client';
+import { cp, mkdir, rm } from 'fs/promises';
 import { PacksService } from './packs.service';
 
 jest.mock('uuid', () => ({ v4: () => 'generated-sticker-id' }));
+jest.mock('fs/promises', () => ({
+  cp: jest.fn(),
+  mkdir: jest.fn(),
+  rm: jest.fn(),
+}));
 
 function createService() {
   const prisma = {
@@ -52,6 +58,10 @@ function createService() {
 }
 
 describe(PacksService, () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
   it('stores uploaded stickers at the next pack position and creates a tray icon for the first sticker', async () => {
     const { service, prisma, imageService } = createService();
     const processedSticker = { buffer: Buffer.from('sticker'), sizeBytes: 42, sha256: 'sticker-sha' };
@@ -338,6 +348,151 @@ describe(PacksService, () => {
     expect(prisma.packMember.delete).toHaveBeenCalledWith({ where: { id: 'member-1' } });
     expect(prisma.packInvite.deleteMany).toHaveBeenCalledWith({
       where: { id: 'invite-1', packId: 'pack-1', acceptedAt: null },
+    });
+  });
+
+  it('copies selected stickers into another editable pack', async () => {
+    const { service, prisma } = createService();
+
+    prisma.pack.findUnique
+      .mockResolvedValueOnce({
+        id: 'source-pack',
+        ownerId: 'owner-1',
+        imageDataVersion: '3',
+        members: [],
+        _count: { stickers: 1 },
+      })
+      .mockResolvedValueOnce({
+        id: 'target-pack',
+        ownerId: 'owner-1',
+        imageDataVersion: '7',
+        members: [],
+        _count: { stickers: 2 },
+      })
+      .mockResolvedValueOnce({
+        id: 'target-pack',
+        ownerId: 'owner-1',
+        imageDataVersion: '8',
+        isPublic: false,
+        stickers: [],
+        members: [],
+        _count: { stickers: 3 },
+      });
+    prisma.sticker.findMany.mockResolvedValue([
+      {
+        id: 'sticker-1',
+        packId: 'source-pack',
+        fileName: 'source.webp',
+        emojis: ['😀'],
+        accessibilityText: 'happy',
+        sizeBytes: 42,
+        sha256: 'sha',
+        position: 0,
+      },
+    ]);
+    prisma.sticker.create.mockImplementation(async ({ data }) => ({ id: 'copy-1', ...data }));
+    prisma.pack.update.mockResolvedValue({ id: 'target-pack', imageDataVersion: '8' });
+
+    await expect(
+      service.copyStickers('owner-1', 'source-pack', {
+        targetPackId: 'target-pack',
+        stickerIds: ['sticker-1'],
+      }),
+    ).resolves.toEqual(expect.objectContaining({ id: 'target-pack', stickerCount: 3 }));
+
+    expect(mkdir).toHaveBeenCalledWith(expect.stringContaining('target-pack'), { recursive: true });
+    expect(cp).toHaveBeenCalledWith(expect.stringContaining('source.webp'), expect.stringContaining('generated-sticker-id.webp'));
+    expect(prisma.sticker.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        packId: 'target-pack',
+        fileName: 'generated-sticker-id.webp',
+        position: 2,
+      }),
+    });
+  });
+
+  it('moves selected stickers into another editable pack and rejects full targets', async () => {
+    const { service, prisma } = createService();
+
+    prisma.pack.findUnique
+      .mockResolvedValueOnce({
+        id: 'source-pack',
+        ownerId: 'owner-1',
+        imageDataVersion: '3',
+        members: [],
+        _count: { stickers: 1 },
+      })
+      .mockResolvedValueOnce({
+        id: 'target-pack',
+        ownerId: 'owner-1',
+        imageDataVersion: '7',
+        members: [],
+        _count: { stickers: 30 },
+      });
+    prisma.sticker.findMany.mockResolvedValue([
+      {
+        id: 'sticker-1',
+        packId: 'source-pack',
+        fileName: 'source.webp',
+        emojis: ['😀'],
+        accessibilityText: 'happy',
+        sizeBytes: 42,
+        sha256: 'sha',
+        position: 0,
+      },
+    ]);
+
+    await expect(
+      service.moveStickers('owner-1', 'source-pack', {
+        targetPackId: 'target-pack',
+        stickerIds: ['sticker-1'],
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(cp).not.toHaveBeenCalledWith(expect.stringContaining('source.webp'), expect.stringContaining('generated-sticker-id.webp'));
+
+    jest.mocked(cp).mockClear();
+    prisma.pack.findUnique
+      .mockResolvedValueOnce({
+        id: 'source-pack',
+        ownerId: 'owner-1',
+        imageDataVersion: '3',
+        members: [],
+        _count: { stickers: 1 },
+      })
+      .mockResolvedValueOnce({
+        id: 'target-pack',
+        ownerId: 'owner-1',
+        imageDataVersion: '7',
+        members: [],
+        _count: { stickers: 2 },
+      })
+      .mockResolvedValueOnce({
+        id: 'target-pack',
+        ownerId: 'owner-1',
+        imageDataVersion: '8',
+        isPublic: false,
+        stickers: [],
+        members: [],
+        _count: { stickers: 3 },
+      });
+    prisma.pack.update.mockResolvedValue({ id: 'pack', imageDataVersion: '8' });
+
+    await expect(
+      service.moveStickers('owner-1', 'source-pack', {
+        targetPackId: 'target-pack',
+        stickerIds: ['sticker-1'],
+      }),
+    ).resolves.toEqual(expect.objectContaining({ id: 'target-pack' }));
+
+    expect(cp).toHaveBeenCalledWith(expect.stringContaining('source.webp'), expect.stringContaining('generated-sticker-id.webp'));
+    expect(rm).toHaveBeenCalledWith(expect.stringContaining('source.webp'), { force: true });
+    expect(prisma.sticker.update).toHaveBeenCalledWith({
+      where: { id: 'sticker-1' },
+      data: expect.objectContaining({
+        packId: 'target-pack',
+        fileName: 'generated-sticker-id.webp',
+        position: 2,
+      }),
     });
   });
 

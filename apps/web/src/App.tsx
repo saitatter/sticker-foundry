@@ -207,6 +207,7 @@ export function App() {
             <PackDetail
               api={api}
               pack={selectedPack}
+              packs={packs}
               onChanged={async (message) => {
                 await refreshPacks();
                 await refreshSelectedPack();
@@ -681,6 +682,7 @@ function PackList({
 function PackDetail({
   api,
   pack,
+  packs,
   onChanged,
   onDeleted,
   onCloned,
@@ -689,6 +691,7 @@ function PackDetail({
 }: {
   api: StickerFoundryApi;
   pack: Pack;
+  packs: Pack[];
   onChanged: (message: string) => Promise<void>;
   onDeleted: () => void;
   onCloned: (pack: Pack) => void;
@@ -705,12 +708,15 @@ function PackDetail({
   const [draggingStickerId, setDraggingStickerId] = useState<string | null>(null);
   const [selectedStickerIds, setSelectedStickerIds] = useState<string[]>([]);
   const [bulkEmojis, setBulkEmojis] = useState('');
+  const [bulkTargetPackId, setBulkTargetPackId] = useState('');
   const [bulkSaving, setBulkSaving] = useState(false);
   const selectedStickerSet = useMemo(() => new Set(selectedStickerIds), [selectedStickerIds]);
+  const transferTargets = packs.filter((item) => item.canEdit && item.id !== pack.id);
 
   useEffect(() => {
     setSelectedStickerIds([]);
     setBulkEmojis('');
+    setBulkTargetPackId('');
   }, [pack.id]);
 
   async function exportPack() {
@@ -856,6 +862,26 @@ function PackDetail({
     }
   }
 
+  async function bulkTransferStickers(mode: 'copy' | 'move') {
+    if (selectedStickerIds.length === 0 || !bulkTargetPackId) return;
+
+    setBulkSaving(true);
+    try {
+      if (mode === 'copy') {
+        await api.copyStickers(pack.id, bulkTargetPackId, selectedStickerIds);
+        await onChanged('Selected stickers copied');
+      } else {
+        await api.moveStickers(pack.id, bulkTargetPackId, selectedStickerIds);
+        setSelectedStickerIds([]);
+        await onChanged('Selected stickers moved');
+      }
+    } catch (error) {
+      onError(error);
+    } finally {
+      setBulkSaving(false);
+    }
+  }
+
   return (
     <section className="detail">
       <div className="detail-header">
@@ -950,6 +976,37 @@ function PackDetail({
               type="button"
             >
               Delete selected
+            </button>
+            <label>
+              Target
+              <select
+                disabled={transferTargets.length === 0}
+                value={bulkTargetPackId}
+                onChange={(event) => setBulkTargetPackId(event.target.value)}
+              >
+                <option value="">Choose pack</option>
+                {transferTargets.map((target) => (
+                  <option key={target.id} value={target.id}>
+                    {target.name} ({target.stickerCount}/30)
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button
+              className="secondary-button"
+              disabled={selectedStickerIds.length === 0 || !bulkTargetPackId || bulkSaving}
+              onClick={() => void bulkTransferStickers('copy')}
+              type="button"
+            >
+              Copy
+            </button>
+            <button
+              className="secondary-button"
+              disabled={selectedStickerIds.length === 0 || !bulkTargetPackId || bulkSaving}
+              onClick={() => void bulkTransferStickers('move')}
+              type="button"
+            >
+              Move
             </button>
           </div>
         ) : null}

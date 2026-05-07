@@ -21,6 +21,7 @@ import { JwtAuthGuard } from '../common/jwt-auth.guard';
 import { CreatePackInviteDto } from './dto/create-pack-invite.dto';
 import { CreatePackDto } from './dto/create-pack.dto';
 import { ReorderStickersDto } from './dto/reorder-stickers.dto';
+import { TransferStickersDto } from './dto/transfer-stickers.dto';
 import { UpdatePackMemberDto } from './dto/update-pack-member.dto';
 import { UpdatePackDto } from './dto/update-pack.dto';
 import { UpdateStickerDto } from './dto/update-sticker.dto';
@@ -165,6 +166,16 @@ export class PacksController {
   @Patch(':id/stickers')
   reorderStickers(@CurrentUser() user: RequestUser, @Param('id') id: string, @Body() dto: ReorderStickersDto) {
     return this.packsService.reorderStickers(user.sub, id, dto);
+  }
+
+  @Post(':id/stickers/copy')
+  copyStickers(@CurrentUser() user: RequestUser, @Param('id') id: string, @Body() dto: TransferStickersDto) {
+    return this.packsService.copyStickers(user.sub, id, dto);
+  }
+
+  @Post(':id/stickers/move')
+  moveStickers(@CurrentUser() user: RequestUser, @Param('id') id: string, @Body() dto: TransferStickersDto) {
+    return this.packsService.moveStickers(user.sub, id, dto);
   }
 
   @Delete(':id/stickers/:stickerId')

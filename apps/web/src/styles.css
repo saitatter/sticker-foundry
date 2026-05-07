@@ -783,7 +783,7 @@ select:focus {
 
 .bulk-toolbar {
   display: grid;
-  grid-template-columns: auto auto auto minmax(160px, 1fr) auto auto;
+  grid-template-columns: auto auto auto minmax(150px, 1fr) auto auto minmax(180px, 1fr) auto auto;
   align-items: end;
   gap: 8px;
   margin-bottom: 12px;

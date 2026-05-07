@@ -1,13 +1,14 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PackRole } from '@prisma/client';
 import { randomBytes } from 'crypto';
-import { cp, rm } from 'fs/promises';
+import { cp, mkdir, rm } from 'fs/promises';
 import { join, resolve } from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import { PrismaService } from '../prisma.service';
 import { CreatePackInviteDto } from './dto/create-pack-invite.dto';
 import { CreatePackDto } from './dto/create-pack.dto';
 import { ReorderStickersDto } from './dto/reorder-stickers.dto';
+import { TransferStickersDto } from './dto/transfer-stickers.dto';
 import { UpdatePackMemberDto } from './dto/update-pack-member.dto';
 import { UpdatePackDto } from './dto/update-pack.dto';
 import { UpdateStickerDto } from './dto/update-sticker.dto';
@@ -17,8 +18,11 @@ import { StickerImageService } from './sticker-image.service';
 import { DEFAULT_STICKER_EMOJIS, WHATSAPP_LIMITS } from './whatsapp-constraints';
 
 type AccessPack = {
+  id?: string;
   ownerId: string;
+  imageDataVersion?: string;
   isPublic?: boolean;
+  _count?: { stickers: number };
   members?: Array<{ userId: string; role: PackRole }>;
 };
 
@@ -533,6 +537,117 @@ export class PacksService {
     return this.get(ownerId, packId);
   }
 
+  async copyStickers(userId: string, sourcePackId: string, dto: TransferStickersDto) {
+    const { source, target, stickers } = await this.loadTransfer(userId, sourcePackId, dto);
+    this.assertTargetCapacity(target, stickers.length);
+
+    const copies = stickers.map((sticker, index) => ({
+      fileName: `${uuidv4()}.webp`,
+      sourceFileName: sticker.fileName,
+      position: (target._count?.stickers ?? 0) + index,
+      sticker,
+    }));
+
+    try {
+      await mkdir(this.exportService.packDirectory(dto.targetPackId), { recursive: true });
+      await Promise.all(
+        copies.map((copy) =>
+          cp(
+            join(this.exportService.packDirectory(sourcePackId), copy.sourceFileName),
+            join(this.exportService.packDirectory(dto.targetPackId), copy.fileName),
+          ),
+        ),
+      );
+
+      await this.prisma.$transaction([
+        ...copies.map((copy) =>
+          this.prisma.sticker.create({
+            data: {
+              packId: dto.targetPackId,
+              fileName: copy.fileName,
+              emojis: copy.sticker.emojis,
+              accessibilityText: copy.sticker.accessibilityText,
+              sizeBytes: copy.sticker.sizeBytes,
+              sha256: copy.sticker.sha256,
+              position: copy.position,
+            },
+          }),
+        ),
+        this.prisma.pack.update({
+          where: { id: dto.targetPackId },
+          data: { imageDataVersion: this.newImageDataVersion(target.imageDataVersion ?? '1') },
+        }),
+      ]);
+    } catch (error) {
+      await Promise.all(
+        copies.map((copy) => rm(join(this.exportService.packDirectory(dto.targetPackId), copy.fileName), { force: true })),
+      );
+      throw error;
+    }
+
+    return this.get(userId, dto.targetPackId);
+  }
+
+  async moveStickers(userId: string, sourcePackId: string, dto: TransferStickersDto) {
+    if (sourcePackId === dto.targetPackId) {
+      throw new BadRequestException('Source and target packs must be different when moving stickers');
+    }
+
+    const { source, target, stickers } = await this.loadTransfer(userId, sourcePackId, dto);
+    this.assertTargetCapacity(target, stickers.length);
+
+    const moves = stickers.map((sticker, index) => ({
+      fileName: `${uuidv4()}.webp`,
+      position: (target._count?.stickers ?? 0) + index,
+      sticker,
+    }));
+
+    try {
+      await mkdir(this.exportService.packDirectory(dto.targetPackId), { recursive: true });
+      await Promise.all(
+        moves.map((move) =>
+          cp(
+            join(this.exportService.packDirectory(sourcePackId), move.sticker.fileName),
+            join(this.exportService.packDirectory(dto.targetPackId), move.fileName),
+          ),
+        ),
+      );
+
+      await this.prisma.$transaction([
+        ...moves.map((move) =>
+          this.prisma.sticker.update({
+            where: { id: move.sticker.id },
+            data: {
+              packId: dto.targetPackId,
+              fileName: move.fileName,
+              position: move.position,
+            },
+          }),
+        ),
+        this.prisma.pack.update({
+          where: { id: sourcePackId },
+          data: { imageDataVersion: this.newImageDataVersion(source.imageDataVersion ?? '1') },
+        }),
+        this.prisma.pack.update({
+          where: { id: dto.targetPackId },
+          data: { imageDataVersion: this.newImageDataVersion(target.imageDataVersion ?? '1') },
+        }),
+      ]);
+
+      await Promise.all(
+        moves.map((move) => rm(join(this.exportService.packDirectory(sourcePackId), move.sticker.fileName), { force: true })),
+      );
+      await this.compactStickerPositions(sourcePackId);
+    } catch (error) {
+      await Promise.all(
+        moves.map((move) => rm(join(this.exportService.packDirectory(dto.targetPackId), move.fileName), { force: true })),
+      );
+      throw error;
+    }
+
+    return this.get(userId, dto.targetPackId);
+  }
+
   async assertCanExport(userId: string, packId: string) {
     await this.get(userId, packId);
   }
@@ -567,6 +682,59 @@ export class PacksService {
       where: { id: packId },
       include: { members: { where: { userId }, select: { userId: true, role: true } } },
     });
+  }
+
+  private async loadTransfer(userId: string, sourcePackId: string, dto: TransferStickersDto) {
+    const stickerIds = [...new Set(dto.stickerIds)];
+    if (stickerIds.length !== dto.stickerIds.length) {
+      throw new BadRequestException('Sticker ids must be unique');
+    }
+
+    const [source, target, stickers] = await Promise.all([
+      this.prisma.pack.findUnique({
+        where: { id: sourcePackId },
+        include: {
+          members: { where: { userId }, select: { userId: true, role: true } },
+          _count: { select: { stickers: true } },
+        },
+      }),
+      this.prisma.pack.findUnique({
+        where: { id: dto.targetPackId },
+        include: {
+          members: { where: { userId }, select: { userId: true, role: true } },
+          _count: { select: { stickers: true } },
+        },
+      }),
+      this.prisma.sticker.findMany({
+        where: { packId: sourcePackId, id: { in: stickerIds } },
+        orderBy: [{ position: 'asc' }, { createdAt: 'asc' }],
+      }),
+    ]);
+
+    if (!source) {
+      throw new NotFoundException('Source pack not found');
+    }
+    if (!target) {
+      throw new NotFoundException('Target pack not found');
+    }
+    if (!this.canEdit(userId, source)) {
+      throw new ForbiddenException('Only editors can copy or move stickers from this pack');
+    }
+    if (!this.canEdit(userId, target)) {
+      throw new ForbiddenException('Only editors can copy or move stickers into the target pack');
+    }
+    if (stickers.length !== stickerIds.length) {
+      throw new BadRequestException('Transfer request must include stickers from the source pack only');
+    }
+
+    return { source, target, stickers };
+  }
+
+  private assertTargetCapacity(target: AccessPack, incomingCount: number) {
+    const currentCount = target._count?.stickers ?? 0;
+    if (currentCount + incomingCount > WHATSAPP_LIMITS.maxStickersPerPack) {
+      throw new BadRequestException(`A pack can contain at most ${WHATSAPP_LIMITS.maxStickersPerPack} stickers`);
+    }
   }
 
   private async requireManage(userId: string, packId: string) {

@@ -329,6 +329,22 @@ export class StickerFoundryApi {
     });
   }
 
+  async copyStickers(sourcePackId: string, targetPackId: string, stickerIds: string[]) {
+    return this.request<Pack>(`/packs/${sourcePackId}/stickers/copy`, {
+      method: 'POST',
+      auth: true,
+      body: JSON.stringify({ targetPackId, stickerIds }),
+    });
+  }
+
+  async moveStickers(sourcePackId: string, targetPackId: string, stickerIds: string[]) {
+    return this.request<Pack>(`/packs/${sourcePackId}/stickers/move`, {
+      method: 'POST',
+      auth: true,
+      body: JSON.stringify({ targetPackId, stickerIds }),
+    });
+  }
+
   async stickerBlob(packId: string, stickerId: string) {
     const response = await fetch(`${API_BASE_URL}/packs/${packId}/stickers/${stickerId}/file`, {
       headers: new Headers(this.authHeaders()),

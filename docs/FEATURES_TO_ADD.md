@@ -24,7 +24,7 @@ This is the live feature backlog. Items already shipped are kept briefly at the 
 - Configurable CORS origins.
 - Stronger upload content validation.
 - Pack collaboration roles, invite creation/acceptance/revocation, member listing/removal, role editing, and role-aware web/Android controls.
-- Web sticker multi-select with bulk delete and bulk emoji apply.
+- Web sticker multi-select with bulk delete, bulk emoji apply, and copy/move to another pack.
 - Compose `.env.example` and reverse proxy examples.
 - Dependabot and GitHub issue templates.
 - Metrics endpoint for basic monitoring.
@@ -36,15 +36,6 @@ This is the live feature backlog. Items already shipped are kept briefly at the 
 - Compare provider columns and URI behavior against WhatsApp's official Android sample.
 - Document tested Android/WhatsApp versions.
 - Add fixes for any provider compatibility issues discovered during real-device testing.
-
-## Next: Web Copy/Move Workflow
-
-- Copy selected stickers into another editable pack.
-- Move selected stickers into another editable pack.
-- Copy or move individual stickers from a sticker tile/detail panel.
-- Enforce target pack capacity before copying or moving.
-- Add web target-pack picker for selected sticker actions.
-- Add backend tests for source/target permissions and 30-sticker limits.
 
 ## Next: Quality Gates
 
@@ -67,8 +58,8 @@ This is the live feature backlog. Items already shipped are kept briefly at the 
 ## Sticker Workflow UX
 
 - Sticker detail panel with larger preview and full metadata editing.
-- Bulk copy/move for selected stickers.
 - Bulk accessibility text generation for selected stickers.
+- Copy or move individual stickers from a sticker tile/detail panel.
 - Better mobile web layout for quick edits from a phone browser.
 - Activity feed showing who changed pack metadata or images.
 - Public share page for a pack with install instructions.
