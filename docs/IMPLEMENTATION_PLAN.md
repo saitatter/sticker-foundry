@@ -7,7 +7,7 @@ This document tracks what is still meaningful to validate or decide. Implemented
 - Backend, web, Android, Docker files, semantic-release, and operational docs are implemented as a usable starting project.
 - Backend exports are cached and available through manifest/ETag-aware sync.
 - Backend media processing supports static and animated WebP normalization, animated trim/FPS resampling, server-side threshold background removal, and optional self-hosted AI background removal through `BACKGROUND_REMOVAL_COMMAND`.
-- Android caches packs locally, tracks extraction status, rejects stale edits through server-side version checks, and supports upload-time crop, rotation, color adjustment, grayscale, text overlay, eraser/restore brush edits, and rendered edit previews.
+- Android caches packs locally, tracks extraction status, rejects stale edits through server-side version checks, and supports upload-time crop, rotation, color adjustment, grayscale, text overlay, eraser/restore brush edits, rendered edit previews, and server background-removal upload controls.
 - Web supports collaboration, public pack browsing, keyboard shortcuts, responsive sticker workflows, advanced sticker editing, batch presets, size warnings, and before/after compare.
 - Web editor coverage includes focused Playwright tests for brush/compare, optimizer/background upload options, and animated trim/FPS option submission.
 
@@ -83,7 +83,6 @@ Goal: bring the Android upload editor closer to the web editor without bloating 
 
 Tasks:
 
-- Add Android controls for server threshold/AI background removal.
 - Add animated trim duration and FPS controls.
 - Add reusable batch presets for repeated uploads.
 

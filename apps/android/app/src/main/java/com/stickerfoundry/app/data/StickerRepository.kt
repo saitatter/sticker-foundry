@@ -94,7 +94,7 @@ class StickerRepository private constructor(context: Context) {
 
     suspend fun uploadSticker(packId: String, uri: Uri, options: ImageEditOptions) = withContext(Dispatchers.IO) {
         mutatePackWithConflictSync(packId) { bearer, version ->
-            api().uploadSticker(bearer, packId, version, multipartFromUri(uri, options)).close()
+            api().uploadSticker(bearer, packId, version, multipartFromUri(uri, options), stickerUploadOptionParts(options)).close()
         }
     }
 
@@ -312,6 +312,21 @@ class StickerRepository private constructor(context: Context) {
             stream.toByteArray()
         }
     }
+
+    private fun stickerUploadOptionParts(options: ImageEditOptions): List<MultipartBody.Part> {
+        if (options.backgroundRemovalMode == BackgroundRemovalMode.None) return emptyList()
+
+        return listOf(
+            formPart("backgroundRemovalMode", options.backgroundRemovalMode.wireValue),
+            formPart("backgroundRemovalThreshold", options.backgroundRemovalThreshold.toInt().coerceIn(180, 255).toString()),
+            formPart("backgroundRemovalFeather", options.backgroundRemovalFeather.toInt().coerceIn(0, 48).toString()),
+            formPart("backgroundRemovalCleanupSpeckles", options.backgroundRemovalCleanupSpeckles.toString()),
+            formPart("backgroundRemovalSpeckleSize", options.backgroundRemovalSpeckleSize.toInt().coerceIn(4, 180).toString()),
+        )
+    }
+
+    private fun formPart(name: String, value: String): MultipartBody.Part =
+        MultipartBody.Part.createFormData(name, value)
 
     private fun displayName(uri: Uri): String? =
         appContext.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->

@@ -14,6 +14,11 @@ data class ImageEditOptions(
     val textContent: String = "",
     val textSize: Float = 64f,
     val brushStrokes: List<BrushStroke> = emptyList(),
+    val backgroundRemovalMode: BackgroundRemovalMode = BackgroundRemovalMode.None,
+    val backgroundRemovalThreshold: Float = 240f,
+    val backgroundRemovalFeather: Float = 8f,
+    val backgroundRemovalCleanupSpeckles: Boolean = true,
+    val backgroundRemovalSpeckleSize: Float = 48f,
 )
 
 data class BrushPoint(
@@ -30,6 +35,12 @@ data class BrushStroke(
 enum class BrushMode {
     Erase,
     Restore,
+}
+
+enum class BackgroundRemovalMode(val wireValue: String) {
+    None("none"),
+    Threshold("threshold"),
+    Ai("ai"),
 }
 
 fun ImageEditOptions.hasGeometryEdits(): Boolean =

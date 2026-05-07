@@ -61,6 +61,7 @@ import com.stickerfoundry.app.data.EXTRACTION_SYNCING
 import com.stickerfoundry.app.data.BrushMode
 import com.stickerfoundry.app.data.BrushPoint
 import com.stickerfoundry.app.data.BrushStroke
+import com.stickerfoundry.app.data.BackgroundRemovalMode
 import com.stickerfoundry.app.data.ImageEditOptions
 import com.stickerfoundry.app.data.ImageEditRenderer
 import com.stickerfoundry.app.data.PackEntity
@@ -460,6 +461,11 @@ private fun ImageEditDialog(
     var brushStrokes by remember(edit.uri) { mutableStateOf(emptyList<BrushStroke>()) }
     var undoneBrushStrokes by remember(edit.uri) { mutableStateOf(emptyList<BrushStroke>()) }
     var activeBrushPoints by remember(edit.uri) { mutableStateOf(emptyList<BrushPoint>()) }
+    var backgroundRemovalMode by remember(edit.uri) { mutableStateOf(BackgroundRemovalMode.None) }
+    var backgroundRemovalThreshold by remember(edit.uri) { mutableStateOf(240f) }
+    var backgroundRemovalFeather by remember(edit.uri) { mutableStateOf(8f) }
+    var backgroundRemovalCleanupSpeckles by remember(edit.uri) { mutableStateOf(true) }
+    var backgroundRemovalSpeckleSize by remember(edit.uri) { mutableStateOf(48f) }
     val title = when (edit.target) {
         ImageEditTarget.Sticker -> "Edit sticker"
         ImageEditTarget.TrayIcon -> "Edit tray icon"
@@ -483,6 +489,11 @@ private fun ImageEditDialog(
         textContent = textContent,
         textSize = textSize,
         brushStrokes = previewBrushStrokes,
+        backgroundRemovalMode = if (edit.target == ImageEditTarget.Sticker) backgroundRemovalMode else BackgroundRemovalMode.None,
+        backgroundRemovalThreshold = backgroundRemovalThreshold,
+        backgroundRemovalFeather = backgroundRemovalFeather,
+        backgroundRemovalCleanupSpeckles = backgroundRemovalCleanupSpeckles,
+        backgroundRemovalSpeckleSize = backgroundRemovalSpeckleSize,
     )
     val estimatedBytes = sourceInfo?.let {
         estimateEditedBytes(it, currentOptions)
@@ -677,6 +688,50 @@ private fun ImageEditDialog(
                         ) {
                             Text("Redo")
                         }
+                    }
+                }
+                if (edit.target == ImageEditTarget.Sticker) {
+                    Text("Server background", style = MaterialTheme.typography.bodySmall)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        TextButton(onClick = { backgroundRemovalMode = BackgroundRemovalMode.None }) {
+                            Text(if (backgroundRemovalMode == BackgroundRemovalMode.None) "None *" else "None")
+                        }
+                        TextButton(onClick = { backgroundRemovalMode = BackgroundRemovalMode.Threshold }) {
+                            Text(if (backgroundRemovalMode == BackgroundRemovalMode.Threshold) "Threshold *" else "Threshold")
+                        }
+                        TextButton(onClick = { backgroundRemovalMode = BackgroundRemovalMode.Ai }) {
+                            Text(if (backgroundRemovalMode == BackgroundRemovalMode.Ai) "AI *" else "AI")
+                        }
+                    }
+                    if (backgroundRemovalMode != BackgroundRemovalMode.None) {
+                        Text("Threshold", style = MaterialTheme.typography.bodySmall)
+                        Slider(
+                            value = backgroundRemovalThreshold,
+                            onValueChange = { backgroundRemovalThreshold = it },
+                            valueRange = 180f..255f,
+                        )
+                        Text("Feather", style = MaterialTheme.typography.bodySmall)
+                        Slider(
+                            value = backgroundRemovalFeather,
+                            onValueChange = { backgroundRemovalFeather = it },
+                            valueRange = 0f..48f,
+                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            Checkbox(
+                                checked = backgroundRemovalCleanupSpeckles,
+                                onCheckedChange = { backgroundRemovalCleanupSpeckles = it },
+                            )
+                            Text("Cleanup speckles")
+                        }
+                        Text("Speckle size", style = MaterialTheme.typography.bodySmall)
+                        Slider(
+                            value = backgroundRemovalSpeckleSize,
+                            onValueChange = { backgroundRemovalSpeckleSize = it },
+                            valueRange = 4f..180f,
+                        )
                     }
                 }
                 Text(

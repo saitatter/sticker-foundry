@@ -35,6 +35,7 @@ interface StickerApi {
         @Path("id") packId: String,
         @Header("If-Match") ifMatch: String,
         @Part file: MultipartBody.Part,
+        @Part options: List<MultipartBody.Part>,
     ): ResponseBody
 
     @Multipart
