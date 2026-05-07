@@ -11,6 +11,8 @@ class SessionStore(context: Context) {
 
     fun refreshToken(): String? = prefs.getString("refreshToken", null)
 
+    fun accountLabel(): String = prefs.getString("accountLabel", null) ?: "Not logged in"
+
     fun serverUrl(): String = prefs.getString("serverUrl", null) ?: BuildConfig.API_BASE_URL
 
     fun saveToken(token: String) {
@@ -24,12 +26,17 @@ class SessionStore(context: Context) {
             .apply()
     }
 
+    fun saveAccount(email: String, displayName: String) {
+        val label = if (displayName.isNotBlank()) "$displayName <$email>" else email
+        prefs.edit().putString("accountLabel", label).apply()
+    }
+
     fun saveServerUrl(url: String) {
         prefs.edit().putString("serverUrl", normalizeServerUrl(url)).apply()
     }
 
     fun clearToken() {
-        prefs.edit().remove("token").remove("refreshToken").apply()
+        prefs.edit().remove("token").remove("refreshToken").remove("accountLabel").apply()
     }
 
     private fun normalizeServerUrl(url: String): String {

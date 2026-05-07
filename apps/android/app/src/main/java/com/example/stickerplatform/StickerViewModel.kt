@@ -40,12 +40,16 @@ class StickerViewModel(
 
     val status = MutableStateFlow(AppStatus())
     val serverUrl = MutableStateFlow(repository.serverUrl())
+    val account = MutableStateFlow(repository.accountLabel())
     val cacheUsage = MutableStateFlow(formatBytes(repository.cacheSizeBytes()))
 
     fun login(email: String, password: String) {
         viewModelScope.launch {
             runCatching { repository.login(email, password) }
-                .onSuccess { setInfo("Logged in") }
+                .onSuccess {
+                    account.value = repository.accountLabel()
+                    setInfo("Logged in")
+                }
                 .onFailure { setError(it, "Login failed") }
         }
     }
@@ -88,7 +92,10 @@ class StickerViewModel(
     fun logout() {
         viewModelScope.launch {
             runCatching { repository.logout() }
-                .onSuccess { setInfo("Logged out") }
+                .onSuccess {
+                    account.value = repository.accountLabel()
+                    setInfo("Logged out")
+                }
                 .onFailure { setError(it, "Logout failed") }
         }
     }

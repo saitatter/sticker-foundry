@@ -72,6 +72,7 @@ private fun StickerApp(viewModel: StickerViewModel = viewModel(factory = Sticker
     val stickersByPack by viewModel.stickersByPack.collectAsState()
     val status by viewModel.status.collectAsState()
     val serverUrl by viewModel.serverUrl.collectAsState()
+    val account by viewModel.account.collectAsState()
     val cacheUsage by viewModel.cacheUsage.collectAsState()
     val context = LocalContext.current
     var stickerUploadPackId by remember { mutableStateOf<String?>(null) }
@@ -138,6 +139,7 @@ private fun StickerApp(viewModel: StickerViewModel = viewModel(factory = Sticker
     if (showSettings) {
         SettingsDialog(
             serverUrl = serverUrl,
+            account = account,
             cacheUsage = cacheUsage,
             onSaveServerUrl = { viewModel.saveServerUrl(it) },
             onLogout = { viewModel.logout() },
@@ -209,6 +211,7 @@ private fun LoginBox(
 @Composable
 private fun SettingsDialog(
     serverUrl: String,
+    account: String,
     cacheUsage: String,
     onSaveServerUrl: (String) -> Unit,
     onLogout: () -> Unit,
@@ -228,6 +231,7 @@ private fun SettingsDialog(
                     label = { Text("Server URL") },
                     modifier = Modifier.fillMaxWidth(),
                 )
+                Text("Account: $account", style = MaterialTheme.typography.bodySmall)
                 Text("Cache usage: $cacheUsage", style = MaterialTheme.typography.bodySmall)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     TextButton(onClick = onLogout) {

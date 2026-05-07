@@ -12,7 +12,6 @@ This is the live feature backlog. It should only contain work that still needs t
 
 ## Android
 
-- Account state display in settings.
 - Real-device compatibility notes inside README.
 - Optional import troubleshooting screen for provider/WhatsApp errors.
 

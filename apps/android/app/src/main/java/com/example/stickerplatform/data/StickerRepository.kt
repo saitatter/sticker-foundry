@@ -37,6 +37,8 @@ class StickerRepository private constructor(context: Context) {
 
     fun serverUrl(): String = session.serverUrl()
 
+    fun accountLabel(): String = session.accountLabel()
+
     fun cacheSizeBytes(): Long = packsDirectory().sizeBytes()
 
     fun saveServerUrl(url: String) {
@@ -48,6 +50,7 @@ class StickerRepository private constructor(context: Context) {
     suspend fun login(email: String, password: String) {
         val response = api().login(LoginRequest(email, password))
         session.saveTokens(response.accessToken, response.refreshToken)
+        session.saveAccount(response.user.email, response.user.displayName)
     }
 
     suspend fun sync() = withContext(Dispatchers.IO) {
