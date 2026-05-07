@@ -3074,6 +3074,7 @@ function ImageEditControls({
   const [redoStrokes, setRedoStrokes] = useState<BrushStroke[]>([]);
   const [outputSize, setOutputSize] = useState<number | null>(null);
   const [sourcePreviewUrl, setSourcePreviewUrl] = useState<string | null>(null);
+  const [compareMode, setCompareMode] = useState(false);
   const isPossiblyAnimated = /\.(gif|webp)$/i.test(file.name);
   const animatedDuration = Math.max(0, options.animatedTrimEnd - options.animatedTrimStart);
   const animatedFrameDuration = 1000 / Math.max(1, options.animatedFrameRate);
@@ -3209,17 +3210,26 @@ function ImageEditControls({
   }
 
   return (
-    <div className={`image-edit-controls ${compact ? 'compact' : ''}`}>
-      <div className="image-edit-preview">
-        <canvas
-          aria-label="Edited preview canvas"
-          onPointerCancel={finishBrushStroke}
-          onPointerDown={startBrushStroke}
-          onPointerLeave={finishBrushStroke}
-          onPointerMove={continueBrushStroke}
-          onPointerUp={finishBrushStroke}
-          ref={canvasRef}
-        />
+    <div className={`image-edit-controls ${compact ? 'compact' : ''} ${compareMode ? 'compare-mode' : ''}`}>
+      <div className={`image-edit-preview ${compareMode ? 'compare' : ''}`}>
+        {compareMode && sourcePreviewUrl ? (
+          <div className="compare-pane">
+            <span>Before</span>
+            <img alt="Original preview" src={sourcePreviewUrl} />
+          </div>
+        ) : null}
+        <div className="compare-pane">
+          {compareMode ? <span>After</span> : null}
+          <canvas
+            aria-label="Edited preview canvas"
+            onPointerCancel={finishBrushStroke}
+            onPointerDown={startBrushStroke}
+            onPointerLeave={finishBrushStroke}
+            onPointerMove={continueBrushStroke}
+            onPointerUp={finishBrushStroke}
+            ref={canvasRef}
+          />
+        </div>
       </div>
       <div className="image-edit-actions">
         <IconButton label="Rotate left" onClick={() => rotate(-90)}>
@@ -3239,6 +3249,9 @@ function ImageEditControls({
         </IconButton>
         <IconButton label="Restore brush" onClick={() => setBrushMode('restore')}>
           <RefreshCw size={16} />
+        </IconButton>
+        <IconButton label="Compare before after" onClick={() => setCompareMode((enabled) => !enabled)}>
+          <Eye size={16} />
         </IconButton>
         <IconButton
           label="Center subject"
