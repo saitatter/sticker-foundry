@@ -55,6 +55,51 @@ describe(StickerImageService, () => {
     );
   });
 
+  it('trims and resamples animated stickers before enforcing WhatsApp duration', async () => {
+    const frames = await Promise.all([
+      frameBuffer({ r: 255, g: 0, b: 0, alpha: 1 }),
+      frameBuffer({ r: 0, g: 255, b: 0, alpha: 1 }),
+      frameBuffer({ r: 0, g: 0, b: 255, alpha: 1 }),
+      frameBuffer({ r: 255, g: 255, b: 0, alpha: 1 }),
+    ]);
+    const animated = await sharp(frames, { join: { animated: true } }).webp({ delay: [1000, 1000, 1000, 1000] }).toBuffer();
+
+    const processed = await service.processSticker(animated, {
+      animated: true,
+      animatedTrimStart: 1,
+      animatedTrimEnd: 2.5,
+      animatedFrameRate: 2,
+      animatedQuality: 75,
+    });
+
+    expect(processed.sizeBytes).toBeLessThanOrEqual(500 * 1024);
+    await expect(sharp(processed.bytes, { animated: true }).metadata()).resolves.toEqual(
+      expect.objectContaining({
+        format: 'webp',
+        pages: 2,
+        width: 512,
+      }),
+    );
+  });
+
+  it('allows trimming long animated uploads down to the WhatsApp duration limit', async () => {
+    const frames = await Promise.all(
+      Array.from({ length: 11 }, (_, index) => frameBuffer({ r: index * 20, g: 80, b: 180, alpha: 1 })),
+    );
+    const animated = await sharp(frames, { join: { animated: true } }).webp({ delay: Array.from({ length: 11 }, () => 1000) }).toBuffer();
+
+    await expect(service.processSticker(animated, { animated: true })).rejects.toBeInstanceOf(BadRequestException);
+
+    const processed = await service.processSticker(animated, {
+      animated: true,
+      animatedTrimStart: 0,
+      animatedTrimEnd: 5,
+      animatedFrameRate: 5,
+    });
+
+    expect(processed.sizeBytes).toBeLessThanOrEqual(500 * 1024);
+  });
+
   it('rejects images that exceed configured pixel bounds before processing', async () => {
     const guardedService = new StickerImageService({
       get: jest.fn((key: string, fallback: string) => (key === 'UPLOAD_MAX_PIXELS' ? '1000' : fallback)),

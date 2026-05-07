@@ -13,14 +13,22 @@ export type ProcessedImage = {
   perceptualHash: string;
 };
 
+export type StickerProcessingOptions = {
+  animated?: boolean;
+  animatedTrimStart?: number;
+  animatedTrimEnd?: number;
+  animatedFrameRate?: number;
+  animatedQuality?: number;
+};
+
 type ImageMetadata = Awaited<ReturnType<sharp.Sharp['metadata']>>;
 
 @Injectable()
 export class StickerImageService {
   constructor(@Optional() private readonly config?: ConfigService) {}
 
-  async processSticker(input: Buffer, options: { animated?: boolean } = {}): Promise<ProcessedImage> {
-    return options.animated ? this.processAnimatedWebp(input) : this.processStaticWebp(input);
+  async processSticker(input: Buffer, options: StickerProcessingOptions = {}): Promise<ProcessedImage> {
+    return options.animated ? this.processAnimatedWebp(input, options) : this.processStaticWebp(input);
   }
 
   async processTrayIcon(input: Buffer): Promise<ProcessedImage> {
@@ -55,18 +63,32 @@ export class StickerImageService {
     return this.processWebp(input, WHATSAPP_LIMITS.stickerPixels, WHATSAPP_LIMITS.maxStaticStickerBytes, false);
   }
 
-  private async processAnimatedWebp(input: Buffer): Promise<ProcessedImage> {
+  private async processAnimatedWebp(input: Buffer, options: StickerProcessingOptions): Promise<ProcessedImage> {
     const metadata = await this.metadataFor(input);
     this.assertSupportedImageContent(metadata);
     this.assertInputBounds(metadata);
-    this.assertAnimatedStickerMetadata(metadata);
-    return this.processWebp(input, WHATSAPP_LIMITS.stickerPixels, WHATSAPP_LIMITS.maxAnimatedStickerBytes, true);
+    this.assertAnimatedImage(metadata);
+    const editedInput = this.hasAnimatedFrameEdits(options) ? await this.rebuildAnimatedInput(input, metadata, options) : input;
+    this.assertAnimatedStickerMetadata(editedInput === input ? metadata : await this.metadataFor(editedInput));
+    return this.processWebp(
+      editedInput,
+      WHATSAPP_LIMITS.stickerPixels,
+      WHATSAPP_LIMITS.maxAnimatedStickerBytes,
+      true,
+      options.animatedQuality,
+    );
   }
 
-  private async processWebp(input: Buffer, pixels: number, maxBytes: number, animated: boolean): Promise<ProcessedImage> {
+  private async processWebp(
+    input: Buffer,
+    pixels: number,
+    maxBytes: number,
+    animated: boolean,
+    preferredQuality?: number,
+  ): Promise<ProcessedImage> {
     let last: Buffer | undefined;
 
-    for (const quality of [90, 80, 70, 60, 50, 40, 32, 25]) {
+    for (const quality of this.qualityCandidates(preferredQuality)) {
       const output = await sharp(input, { animated })
         .rotate()
         .resize(pixels, pixels, {
@@ -138,10 +160,106 @@ export class StickerImageService {
     }
   }
 
-  private assertAnimatedStickerMetadata(metadata: ImageMetadata) {
+  private assertAnimatedImage(metadata: ImageMetadata) {
     if ((metadata.pages ?? 1) <= 1) {
       throw new BadRequestException('Animated packs require animated sticker uploads');
     }
+  }
+
+  private hasAnimatedFrameEdits(options: StickerProcessingOptions) {
+    return (
+      options.animatedTrimStart !== undefined ||
+      options.animatedTrimEnd !== undefined ||
+      options.animatedFrameRate !== undefined
+    );
+  }
+
+  private async rebuildAnimatedInput(input: Buffer, metadata: ImageMetadata, options: StickerProcessingOptions) {
+    const pages = metadata.pages ?? 1;
+    const width = metadata.width ?? 0;
+    const pageHeight = metadata.pageHeight ?? Math.floor((metadata.height ?? 0) / pages);
+    const delays = this.normalizedDelays(metadata);
+    const totalDuration = delays.reduce((total, delay) => total + delay, 0);
+    const startMs = clampMs((options.animatedTrimStart ?? 0) * 1000, 0, Math.max(0, totalDuration - 1));
+    const endMs = clampMs((options.animatedTrimEnd ?? totalDuration / 1000) * 1000, startMs + 1, totalDuration);
+    const frameRate = clampMs(options.animatedFrameRate ?? this.estimatedFrameRate(delays), 1, 30);
+    const frameDuration = Math.max(WHATSAPP_LIMITS.minAnimatedFrameDurationMs, Math.round(1000 / frameRate));
+
+    if (endMs <= startMs) {
+      throw new BadRequestException('Animated trim end must be after trim start');
+    }
+    if (endMs - startMs > WHATSAPP_LIMITS.maxAnimatedStickerDurationMs) {
+      throw new BadRequestException(`Animated sticker duration must be at most ${WHATSAPP_LIMITS.maxAnimatedStickerDurationMs}ms`);
+    }
+
+    const frameIndexes = this.sampleFrameIndexes(delays, startMs, endMs, frameDuration);
+    if (frameIndexes.length < 2) {
+      throw new BadRequestException('Animated edit must keep at least two frames');
+    }
+
+    const decoded = await sharp(input, { animated: true }).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+    const channels = decoded.info.channels;
+    const frameByteLength = width * pageHeight * channels;
+    const frames = await Promise.all(
+      frameIndexes.map((frameIndex) => {
+        const start = frameIndex * frameByteLength;
+        const frame = decoded.data.subarray(start, start + frameByteLength);
+        return sharp(Buffer.from(frame), { raw: { width, height: pageHeight, channels } }).png().toBuffer();
+      }),
+    );
+
+    return sharp(frames, { join: { animated: true } })
+      .webp({
+        delay: frameIndexes.map(() => frameDuration),
+        effort: 6,
+        quality: clampMs(options.animatedQuality ?? 82, 35, 95),
+        smartSubsample: true,
+      })
+      .toBuffer();
+  }
+
+  private normalizedDelays(metadata: ImageMetadata) {
+    const pages = metadata.pages ?? 1;
+    const delays = metadata.delay?.length ? metadata.delay : [];
+    return Array.from({ length: pages }, (_, index) => Math.max(WHATSAPP_LIMITS.minAnimatedFrameDurationMs, delays[index] ?? 100));
+  }
+
+  private estimatedFrameRate(delays: number[]) {
+    const averageDelay = delays.reduce((total, delay) => total + delay, 0) / delays.length;
+    return Math.round(1000 / Math.max(WHATSAPP_LIMITS.minAnimatedFrameDurationMs, averageDelay));
+  }
+
+  private sampleFrameIndexes(delays: number[], startMs: number, endMs: number, frameDuration: number) {
+    const frameStarts: number[] = [];
+    delays.reduce((elapsed, delay) => {
+      frameStarts.push(elapsed);
+      return elapsed + delay;
+    }, 0);
+
+    const indexes: number[] = [];
+    for (let time = startMs; time < endMs; time += frameDuration) {
+      let index = 0;
+      for (let frameIndex = 0; frameIndex < frameStarts.length; frameIndex += 1) {
+        if (frameStarts[frameIndex] > time) break;
+        index = frameIndex;
+      }
+      indexes.push(Math.max(0, Math.min(delays.length - 1, index)));
+    }
+
+    return indexes.filter((index, position) => position === 0 || index !== indexes[position - 1]);
+  }
+
+  private qualityCandidates(preferredQuality?: number) {
+    const defaults = [90, 80, 70, 60, 50, 40, 32, 25];
+    if (preferredQuality === undefined) return defaults;
+
+    const preferred = clampMs(Math.round(preferredQuality), 35, 95);
+    const lowered = Array.from({ length: 7 }, (_, index) => Math.max(25, preferred - index * 10));
+    return [...new Set([...lowered, ...defaults])].sort((left, right) => right - left);
+  }
+
+  private assertAnimatedStickerMetadata(metadata: ImageMetadata) {
+    this.assertAnimatedImage(metadata);
 
     const delays = metadata.delay ?? [];
     const totalDuration = delays.reduce((total, delay) => total + delay, 0);
@@ -197,4 +315,8 @@ export class StickerImageService {
     const parsed = Number.parseInt(this.config?.get<string>(key, String(fallback)) ?? String(fallback), 10);
     return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
   }
+}
+
+function clampMs(value: number, min: number, max: number) {
+  return Math.min(Math.max(value, min), max);
 }
