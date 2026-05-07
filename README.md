@@ -30,6 +30,7 @@ StickerFoundry is a self-hosted collaborative WhatsApp sticker pack manager, sha
 - Web sticker multi-select with bulk delete, bulk emoji apply, and copy/move to another pack.
 - Individual sticker copy/move controls from tile and detail views.
 - Bulk accessibility text generation for selected stickers.
+- Optimistic sticker reorder updates with rollback on API failure.
 - Per-sticker review status (`Pending`, `Approved`, `Needs work`) in the web editor.
 - Per-sticker collaborator comments from the web editor.
 - Optional pack approval flow so exports can include only approved stickers.

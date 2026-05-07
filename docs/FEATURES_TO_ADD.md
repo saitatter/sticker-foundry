@@ -12,8 +12,6 @@ This is the live feature backlog. It should only contain work that still needs t
 
 ## Sticker Workflow UX
 
-- Optimistic UI updates with rollback on API failure.
-
 ## Media Editing
 
 - Android editor live output size estimate.

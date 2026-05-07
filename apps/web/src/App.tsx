@@ -1244,7 +1244,8 @@ function PackDetail({
   onError: (error: unknown) => void;
   onNotice: (message: string) => void;
 }) {
-  const stickers = pack.stickers ?? [];
+  const [optimisticStickers, setOptimisticStickers] = useState<Sticker[] | null>(null);
+  const stickers = optimisticStickers ?? pack.stickers ?? [];
   const exportStickerCount =
     pack.requiresApproval ? stickers.filter((sticker) => sticker.reviewStatus === 'APPROVED').length : stickers.length;
   const canEdit = pack.canEdit ?? true;
@@ -1265,7 +1266,12 @@ function PackDetail({
     setSelectedStickerIds([]);
     setBulkEmojis('');
     setBulkTargetPackId('');
+    setOptimisticStickers(null);
   }, [pack.id]);
+
+  useEffect(() => {
+    setOptimisticStickers(null);
+  }, [pack.imageDataVersion]);
 
   async function exportPack() {
     setExporting(true);
@@ -1329,11 +1335,15 @@ function PackDetail({
 
     const nextOrder = stickers.map((sticker) => sticker.id);
     [nextOrder[currentIndex], nextOrder[nextIndex]] = [nextOrder[nextIndex], nextOrder[currentIndex]];
+    const nextStickers = [...stickers];
+    [nextStickers[currentIndex], nextStickers[nextIndex]] = [nextStickers[nextIndex], nextStickers[currentIndex]];
+    setOptimisticStickers(nextStickers);
 
     try {
       await api.reorderStickers(pack.id, nextOrder);
       await onChanged('Sticker order updated');
     } catch (error) {
+      setOptimisticStickers(null);
       onError(error);
     }
   }
@@ -1349,11 +1359,16 @@ function PackDetail({
     const [movedStickerId] = nextOrder.splice(currentIndex, 1);
     const insertIndex = currentIndex < targetIndex ? targetIndex - 1 : targetIndex;
     nextOrder.splice(insertIndex, 0, movedStickerId);
+    const nextStickers = nextOrder
+      .map((id) => stickers.find((sticker) => sticker.id === id))
+      .filter((sticker): sticker is Sticker => Boolean(sticker));
+    setOptimisticStickers(nextStickers);
 
     try {
       await api.reorderStickers(pack.id, nextOrder);
       await onChanged('Sticker order updated');
     } catch (error) {
+      setOptimisticStickers(null);
       onError(error);
     } finally {
       setDraggingStickerId(null);
