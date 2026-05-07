@@ -2,363 +2,168 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 ![GitHub Release](https://img.shields.io/github/v/release/saitatter/sticker-foundry)
-[![Issues](https://img.shields.io/github/issues/saitatter/sticker-foundry)](https://github.com/saitatter/sticker-foundry/issues)
 ![NestJS](https://img.shields.io/badge/NestJS-Backend-E0234E?logo=nestjs&logoColor=white)
 ![Kotlin](https://img.shields.io/badge/Kotlin-Android-7F52FF?logo=kotlin&logoColor=white)
-![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Database-4169E1?logo=postgresql&logoColor=white)
 ![Docker](https://img.shields.io/badge/Docker-Self--hosted-2496ED?logo=docker&logoColor=white)
 
-StickerFoundry is a self-hosted collaborative WhatsApp sticker pack manager, shaped like a small "Immich for stickers": the backend is the source of truth, desktop/web clients can manage packs through the API, and the Android app syncs compatible packs into local storage so WhatsApp can import them.
+StickerFoundry is a self-hosted collaborative WhatsApp sticker pack manager: web users manage packs on a server, the backend normalizes and exports WhatsApp-compatible media, and the Android app syncs packs locally so WhatsApp can import them.
 
-## ✨ Features
+## ✨ What Works
 
-- Self-hosted NestJS API with PostgreSQL and Prisma.
-- JWT register/login.
-- Pack CRUD with ownership and public pack visibility.
-- Sticker upload with WebP conversion, 512x512 resize, and WhatsApp size validation.
-- WhatsApp-compatible ZIP export with `contents.json`, `tray_icon.webp`, and sticker files.
-- Android Kotlin app with Retrofit sync, Room cache, local ZIP extraction, and WhatsApp import intent.
-- Android `ContentProvider` for WhatsApp metadata and sticker file access.
-- Docker Compose stack for backend + PostgreSQL.
-- Semantic-release workflow with Conventional Commits, changelog generation, GitHub Releases, and Android debug APK release asset.
+- NestJS API with PostgreSQL, Prisma, JWT auth, refresh sessions, password reset, audit logs, teams, roles, invites, and admin settings.
+- Sticker upload pipeline with WebP conversion, 512x512 normalization, static/animated validation, animated trim/FPS resampling, duplicate detection, image bomb safeguards, and queued media processing.
+- Disk storage by default, optional S3-compatible storage, cached ZIP exports, manifest/ETag sync, and Prometheus metrics.
+- Web UI for pack management, collaboration, public share pages, review status, comments, bulk actions, keyboard shortcuts, and responsive sticker grids.
+- Sticker editor with brush erase/restore, undo/redo, background cleanup, text layer, auto-fit subject, color tools, size optimizer, animated controls, batch presets, and before/after compare.
+- Background removal can run in-browser, on the backend threshold pipeline, or through an optional self-hosted AI command with threshold fallback.
+- Android Kotlin app with Retrofit, Room cache, retry-safe ZIP extraction, local extraction status, upload-time crop/color/text/brush editing with rendered preview, quick presets, server background-removal controls, animated upload controls, WhatsApp and WhatsApp Business import intents, and stale-edit conflict handling.
+- Docker Compose stack for PostgreSQL, backend, and web.
+- Semantic-release with emoji changelog sections and Android debug APK release asset.
 
-## 🚧 Project Status
-
-Current state:
-
-- Backend API: starter MVP implemented.
-- Android app: starter MVP implemented and debug build passes.
-- Web UI: starter MVP implemented in `apps/web`.
-
-See [docs/IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md) for the staged roadmap.
-
-## 🧱 Architecture
-
-The platform is split into three layers:
-
-- `apps/backend`: NestJS API, PostgreSQL persistence, Prisma ORM, Sharp image processing, disk storage under `/data/packs/{pack_id}`.
-- `apps/android`: Kotlin Android app using MVVM, Retrofit, Room, local ZIP extraction, and a WhatsApp-compatible `ContentProvider`.
-- `packages/shared-types`: TypeScript DTOs shared by server-side tooling or future web clients.
-
-The server owns users, packs, stickers, metadata, and normalized media. Android is intentionally a cache: it downloads ZIP exports, extracts files into app-private storage, stores metadata in Room, and exposes those local files to WhatsApp.
-
-WhatsApp does not import arbitrary remote sticker URLs. It asks the sticker app's `ContentProvider` for pack metadata and sticker binary files. That is why the Android app must keep sticker files local and must declare an exported provider with the `com.whatsapp.sticker.READ` read permission. The import intent only starts the confirmation flow; WhatsApp still reads the pack through provider URIs.
-
-The static sticker constraints implemented here match WhatsApp's Android sticker app requirements: 3-30 stickers per pack, 512x512 WebP stickers, static sticker size <=100KB, tray icon 96x96 and <=50KB. Animated packs are deliberately out of scope for this starter.
-
-References:
-
-- WhatsApp official Android sticker sample and README: https://github.com/WhatsApp/stickers/tree/main/Android
-- Android ContentProvider docs: https://developer.android.com/guide/topics/providers/content-provider-creating
-
-## 📦 Monorepo Structure
+## 🧱 Monorepo
 
 ```text
-sticker-foundry/
-  apps/
-    backend/
-      prisma/
-      src/
-      Dockerfile
-    android/
-      app/
-      build.gradle.kts
-      settings.gradle.kts
-  packages/
-    shared-types/
-  docker-compose.yml
-  README.md
+apps/backend        NestJS API, Prisma schema, image processing, exports
+apps/web            React/Vite web UI
+apps/android        Kotlin Android app and WhatsApp ContentProvider
+packages/shared-types
+docs                Deployment, release, Android, and proxy notes
+scripts             Operational helpers
+docker-compose.yml
 ```
 
-This keeps deployable apps in `apps`, reusable contracts in `packages`, and infrastructure at the root. The backend and Android app can evolve independently while staying in one repository.
+The backend is the source of truth. Android is a local cache and WhatsApp bridge.
 
-## 🖥️ Backend
+## 🚀 Local Development
 
-Key files:
+Requirements:
 
-- `apps/backend/src/auth/*`: JWT register/login.
-- `apps/backend/src/packs/packs.controller.ts`: pack CRUD, sticker upload, ZIP export.
-- `apps/backend/src/packs/sticker-image.service.ts`: WebP conversion, resize, compression.
-- `apps/backend/src/packs/pack-export.service.ts`: `contents.json`, `tray_icon.webp`, sticker ZIP generation.
-- `apps/backend/prisma/schema.prisma`: database schema.
-
-### 🚀 Run locally
+- Node.js 20+
+- PostgreSQL or Docker for the local database
+- Android Studio/JDK 17 for Android work
 
 ```bash
-cd sticker-foundry
 npm install
-cp apps/backend/.env.example apps/backend/.env
+cp .env.example .env
 docker compose up -d postgres
 npm run prisma:migrate
 npm run prisma:seed
 npm run dev
 ```
 
-`npm run dev` starts the backend and web app together. For a fresh database, use `npm run dev:seeded` after PostgreSQL is running; it applies migrations, seeds demo data, then starts both apps.
+Local URLs:
 
-- backend API: `http://localhost:3000/api`
-- web UI: `http://localhost:5173`
+- Web: `http://localhost:5173`
+- API: `http://localhost:3000/api`
+- OpenAPI: `http://localhost:3000/api/docs`
 
-The seed command creates a local demo account and a WhatsApp-compatible demo pack:
+Seeded demo login:
 
-- email: `demo@stickerfoundry.local`
-- password: `stickerfoundry123`
-- pack: `Foundry Classics`
+- Email: `demo@stickerfoundry.local`
+- Password: `stickerfoundry123`
 
-The web login screen includes a **Use demo account** button that fills these seeded credentials.
+## 🐳 Docker
 
-### 🧪 Backend tests
-
-```bash
-npm run test:backend
-```
-
-The backend test suite covers pack/sticker business rules, sticker ordering, and WhatsApp export metadata.
-
-### 🔌 API examples
+Run the stack:
 
 ```bash
-curl -X POST http://localhost:3000/api/auth/register \
-  -H "Content-Type: application/json" \
-  -d '{"email":"admin@example.com","displayName":"Admin","password":"password123"}'
-```
-
-```bash
-TOKEN="paste-jwt-here"
-curl -X POST http://localhost:3000/api/packs \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"name":"Family Memes","publisher":"Home","isPublic":false}'
-```
-
-```bash
-curl http://localhost:3000/api/sync/packs \
-  -H "Authorization: Bearer $TOKEN"
-```
-
-`GET /sync/packs` is the Android sync index. It returns pack metadata, `imageDataVersion`, `updatedAt`, `syncHash`, `canExport`, and relative download paths so the app can skip unchanged or incomplete packs.
-
-```bash
-curl http://localhost:3000/api/health
-```
-
-```bash
-curl -X POST http://localhost:3000/api/packs/PACK_ID/stickers \
-  -H "Authorization: Bearer $TOKEN" \
-  -F "file=@sticker.png" \
-  -F "emojis=smile,laugh"
-```
-
-```bash
-curl -L http://localhost:3000/api/packs/PACK_ID/export \
-  -H "Authorization: Bearer $TOKEN" \
-  -o pack.zip
-```
-
-`GET /packs/:id/export` returns a ZIP containing:
-
-- `contents.json`
-- `tray_icon.webp`
-- one `.webp` file per sticker
-
-The generated `contents.json` uses WhatsApp's sticker pack fields, including `identifier`, `name`, `publisher`, `tray_image_file`, `image_data_version`, `animated_sticker_pack`, and per-sticker `image_file`, `emojis`, and `accessibility_text`.
-
-## 📱 Android
-
-Key files:
-
-- `apps/android/app/src/main/java/com/example/stickerplatform/data/StickerApi.kt`: Retrofit API.
-- `apps/android/app/src/main/java/com/example/stickerplatform/data/LocalDatabase.kt`: Room cache.
-- `apps/android/app/src/main/java/com/example/stickerplatform/data/StickerRepository.kt`: server sync and ZIP extraction.
-- `apps/android/app/src/main/java/com/example/stickerplatform/whatsapp/StickerContentProvider.kt`: WhatsApp provider contract.
-- `apps/android/app/src/main/java/com/example/stickerplatform/whatsapp/WhatsAppStickerLauncher.kt`: `ENABLE_STICKER_PACK` intent.
-
-Open `apps/android` in Android Studio. For the emulator, the default API URL is:
-
-```kotlin
-http://10.0.2.2:3000/api/
-```
-
-For a physical phone, change `API_BASE_URL` in `apps/android/app/build.gradle.kts` to your server LAN URL, for example:
-
-```kotlin
-buildConfigField("String", "API_BASE_URL", "\"http://192.168.1.50:3000/api/\"")
-```
-
-User flow:
-
-1. Login in the app.
-2. Tap `Sync`.
-3. The app fetches packs from the server.
-4. For changed packs, it downloads `/packs/{id}/export`.
-5. It extracts the ZIP into app-private local storage.
-6. Tap `Add to WhatsApp`.
-7. WhatsApp opens its import confirmation and reads metadata/files from `StickerContentProvider`.
-
-Sync strategy:
-
-- Server is source of truth.
-- Android stores a cache in Room and app-private files.
-- Backend increments `imageDataVersion` whenever sticker content changes.
-- Android compares local `imageDataVersion` with the server value and downloads only changed packs.
-
-## 🌐 Web UI
-
-The web app lives in `apps/web` and provides:
-
-- Login/register UI.
-- Pack list and pack detail view.
-- Create/edit/delete pack UI.
-- Sticker upload with validation feedback.
-- Processed WebP preview.
-- Tray icon preview and replacement.
-- Sticker emoji and accessibility text editing.
-- Sticker reorder controls.
-- Drag-and-drop sticker ordering.
-- Bulk sticker upload.
-- Sticker delete action.
-- Export ZIP download.
-- Export `contents.json` preview.
-- Public/private pack creation.
-
-Run it locally:
-
-```bash
-npm run dev:web
-```
-
-By default, Vite proxies `/api` to `http://localhost:3000`. Set `VITE_API_URL` when pointing the web app at a different backend URL.
-
-## 🐳 Docker Setup
-
-Run web + backend + PostgreSQL:
-
-```bash
-cd sticker-foundry
+cp .env.example .env
 docker compose up -d --build
 ```
 
-Services listen on:
+Services:
 
-```text
-http://localhost:8080
-http://localhost:3000/api
+- Web: `http://localhost:8080`
+- API: `http://localhost:3000/api`
+- PostgreSQL: internal service `postgres`
+
+Set strong `POSTGRES_PASSWORD` and `JWT_SECRET` before exposing anything outside your LAN.
+
+### 🖼️ AI Background Removal
+
+The backend can call a local self-hosted remover command for `Server bg: AI/fallback` uploads. The command must write a transparent PNG to `{output}`:
+
+```env
+BACKGROUND_REMOVAL_COMMAND="rembg i {input} {output}"
 ```
 
-Persistent volumes:
+Any compatible local tool works here, including a Python ONNX/RMBG/U²-Net/MODNet script. If the command is empty or fails, StickerFoundry automatically uses the backend threshold remover instead.
 
-- `postgres-data`: database.
-- `foundry-data`: `/data/packs/{pack_id}` media files.
-
-### 💾 Backup and restore
-
-Back up PostgreSQL:
+For a bundled CPU AI image using `rembg`, run Compose with the override:
 
 ```bash
-docker compose exec -T postgres pg_dump -U stickers stickers > stickers.sql
+docker compose -f docker-compose.yml -f docker-compose.ai.yml up -d --build
 ```
 
-Back up sticker media:
+## 📱 Android
+
+Build debug APK:
 
 ```bash
-docker run --rm -v sticker-foundry_foundry-data:/data -v "$PWD:/backup" alpine tar czf /backup/foundry-data.tgz -C /data .
+cd apps/android
+./gradlew :app:assembleDebug
 ```
 
-Restore PostgreSQL:
+Basic tester flow:
+
+1. Install the debug APK.
+2. Set the API URL in Android settings.
+3. Log in and sync packs.
+4. Tap `WhatsApp` or `Business` on a pack with at least 3 exportable stickers.
+5. Confirm the import in WhatsApp.
+
+WhatsApp requires sticker apps to expose pack metadata and local files through a `ContentProvider`; remote URLs are not enough. StickerFoundry therefore downloads ZIP exports to app-private storage and exposes local files to WhatsApp during import.
+
+## 🧪 Useful Commands
 
 ```bash
-docker compose exec -T postgres psql -U stickers stickers < stickers.sql
-```
-
-Restore sticker media:
-
-```bash
-docker run --rm -v sticker-foundry_foundry-data:/data -v "$PWD:/backup" alpine sh -c "rm -rf /data/* && tar xzf /backup/foundry-data.tgz -C /data"
-```
-
-Unraid deployment:
-
-1. Copy this repository to an Unraid appdata path or use a Git checkout.
-2. In Docker Compose Manager, point to `docker-compose.yml`.
-3. Set strong values for `JWT_SECRET` and `POSTGRES_PASSWORD`.
-4. Map `3000:3000`.
-5. Map `foundry-data` to a durable appdata directory if you prefer a host path, for example `/mnt/user/appdata/sticker-foundry/data:/data`.
-6. Start the stack. The backend runs `prisma migrate deploy` before booting.
-
-## 🔄 Releases
-
-StickerFoundry uses **semantic-release** with Conventional Commits. On every push to `main`, CI checks whether a new version should be published.
-
-Use commit messages like:
-
-- `feat: add pack sharing`
-- `fix: reject oversized tray icons`
-- `ci: add Android build workflow`
-- `docs: update Unraid setup`
-
-Release behavior:
-
-- `feat` creates a minor release.
-- `fix`, `perf`, `refactor`, `ci`, and `chore` create patch releases.
-- `docs` and `test` are included in release notes but do not create a release by themselves.
-- `BREAKING CHANGE:` or `!` creates a major release.
-- `CHANGELOG.md`, root/backend/shared package versions, lockfile version, and Android `versionName`/`versionCode` are updated automatically.
-- The Android debug APK is attached to GitHub Releases as an early testing artifact.
-
-Local dry run:
-
-```bash
+npm run build:backend
+npm run test:backend
+npm run build:web
+npm run test:web
+npm run lint:web
+npm run build:shared-types
 npm run release:dry-run
+npm run verify:backup -- --postgres stickers.sql --data foundry-data.tgz
 ```
 
-GitHub release workflow expects either `RELEASE_PAT` or the default `GITHUB_TOKEN`. If `RELEASE_PAT` is configured, it should have repository contents permissions.
-
-## 🧰 Git Setup Instructions
+Android:
 
 ```bash
-cd sticker-foundry
-git init
-git add .
-git commit -m "Initial commit"
+cd apps/android
+./gradlew :app:lintDebug :app:assembleDebug
+./gradlew :app:assembleRelease
 ```
 
-Optional GitHub remote:
+## 🔌 API Pointers
 
-```bash
-git remote add origin git@github.com:saitatter/sticker-foundry.git
-git branch -M main
-git push -u origin main
-```
+- `POST /api/auth/register`
+- `POST /api/auth/login`
+- `GET /api/packs`
+- `POST /api/packs`
+- `POST /api/packs/:id/stickers`
+- `PUT /api/packs/:id/stickers/:stickerId/file`
+- `GET /api/packs/:id/export`
+- `GET /api/packs/:id/manifest`
+- `GET /api/public/packs`
+- `GET /api/public/packs/:id`
+- `GET /api/health`
+- `GET /api/metrics?format=prometheus`
 
-Initial commit structure should include:
+Use OpenAPI at `/api/docs` for the full contract.
 
-- root monorepo config
-- backend NestJS app
-- Android Kotlin app
-- shared DTO package
-- Docker/Compose files
-- README and `.gitignore`
+## 📚 Docs
 
-## 🛠 Troubleshooting
+- [Implementation plan](docs/IMPLEMENTATION_PLAN.md)
+- [Feature backlog](docs/FEATURES_TO_ADD.md)
+- [Real WhatsApp validation](docs/WHATSAPP_VALIDATION.md)
+- [Docker validation](docs/DOCKER_VALIDATION.md)
+- [Reverse proxy examples](docs/REVERSE_PROXY.md)
+- [Production checklist](docs/PRODUCTION_CHECKLIST.md)
+- [Unraid notes](docs/UNRAID.md)
+- [Android signing](docs/ANDROID_SIGNING.md)
+- [Release notes guide](docs/RELEASE_NOTES.md)
 
-- **Android build cannot find SDK**: install Android Studio or set `ANDROID_HOME` to an Android SDK path.
-- **Android build uses Java 8**: install JDK 17 and set `JAVA_HOME`.
-- **WhatsApp import does not open**: verify WhatsApp is installed and the pack has at least 3 stickers.
-- **Export fails**: verify the pack has 3-30 stickers and all images can be compressed to WhatsApp limits.
-- **Upload is rejected**: sticker source uploads are capped at 10 MB, tray icon source uploads at 5 MB.
-- **Too many requests**: the API applies an in-memory rate limit. Tune it with `THROTTLE_TTL_MS` and `THROTTLE_LIMIT`.
+## 🚧 Remaining Work
 
-## 📝 Notes
-
-This project is a real starting point, not a complete production deployment. Before exposing it outside your LAN, add HTTPS, rate limiting, refresh tokens or short-lived access tokens, backups, stricter upload scanning, and richer admin controls.
-
-WhatsApp limitations to remember:
-
-- Users must confirm each pack import manually.
-- Apps should list packs separately; bulk "add all" is not supported.
-- WhatsApp caches imported stickers; changing server files alone does not force old imports to refresh unless `image_data_version` changes and the pack is re-imported.
-- Copying WebP files into WhatsApp media folders is not enough. WhatsApp relies on pack metadata and provider-imported content, not only files on disk.
-
-## 📄 License
-
-MIT © saitatter
+The main open items are real-device WhatsApp validation, Docker stack validation on a host with Docker installed, Android signing validation, Docker-host validation for the optional AI remover, and the remaining Android editor parity items. See [docs/FEATURES_TO_ADD.md](docs/FEATURES_TO_ADD.md).

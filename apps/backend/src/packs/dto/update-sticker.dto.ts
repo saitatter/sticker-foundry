@@ -1,4 +1,5 @@
-import { IsArray, IsOptional, IsString, MaxLength } from 'class-validator';
+import { StickerReviewStatus } from '@prisma/client';
+import { IsArray, IsEnum, IsOptional, IsString, MaxLength } from 'class-validator';
 
 export class UpdateStickerDto {
   @IsOptional()
@@ -10,4 +11,8 @@ export class UpdateStickerDto {
   @IsString()
   @MaxLength(125)
   accessibilityText?: string;
+
+  @IsOptional()
+  @IsEnum(StickerReviewStatus)
+  reviewStatus?: StickerReviewStatus;
 }

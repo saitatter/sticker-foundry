@@ -19,6 +19,11 @@
     "prisma:migrate": "npm --workspace apps/backend run prisma:migrate",
     "prisma:seed": "npm --workspace apps/backend run prisma:seed",
     "test:backend": "npm --workspace apps/backend run test",
+    "test:e2e:backend": "npm --workspace apps/backend run test:e2e",
+    "test:web": "playwright test",
+    "lint:web": "npm --workspace apps/web run lint",
+    "format:web": "npm --workspace apps/web run format",
+    "verify:backup": "node scripts/verify-backup.mjs",
     "build:shared-types": "npm --workspace packages/shared-types run build",
     "release:dry-run": "semantic-release --dry-run"
   },
@@ -26,6 +31,7 @@
     "node": ">=20"
   },
   "devDependencies": {
+    "@playwright/test": "^1.59.1",
     "@semantic-release/changelog": "^6.0.3",
     "@semantic-release/commit-analyzer": "^12.0.0",
     "@semantic-release/exec": "^7.1.0",

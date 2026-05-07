@@ -1,4 +1,4 @@
-import { IsBoolean, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
+import { IsBoolean, IsOptional, IsString, IsUUID, MaxLength, MinLength } from 'class-validator';
 
 export class CreatePackDto {
   @IsString()
@@ -19,4 +19,16 @@ export class CreatePackDto {
   @IsOptional()
   @IsBoolean()
   isPublic?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  requiresApproval?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  isAnimated?: boolean;
+
+  @IsOptional()
+  @IsUUID()
+  teamId?: string;
 }

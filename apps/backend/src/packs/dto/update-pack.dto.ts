@@ -21,4 +21,12 @@ export class UpdatePackDto {
   @IsOptional()
   @IsBoolean()
   isPublic?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  requiresApproval?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  isAnimated?: boolean;
 }

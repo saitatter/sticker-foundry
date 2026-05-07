@@ -24,4 +24,44 @@ describe(HealthService, () => {
       }),
     );
   });
+
+  it('reports process metrics', () => {
+    const prisma = { $queryRaw: jest.fn() };
+    const service = new HealthService(prisma as never);
+
+    expect(service.metrics()).toEqual(
+      expect.objectContaining({
+        uptimeSeconds: expect.any(Number),
+        memory: expect.objectContaining({
+          rssBytes: expect.any(Number),
+          heapUsedBytes: expect.any(Number),
+        }),
+        process: expect.objectContaining({
+          pid: expect.any(Number),
+          nodeVersion: expect.any(String),
+        }),
+      }),
+    );
+  });
+
+  it('formats metrics for Prometheus', () => {
+    const prisma = { $queryRaw: jest.fn() };
+    const service = new HealthService(prisma as never);
+
+    expect(
+      service.prometheusMetrics({
+        uptimeSeconds: 12,
+        memory: {
+          rssBytes: 100,
+          heapUsedBytes: 50,
+          heapTotalBytes: 80,
+          externalBytes: 10,
+        },
+        process: {
+          pid: 123,
+          nodeVersion: 'v20.0.0',
+        },
+      }),
+    ).toContain('stickerfoundry_uptime_seconds 12');
+  });
 });

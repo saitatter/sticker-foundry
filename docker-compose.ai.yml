@@ -1,0 +1,7 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: apps/backend/Dockerfile.ai
+    environment:
+      BACKGROUND_REMOVAL_COMMAND: ${BACKGROUND_REMOVAL_COMMAND:-rembg i {input} {output}}

@@ -1,20 +1,26 @@
 import { Module } from '@nestjs/common';
 import { MulterModule } from '@nestjs/platform-express';
+import { AuditModule } from '../audit/audit.module';
 import { PrismaService } from '../prisma.service';
+import { BackgroundRemovalService } from './background-removal.service';
 import { PackExportService } from './pack-export.service';
+import { PackStorageService } from './pack-storage.service';
 import { PacksController } from './packs.controller';
 import { PacksService } from './packs.service';
+import { MediaQueueService } from './media-queue.service';
+import { PublicPacksController } from './public-packs.controller';
 import { StickerImageService } from './sticker-image.service';
 
 @Module({
   imports: [
+    AuditModule,
     MulterModule.register({
       limits: {
         fileSize: 10 * 1024 * 1024,
       },
     }),
   ],
-  controllers: [PacksController],
-  providers: [PacksService, PackExportService, StickerImageService, PrismaService],
+  controllers: [PacksController, PublicPacksController],
+  providers: [PacksService, PackExportService, PackStorageService, MediaQueueService, StickerImageService, BackgroundRemovalService, PrismaService],
 })
 export class PacksModule {}

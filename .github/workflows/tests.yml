@@ -32,8 +32,17 @@ jobs:
       - name: Test backend
         run: npm run test:backend
 
+      - name: Test backend e2e
+        run: npm run test:e2e:backend
+
       - name: Build web
         run: npm run build:web
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Test web smoke flows
+        run: npm run test:web
 
       - name: Build shared types
         run: npm --workspace packages/shared-types run build
@@ -54,6 +63,10 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Build debug APK
+      - name: Lint Android debug
+        working-directory: apps/android
+        run: ./gradlew :app:lintDebug
+
+      - name: Build Android debug APK
         working-directory: apps/android
         run: ./gradlew :app:assembleDebug

@@ -3,9 +3,12 @@ import {
   Controller,
   Delete,
   Get,
+  Headers,
+  HttpStatus,
   Param,
   Patch,
   Post,
+  Put,
   Res,
   UploadedFile,
   UseGuards,
@@ -15,8 +18,12 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { Response } from 'express';
 import { CurrentUser, RequestUser } from '../common/current-user.decorator';
 import { JwtAuthGuard } from '../common/jwt-auth.guard';
+import { CreatePackInviteDto } from './dto/create-pack-invite.dto';
 import { CreatePackDto } from './dto/create-pack.dto';
+import { CreateStickerCommentDto } from './dto/create-sticker-comment.dto';
 import { ReorderStickersDto } from './dto/reorder-stickers.dto';
+import { TransferStickersDto } from './dto/transfer-stickers.dto';
+import { UpdatePackMemberDto } from './dto/update-pack-member.dto';
 import { UpdatePackDto } from './dto/update-pack.dto';
 import { UpdateStickerDto } from './dto/update-sticker.dto';
 import { UploadStickerDto } from './dto/upload-sticker.dto';
@@ -54,6 +61,56 @@ export class PacksController {
     return this.packsService.delete(user.sub, id);
   }
 
+  @Post(':id/clone')
+  clone(@CurrentUser() user: RequestUser, @Param('id') id: string) {
+    return this.packsService.clone(user.sub, id);
+  }
+
+  @Get(':id/members')
+  members(@CurrentUser() user: RequestUser, @Param('id') id: string) {
+    return this.packsService.members(user.sub, id);
+  }
+
+  @Patch(':id/members/:memberId')
+  updateMember(
+    @CurrentUser() user: RequestUser,
+    @Param('id') id: string,
+    @Param('memberId') memberId: string,
+    @Body() dto: UpdatePackMemberDto,
+  ) {
+    return this.packsService.updateMember(user.sub, id, memberId, dto);
+  }
+
+  @Delete(':id/members/:memberId')
+  removeMember(@CurrentUser() user: RequestUser, @Param('id') id: string, @Param('memberId') memberId: string) {
+    return this.packsService.removeMember(user.sub, id, memberId);
+  }
+
+  @Get(':id/invites')
+  invites(@CurrentUser() user: RequestUser, @Param('id') id: string) {
+    return this.packsService.invites(user.sub, id);
+  }
+
+  @Get(':id/activity')
+  activity(@CurrentUser() user: RequestUser, @Param('id') id: string) {
+    return this.packsService.activity(user.sub, id);
+  }
+
+  @Post(':id/invites')
+  createInvite(@CurrentUser() user: RequestUser, @Param('id') id: string, @Body() dto: CreatePackInviteDto) {
+    return this.packsService.createInvite(user.sub, id, dto);
+  }
+
+  @Delete(':id/invites/:inviteId')
+  revokeInvite(@CurrentUser() user: RequestUser, @Param('id') id: string, @Param('inviteId') inviteId: string) {
+    return this.packsService.revokeInvite(user.sub, id, inviteId);
+  }
+
+  @Post('invites/:code/accept')
+  acceptInvite(@CurrentUser() user: RequestUser, @Param('code') code: string) {
+    return this.packsService.acceptInvite(user.sub, code);
+  }
+
   @Patch(':id')
   update(@CurrentUser() user: RequestUser, @Param('id') id: string, @Body() dto: UpdatePackDto) {
     return this.packsService.update(user.sub, id, dto);
@@ -61,19 +118,21 @@ export class PacksController {
 
   @Get(':id/tray-icon')
   async trayIcon(@CurrentUser() user: RequestUser, @Param('id') id: string, @Res() response: Response) {
-    const filePath = await this.packsService.getTrayIconFilePath(user.sub, id);
+    const stream = await this.packsService.getTrayIconFilePath(user.sub, id);
     response.setHeader('Content-Type', 'image/webp');
     response.setHeader('Cache-Control', 'private, max-age=300');
-    return response.sendFile(filePath);
+    return stream.pipe(response);
   }
 
   @Post(':id/tray-icon')
   @UseInterceptors(FileInterceptor('file', trayIconUploadOptions))
-  uploadTrayIcon(
+  async uploadTrayIcon(
     @CurrentUser() user: RequestUser,
     @Param('id') id: string,
+    @Headers('if-match') ifMatch: string | undefined,
     @UploadedFile() file: Express.Multer.File,
   ) {
+    await this.packsService.assertPackVersion(user.sub, id, ifMatch);
     return this.packsService.uploadTrayIcon(user.sub, id, file);
   }
 
@@ -87,17 +146,33 @@ export class PacksController {
     const file = await this.packsService.getStickerFilePath(user.sub, id, stickerId);
     response.setHeader('Content-Type', 'image/webp');
     response.setHeader('Cache-Control', 'private, max-age=300');
-    return response.sendFile(file.path);
+    return file.stream.pipe(response);
+  }
+
+  @Put(':id/stickers/:stickerId/file')
+  @UseInterceptors(FileInterceptor('file', stickerUploadOptions))
+  async replaceStickerImage(
+    @CurrentUser() user: RequestUser,
+    @Param('id') id: string,
+    @Param('stickerId') stickerId: string,
+    @Headers('if-match') ifMatch: string | undefined,
+    @UploadedFile() file: Express.Multer.File,
+    @Body() dto: UploadStickerDto,
+  ) {
+    await this.packsService.assertPackVersion(user.sub, id, ifMatch);
+    return this.packsService.replaceStickerImage(user.sub, id, stickerId, file, dto);
   }
 
   @Post(':id/stickers')
   @UseInterceptors(FileInterceptor('file', stickerUploadOptions))
-  uploadSticker(
+  async uploadSticker(
     @CurrentUser() user: RequestUser,
     @Param('id') id: string,
+    @Headers('if-match') ifMatch: string | undefined,
     @UploadedFile() file: Express.Multer.File,
     @Body() dto: UploadStickerDto,
   ) {
+    await this.packsService.assertPackVersion(user.sub, id, ifMatch);
     return this.packsService.uploadSticker(user.sub, id, file, dto);
   }
 
@@ -106,9 +181,44 @@ export class PacksController {
     return this.packsService.reorderStickers(user.sub, id, dto);
   }
 
+  @Post(':id/stickers/copy')
+  copyStickers(@CurrentUser() user: RequestUser, @Param('id') id: string, @Body() dto: TransferStickersDto) {
+    return this.packsService.copyStickers(user.sub, id, dto);
+  }
+
+  @Post(':id/stickers/move')
+  moveStickers(@CurrentUser() user: RequestUser, @Param('id') id: string, @Body() dto: TransferStickersDto) {
+    return this.packsService.moveStickers(user.sub, id, dto);
+  }
+
   @Delete(':id/stickers/:stickerId')
   deleteSticker(@CurrentUser() user: RequestUser, @Param('id') id: string, @Param('stickerId') stickerId: string) {
     return this.packsService.deleteSticker(user.sub, id, stickerId);
+  }
+
+  @Get(':id/stickers/:stickerId/comments')
+  stickerComments(@CurrentUser() user: RequestUser, @Param('id') id: string, @Param('stickerId') stickerId: string) {
+    return this.packsService.stickerComments(user.sub, id, stickerId);
+  }
+
+  @Post(':id/stickers/:stickerId/comments')
+  createStickerComment(
+    @CurrentUser() user: RequestUser,
+    @Param('id') id: string,
+    @Param('stickerId') stickerId: string,
+    @Body() dto: CreateStickerCommentDto,
+  ) {
+    return this.packsService.createStickerComment(user.sub, id, stickerId, dto);
+  }
+
+  @Delete(':id/stickers/:stickerId/comments/:commentId')
+  deleteStickerComment(
+    @CurrentUser() user: RequestUser,
+    @Param('id') id: string,
+    @Param('stickerId') stickerId: string,
+    @Param('commentId') commentId: string,
+  ) {
+    return this.packsService.deleteStickerComment(user.sub, id, stickerId, commentId);
   }
 
   @Patch(':id/stickers/:stickerId')
@@ -125,13 +235,21 @@ export class PacksController {
   async exportPack(@CurrentUser() user: RequestUser, @Param('id') id: string, @Res() response: Response) {
     await this.packsService.assertCanExport(user.sub, id);
 
+    const cached = await this.exportService.buildCachedZip(id);
+    response.setHeader('Content-Type', 'application/zip');
+    response.setHeader('Content-Disposition', `attachment; filename="sticker-pack-${id}.zip"`);
+    response.setHeader('ETag', this.exportService.etagForHash(cached.contentHash));
+    return response.sendFile(cached.path);
+  }
+
+  @Get(':id/export/live')
+  async exportPackLive(@CurrentUser() user: RequestUser, @Param('id') id: string, @Res() response: Response) {
+    await this.packsService.assertCanExport(user.sub, id);
+
     const archive = this.exportService.createArchive();
     response.setHeader('Content-Type', 'application/zip');
     response.setHeader('Content-Disposition', `attachment; filename="sticker-pack-${id}.zip"`);
-
-    archive.on('error', (error) => {
-      response.destroy(error);
-    });
+    archive.on('error', (error) => response.destroy(error));
     archive.pipe(response);
     await this.exportService.buildZip(id, archive);
     await archive.finalize();
@@ -141,5 +259,25 @@ export class PacksController {
   async contents(@CurrentUser() user: RequestUser, @Param('id') id: string) {
     await this.packsService.assertCanExport(user.sub, id);
     return this.exportService.buildContents(id);
+  }
+
+  @Get(':id/manifest')
+  async manifest(
+    @CurrentUser() user: RequestUser,
+    @Param('id') id: string,
+    @Headers('if-none-match') ifNoneMatch: string | undefined,
+    @Res() response: Response,
+  ) {
+    await this.packsService.get(user.sub, id);
+    const manifest = await this.exportService.buildManifest(id);
+    const etag = this.exportService.etagForHash(manifest.contentHash);
+
+    response.setHeader('ETag', etag);
+    response.setHeader('Cache-Control', 'private, max-age=60');
+    if (ifNoneMatch === etag) {
+      return response.status(HttpStatus.NOT_MODIFIED).send();
+    }
+
+    return response.json(manifest);
   }
 }

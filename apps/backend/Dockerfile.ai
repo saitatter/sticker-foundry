@@ -1,0 +1,30 @@
+FROM node:20-bookworm-slim
+
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends openssl python3 python3-pip python3-venv libgomp1 \
+  && python3 -m venv /opt/rembg \
+  && /opt/rembg/bin/pip install --no-cache-dir --upgrade pip \
+  && /opt/rembg/bin/pip install --no-cache-dir "rembg[cpu]" \
+  && apt-get clean \
+  && rm -rf /var/lib/apt/lists/*
+
+ENV PATH="/opt/rembg/bin:${PATH}"
+
+WORKDIR /app
+
+COPY package.json package-lock.json ./
+COPY apps/backend/package.json apps/backend/package.json
+COPY packages/shared-types/package.json packages/shared-types/package.json
+COPY apps/backend apps/backend
+COPY packages/shared-types packages/shared-types
+
+RUN npm install \
+  && npm --workspace apps/backend run prisma:generate \
+  && npm --workspace apps/backend run build \
+  && npm prune --omit=dev
+
+WORKDIR /app/apps/backend
+
+EXPOSE 3000
+
+CMD ["sh", "-c", "npx prisma migrate deploy && node dist/main.js"]

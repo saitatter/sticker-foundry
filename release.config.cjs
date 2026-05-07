@@ -24,18 +24,19 @@ module.exports = {
         preset: 'conventionalcommits',
         presetConfig: {
           types: [
-            { type: 'feat', section: 'Features' },
-            { type: 'fix', section: 'Fixes' },
-            { type: 'perf', section: 'Performance' },
-            { type: 'refactor', section: 'Refactors' },
-            { type: 'ci', section: 'CI & Build' },
-            { type: 'chore', section: 'CI & Build' },
-            { type: 'docs', section: 'Docs', hidden: false },
-            { type: 'test', section: 'Tests', hidden: false },
+            { type: 'feat', section: '✨ Features' },
+            { type: 'fix', section: '🐛 Fixes' },
+            { type: 'perf', section: '⚡ Performance' },
+            { type: 'refactor', section: '♻️ Refactors' },
+            { type: 'ci', section: '🧰 CI & Build' },
+            { type: 'chore', section: '🧰 CI & Build' },
+            { type: 'docs', section: '📚 Docs', hidden: false },
+            { type: 'test', section: '🧪 Tests', hidden: false },
           ],
         },
       },
     ],
+    './scripts/semantic-release/full-comparison.cjs',
     [
       '@semantic-release/changelog',
       {

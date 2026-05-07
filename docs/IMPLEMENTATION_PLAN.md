@@ -1,180 +1,86 @@
 # StickerFoundry Implementation Plan
 
-This plan tracks what is needed to turn the current starter into a usable self-hosted product.
+This document tracks what is still meaningful to validate or decide. Implemented product work has been removed from this plan so it does not drift.
 
-## Current Baseline
+## Current State
 
-Already implemented:
+- Backend, web, Android, Docker files, semantic-release, and operational docs are implemented as a usable starting project.
+- Backend exports are cached and available through manifest/ETag-aware sync.
+- Backend media processing supports static and animated WebP normalization, animated trim/FPS resampling, server-side threshold background removal, and optional self-hosted AI background removal through `BACKGROUND_REMOVAL_COMMAND`.
+- Android caches packs locally, tracks extraction status, rejects stale edits through server-side version checks, and supports upload-time crop, rotation, color adjustment, grayscale, text overlay, eraser/restore brush edits, rendered edit previews, server background-removal upload controls, animated trim/FPS/quality upload controls, and quick edit presets.
+- Web supports collaboration, public pack browsing, keyboard shortcuts, responsive sticker workflows, advanced sticker editing, batch presets, size warnings, and before/after compare.
+- Web editor coverage includes focused Playwright tests for brush/compare, optimizer/background upload options, and animated trim/FPS option submission.
 
-- Monorepo structure with backend, Android app, shared types, Docker Compose, and documentation.
-- NestJS backend with JWT auth, Prisma/PostgreSQL schema, pack CRUD, sticker upload, Sharp processing, and ZIP export.
-- WhatsApp-oriented export containing `contents.json`, `tray_icon.webp`, and WebP sticker files.
-- Android Kotlin starter with MVVM, Retrofit, Room, local ZIP extraction, sync by `imageDataVersion`, WhatsApp import intent, and `ContentProvider`.
-- Initial GitHub repository setup.
+## Milestone 1: Real WhatsApp Validation
 
-Known gaps:
-
-- Android project has no committed Gradle wrapper yet.
-- Android WhatsApp provider contract needs testing against real WhatsApp and WhatsApp Business.
-- Backend has no automated tests yet.
-- No web/admin UI exists yet.
-- No production auth hardening beyond basic JWT.
-
-## Milestone 1: Backend MVP Hardening
-
-Goal: make the backend reliable enough for local self-hosting and Android sync tests.
+Goal: prove the Android bridge against current real clients.
 
 Tasks:
 
-- Add unit tests for auth, pack visibility, pack ownership, and validation rules.
-- Add integration tests for the full flow: register, create pack, upload 3 stickers, export ZIP.
-- Validate exported ZIP contents with a parser in tests.
-- Add explicit endpoint docs or OpenAPI/Swagger.
-- Add request rate limiting for auth and upload endpoints.
-- Add upload content validation beyond MIME headers.
-- Add delete sticker endpoint.
-- Add update pack endpoint for name, publisher, description, and public/private state.
-- Add endpoint to set or regenerate tray icon.
-- Add health endpoint for Docker/Unraid monitoring.
+- Install the debug APK on a physical Android phone.
+- Point Android settings at a LAN or HTTPS backend.
+- Sync a pack with at least 3 exportable stickers.
+- Import into WhatsApp.
+- Import into WhatsApp Business.
+- Compare provider columns and URI behavior against WhatsApp's official Android sample.
+- Document tested Android, WhatsApp, and WhatsApp Business versions.
 
 Acceptance criteria:
 
-- `npm test` passes.
-- A newly created pack can be exported and parsed by Android.
-- Invalid packs fail with clear 4xx responses.
+- A synced pack imports successfully into WhatsApp.
+- A synced pack imports successfully into WhatsApp Business.
+- Any compatibility issue is fixed or tracked.
 
-## Milestone 2: Android Import Validation
+## Milestone 2: Deployment Validation
 
-Goal: prove the Android app can import a synced pack into WhatsApp.
+Goal: prove the default self-hosted stack boots cleanly on a Docker host.
 
 Tasks:
 
-- Add Gradle wrapper to `apps/android`.
-- Build debug APK from CLI.
-- Test with Android emulator using `10.0.2.2`.
-- Test with a physical Android phone using a LAN backend URL.
-- Validate `StickerContentProvider` column names and URI paths against WhatsApp's official sample.
-- Test import into `com.whatsapp`.
-- Test import into `com.whatsapp.w4b`.
-- Add friendly error states for missing login, empty packs, sync failure, and WhatsApp not installed.
-- Show sticker count and local sync version in the UI.
-- Add a settings screen for API base URL instead of hardcoding it in `BuildConfig`.
+- Run `docker compose up -d --build` on a machine with Docker installed.
+- Confirm web, backend, PostgreSQL healthchecks, `/api/health`, `/api/docs`, and `/api/metrics?format=prometheus`.
+- Create a pack, upload 3 stickers, export ZIP, and sync from Android.
 
 Acceptance criteria:
 
-- User can login, sync, tap "Add to WhatsApp", and confirm import in WhatsApp.
-- WhatsApp can read tray icon and all sticker files through the provider.
-- Packs with fewer than 3 stickers are not offered for import.
+- Default Compose stack works from a clean checkout.
+- Any missing env, permission, migration, or volume issue is documented or fixed.
 
-## Milestone 3: Web/Admin Experience
+## Milestone 3: Android Release Signing
 
-Goal: make pack management usable from a browser or desktop.
+Goal: prepare Android releases for real distribution.
 
 Tasks:
 
-- Add `apps/web` with a small React or Next.js app.
-- Login/register UI.
-- Pack list and pack detail pages.
-- Create/edit/delete pack UI.
-- Upload sticker UI with progress and validation messages.
-- Preview processed WebP stickers.
-- Export/download ZIP button.
-- Public/private pack toggle.
-- Basic responsive design for desktop and tablet.
+- Confirm ContentProvider authority on a real WhatsApp import after signing.
+- Configure signing secrets for CI once identity is final.
+- Build and test a signed release APK.
 
 Acceptance criteria:
 
-- A user can manage a full WhatsApp-compatible pack without using curl.
-- UI prevents obvious invalid operations, such as exporting a pack with fewer than 3 stickers.
+- Signed APK installs cleanly over future releases.
+- WhatsApp import still works with the final provider authority.
 
-## Milestone 4: Sync and Versioning
+## Milestone 4: Packaged AI Background Removal
 
-Goal: make server-to-Android sync deterministic and efficient.
+Goal: make AI background removal turnkey instead of command-configurable only.
 
 Tasks:
 
-- Add `contentHash` to packs based on sticker hashes and tray icon hash.
-- Return `contentHash` in pack list.
-- Keep `imageDataVersion` for WhatsApp compatibility but use `contentHash` for app sync decisions.
-- Add `GET /packs/:id/manifest` for metadata-only sync.
-- Add ETag or `If-None-Match` support for export downloads.
-- Track local extraction status in Room.
-- Clean up Android local files for packs removed from server access.
+- Validate the optional `docker-compose.ai.yml` CPU image on a Docker host.
+- Compare bundled `rembg` quality, CPU/RAM use, and image size against other ONNX/RMBG/U2-Net/MODNet style options.
+- Keep the admin/web status indicator aligned with the packaged runtime.
+- Keep threshold fallback as the default degraded mode.
 
 Acceptance criteria:
 
-- Android downloads only changed packs.
-- Re-sync is safe after interrupted downloads.
-- Server pack changes reliably produce a new version/hash.
-
-## Milestone 5: Docker and Unraid Polish
-
-Goal: make deployment boring.
-
-Tasks:
-
-- Validate `docker compose up -d --build` on a Docker host.
-- Add container healthcheck for backend.
-- Document host-path volume examples for Unraid.
-- Add `.env` support for compose instead of hardcoded example secrets.
-- Add backup/restore instructions for PostgreSQL and `/data`.
-- Add reverse proxy examples for Caddy, Nginx Proxy Manager, or Traefik.
-
-Acceptance criteria:
-
-- Fresh Unraid deployment can boot, migrate, and serve the API.
-- Data survives container recreation.
-
-## Milestone 6: CI and Release Hygiene
-
-Goal: keep the repository healthy as features grow.
-
-Tasks:
-
-- Add GitHub Actions for backend install, Prisma generate, build, and tests.
-- Add GitHub Actions for Android Gradle build once wrapper is committed.
-- Add formatting/linting scripts.
-- Add Dependabot or Renovate.
-- Add release notes workflow.
-- Add issue templates for bug reports and feature requests.
-
-Acceptance criteria:
-
-- Pull requests show backend and Android validation status.
-- Main branch remains buildable.
-
-## Milestone 7: Security and Production Readiness
-
-Goal: reduce risk before exposing the service outside a trusted LAN.
-
-Tasks:
-
-- Replace long-lived access-only auth with refresh tokens or shorter sessions.
-- Add password reset flow if email is configured.
-- Add admin controls for registration mode: open, invite-only, disabled.
-- Add per-user storage quotas.
-- Add audit logging for pack changes.
-- Add malware/image bomb safeguards for uploads.
-- Add stricter CORS config.
-- Add HTTPS deployment docs.
-
-Acceptance criteria:
-
-- Public internet deployment has documented security settings.
-- Abuse-prone endpoints are rate-limited and validated.
-
-## Near-Term Recommended Order
-
-1. Add the Android Gradle wrapper and verify debug build.
-2. Run the backend with Postgres and create a real pack with 3 stickers.
-3. Test Android sync and WhatsApp import on a physical phone.
-4. Fix provider/export compatibility issues discovered during real import.
-5. Add backend integration tests around the working import path.
-6. Add a small web UI for pack management.
+- A clean self-hosted deployment can enable AI background removal without custom scripting.
+- Missing model/runtime is visible to admins and does not break uploads.
 
 ## Design Notes
 
 - Server remains the source of truth.
 - Android remains a cache and WhatsApp bridge.
-- `ContentProvider` is non-negotiable for WhatsApp integration because WhatsApp imports pack metadata and sticker files by querying the sticker app, not by reading remote URLs.
-- Static stickers come first. Animated stickers should be treated as a separate milestone because their constraints and validation rules differ.
+- `ContentProvider` is required because WhatsApp imports pack metadata and sticker files by querying the sticker app.
+- `contentHash` is preferred for StickerFoundry sync decisions; `imageDataVersion` remains for WhatsApp compatibility.
+- Static and animated packs stay separate because WhatsApp validation rules differ.

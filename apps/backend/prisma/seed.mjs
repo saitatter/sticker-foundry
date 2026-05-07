@@ -9,9 +9,17 @@ import { fileURLToPath } from 'url';
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const backendRoot = resolve(scriptDir, '..');
+const repoRoot = resolve(backendRoot, '../..');
 
 const envPath = join(backendRoot, '.env');
-loadEnvFile(existsSync(envPath) ? envPath : join(backendRoot, '.env.example'));
+const rootEnvPath = join(repoRoot, '.env');
+loadEnvFile(
+  existsSync(envPath)
+    ? envPath
+    : existsSync(rootEnvPath)
+      ? rootEnvPath
+      : join(repoRoot, '.env.example'),
+);
 
 const prisma = new PrismaClient();
 
@@ -70,12 +78,14 @@ async function main() {
     update: {
       displayName: demoUser.displayName,
       passwordHash,
+      isAdmin: true,
     },
     create: {
       id: demoUser.id,
       email: demoUser.email,
       displayName: demoUser.displayName,
       passwordHash,
+      isAdmin: true,
     },
   });
 

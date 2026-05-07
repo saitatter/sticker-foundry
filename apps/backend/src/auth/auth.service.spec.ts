@@ -1,0 +1,301 @@
+import { ForbiddenException, ServiceUnavailableException } from '@nestjs/common';
+import { JwtService } from '@nestjs/jwt';
+import { AuthService } from './auth.service';
+
+function createService(mode = 'open', inviteCode = 'let-me-in') {
+  const prisma: {
+    [key: string]: any;
+    $transaction: jest.Mock;
+  } = {
+    appSetting: {
+      findUnique: jest.fn().mockResolvedValue(null),
+    },
+    user: {
+      count: jest.fn().mockResolvedValue(0),
+      findUnique: jest.fn().mockResolvedValue(null),
+      findUniqueOrThrow: jest.fn().mockResolvedValue({
+        id: 'user-1',
+        email: 'demo@example.com',
+        displayName: 'Demo',
+        isAdmin: true,
+        passwordHash: '$2b$04$HPxcewj7nFQhvtDcYzW0leCizplvFkhBA4I9vUT91ciNpAqgjwFg2',
+      }),
+      create: jest.fn(async ({ data }) => ({ id: 'user-1', ...data })),
+      update: jest.fn().mockResolvedValue({ id: 'user-1' }),
+    },
+    userSession: {
+      create: jest.fn().mockResolvedValue({ id: 'session-1' }),
+      findMany: jest.fn().mockResolvedValue([]),
+      findUnique: jest.fn(),
+      update: jest.fn().mockResolvedValue({ id: 'session-1' }),
+      updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+    },
+    passwordResetToken: {
+      create: jest.fn().mockResolvedValue({ id: 'reset-1' }),
+      findUnique: jest.fn(),
+      update: jest.fn().mockResolvedValue({ id: 'reset-1' }),
+    },
+    $transaction: jest.fn(async (operation: unknown): Promise<unknown> => {
+      if (typeof operation === 'function') {
+        return (operation as (tx: unknown) => Promise<unknown>)(prisma);
+      }
+      return Promise.all(operation as Promise<unknown>[]);
+    }),
+  };
+  const jwt = { sign: jest.fn().mockReturnValue('jwt-token') };
+  const audit = { record: jest.fn().mockResolvedValue({ id: 'audit-1' }) };
+  const mailer = {
+    isConfigured: jest.fn().mockReturnValue(true),
+    sendPasswordReset: jest.fn().mockResolvedValue(undefined),
+  };
+  const config = {
+    get: jest.fn((key: string, fallback?: string) => {
+      if (key === 'REGISTRATION_MODE') return mode;
+      if (key === 'REGISTRATION_INVITE_CODE') return inviteCode;
+      if (key === 'ACCESS_TOKEN_TTL') return '15m';
+      if (key === 'REFRESH_TOKEN_TTL_DAYS') return '30';
+      return fallback;
+    }),
+  };
+
+  return {
+    service: new AuthService(prisma as never, jwt as unknown as JwtService, config as never, audit as never, mailer as never),
+    prisma,
+    audit,
+    mailer,
+  };
+}
+
+describe(AuthService, () => {
+  it('allows open registration by default', async () => {
+    const { service, prisma, audit } = createService();
+
+    await expect(
+      service.register({
+        email: 'Demo@Example.com',
+        displayName: 'Demo',
+        password: 'password123',
+      }),
+    ).resolves.toEqual({
+      accessToken: 'jwt-token',
+      refreshToken: expect.any(String),
+      user: {
+        id: 'user-1',
+        email: 'demo@example.com',
+        displayName: 'Demo',
+        isAdmin: true,
+      },
+    });
+    expect(prisma.user.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ email: 'demo@example.com', isAdmin: true }),
+      }),
+    );
+    expect(audit.record).toHaveBeenCalledWith({
+      actorId: 'user-1',
+      action: 'auth.register',
+      entityType: 'user',
+      entityId: 'user-1',
+    });
+  });
+
+  it('retries first-user admin assignment after a serializable registration conflict', async () => {
+    const { service, prisma } = createService();
+    prisma.user.count.mockResolvedValueOnce(0).mockResolvedValueOnce(1);
+    prisma.$transaction
+      .mockImplementationOnce(async (operation: (tx: unknown) => Promise<unknown>) => {
+        await operation(prisma);
+        throw { code: 'P2034' };
+      })
+      .mockImplementationOnce(async (operation: (tx: unknown) => Promise<unknown>) => operation(prisma));
+
+    await expect(
+      service.register({
+        email: 'second@example.com',
+        displayName: 'Second',
+        password: 'password123',
+      }),
+    ).resolves.toMatchObject({
+      user: {
+        email: 'second@example.com',
+        isAdmin: false,
+      },
+    });
+
+    expect(prisma.user.create).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ email: 'second@example.com', isAdmin: false }),
+      }),
+    );
+  });
+
+  it('blocks registration when disabled', async () => {
+    const { service } = createService('disabled');
+
+    await expect(
+      service.register({
+        email: 'demo@example.com',
+        displayName: 'Demo',
+        password: 'password123',
+      }),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it('requires an invite code in invite-only mode', async () => {
+    const { service } = createService('invite-only', 'secret-code');
+
+    await expect(
+      service.register({
+        email: 'demo@example.com',
+        displayName: 'Demo',
+        password: 'password123',
+      }),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+
+    await expect(
+      service.register({
+        email: 'demo@example.com',
+        displayName: 'Demo',
+        password: 'password123',
+        inviteCode: 'secret-code',
+      }),
+    ).resolves.toMatchObject({ accessToken: 'jwt-token' });
+  });
+
+  it('changes a password when the current password is valid', async () => {
+    const { service, prisma } = createService();
+
+    await expect(
+      service.changePassword('user-1', {
+        currentPassword: 'password123',
+        newPassword: 'new-password123',
+      }),
+    ).resolves.toEqual({ changed: true });
+    expect(prisma.user.update).toHaveBeenCalledWith({
+      where: { id: 'user-1' },
+      data: { passwordHash: expect.any(String) },
+    });
+    expect(prisma.userSession.updateMany).toHaveBeenCalledWith({
+      where: { userId: 'user-1', revokedAt: null },
+      data: { revokedAt: expect.any(Date) },
+    });
+  });
+
+  it('rotates a valid refresh token', async () => {
+    const { service, prisma } = createService();
+    prisma.userSession.findUnique.mockResolvedValue({
+      id: 'session-1',
+      revokedAt: null,
+      expiresAt: new Date(Date.now() + 60_000),
+      user: { id: 'user-1', email: 'demo@example.com', displayName: 'Demo', isAdmin: true },
+    });
+
+    await expect(service.refresh({ refreshToken: 'refresh-token-that-is-long-enough' })).resolves.toEqual({
+      accessToken: 'jwt-token',
+      refreshToken: expect.any(String),
+      user: {
+        id: 'user-1',
+        email: 'demo@example.com',
+        displayName: 'Demo',
+        isAdmin: true,
+      },
+    });
+    expect(prisma.userSession.update).toHaveBeenCalledWith({
+      where: { id: 'session-1' },
+      data: { refreshTokenHash: expect.any(String), expiresAt: expect.any(Date), revokedAt: null },
+    });
+  });
+
+  it('requests a password reset without leaking unknown emails', async () => {
+    const { service, prisma, mailer } = createService();
+    prisma.user.findUnique.mockResolvedValueOnce({
+      id: 'user-1',
+      email: 'demo@example.com',
+      displayName: 'Demo',
+    });
+
+    await expect(service.requestPasswordReset({ email: 'Demo@Example.com' })).resolves.toEqual({ accepted: true });
+    expect(prisma.passwordResetToken.create).toHaveBeenCalledWith({
+      data: {
+        userId: 'user-1',
+        tokenHash: expect.any(String),
+        expiresAt: expect.any(Date),
+      },
+    });
+    expect(mailer.sendPasswordReset).toHaveBeenCalledWith(
+      'demo@example.com',
+      'Demo',
+      expect.stringContaining('/reset-password?token='),
+      expect.any(Date),
+    );
+
+    prisma.user.findUnique.mockResolvedValueOnce(null);
+    await expect(service.requestPasswordReset({ email: 'missing@example.com' })).resolves.toEqual({ accepted: true });
+  });
+
+  it('rejects password reset requests when email is not configured', async () => {
+    const { service, mailer } = createService();
+    mailer.isConfigured.mockReturnValue(false);
+
+    await expect(service.requestPasswordReset({ email: 'demo@example.com' })).rejects.toBeInstanceOf(ServiceUnavailableException);
+  });
+
+  it('resets a password with a valid reset token and revokes sessions', async () => {
+    const { service, prisma } = createService();
+    prisma.passwordResetToken.findUnique.mockResolvedValue({
+      id: 'reset-1',
+      userId: 'user-1',
+      usedAt: null,
+      expiresAt: new Date(Date.now() + 60_000),
+      user: { id: 'user-1' },
+    });
+
+    await expect(
+      service.resetPassword({
+        token: 'reset-token-that-is-long-enough',
+        newPassword: 'new-password123',
+      }),
+    ).resolves.toEqual({ changed: true });
+    expect(prisma.user.update).toHaveBeenCalledWith({
+      where: { id: 'user-1' },
+      data: { passwordHash: expect.any(String) },
+    });
+    expect(prisma.passwordResetToken.update).toHaveBeenCalledWith({
+      where: { id: 'reset-1' },
+      data: { usedAt: expect.any(Date) },
+    });
+    expect(prisma.userSession.updateMany).toHaveBeenCalledWith({
+      where: { userId: 'user-1', revokedAt: null },
+      data: { revokedAt: expect.any(Date) },
+    });
+  });
+
+  it('prefers database registration settings over environment defaults', async () => {
+    const { service, prisma } = createService('open');
+    prisma.appSetting.findUnique.mockImplementation(async ({ where }: { where: { key: string } }) => {
+      if (where.key === 'registrationMode') return { key: where.key, value: 'invite-only' };
+      if (where.key === 'registrationInviteCode') return { key: where.key, value: 'db-secret' };
+      return null;
+    });
+
+    await expect(
+      service.register({
+        email: 'demo@example.com',
+        displayName: 'Demo',
+        password: 'password123',
+        inviteCode: 'db-secret',
+      }),
+    ).resolves.toMatchObject({ accessToken: 'jwt-token' });
+  });
+
+  it('revokes sessions', async () => {
+    const { service, prisma } = createService();
+
+    await expect(service.revokeSession('user-1', 'session-1')).resolves.toEqual({ revoked: true });
+    await expect(service.logout({ refreshToken: 'refresh-token-that-is-long-enough' })).resolves.toEqual({ revoked: true });
+    expect(prisma.userSession.updateMany).toHaveBeenCalledWith({
+      where: { id: 'session-1', userId: 'user-1', revokedAt: null },
+      data: { revokedAt: expect.any(Date) },
+    });
+  });
+});
