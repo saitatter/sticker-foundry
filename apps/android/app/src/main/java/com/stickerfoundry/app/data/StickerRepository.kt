@@ -314,15 +314,28 @@ class StickerRepository private constructor(context: Context) {
     }
 
     private fun stickerUploadOptionParts(options: ImageEditOptions): List<MultipartBody.Part> {
-        if (options.backgroundRemovalMode == BackgroundRemovalMode.None) return emptyList()
+        val parts = mutableListOf<MultipartBody.Part>()
 
-        return listOf(
-            formPart("backgroundRemovalMode", options.backgroundRemovalMode.wireValue),
-            formPart("backgroundRemovalThreshold", options.backgroundRemovalThreshold.toInt().coerceIn(180, 255).toString()),
-            formPart("backgroundRemovalFeather", options.backgroundRemovalFeather.toInt().coerceIn(0, 48).toString()),
-            formPart("backgroundRemovalCleanupSpeckles", options.backgroundRemovalCleanupSpeckles.toString()),
-            formPart("backgroundRemovalSpeckleSize", options.backgroundRemovalSpeckleSize.toInt().coerceIn(4, 180).toString()),
-        )
+        if (options.backgroundRemovalMode != BackgroundRemovalMode.None) {
+            parts += formPart("backgroundRemovalMode", options.backgroundRemovalMode.wireValue)
+            parts += formPart("backgroundRemovalThreshold", options.backgroundRemovalThreshold.toInt().coerceIn(180, 255).toString())
+            parts += formPart("backgroundRemovalFeather", options.backgroundRemovalFeather.toInt().coerceIn(0, 48).toString())
+            parts += formPart("backgroundRemovalCleanupSpeckles", options.backgroundRemovalCleanupSpeckles.toString())
+            parts += formPart("backgroundRemovalSpeckleSize", options.backgroundRemovalSpeckleSize.toInt().coerceIn(4, 180).toString())
+        }
+
+        val trimStart = options.animatedTrimStart
+        val trimEnd = options.animatedTrimEnd
+        if (trimStart != null && trimEnd != null) {
+            val safeEnd = trimEnd.coerceIn(0.1f, 10f)
+            val safeStart = trimStart.coerceIn(0f, safeEnd - 0.1f)
+            parts += formPart("animatedTrimStart", safeStart.toString())
+            parts += formPart("animatedTrimEnd", safeEnd.toString())
+        }
+        options.animatedFrameRate?.let { parts += formPart("animatedFrameRate", it.toInt().coerceIn(1, 30).toString()) }
+        options.animatedQuality?.let { parts += formPart("animatedQuality", it.toInt().coerceIn(35, 95).toString()) }
+
+        return parts
     }
 
     private fun formPart(name: String, value: String): MultipartBody.Part =

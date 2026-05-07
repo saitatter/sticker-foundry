@@ -19,6 +19,10 @@ data class ImageEditOptions(
     val backgroundRemovalFeather: Float = 8f,
     val backgroundRemovalCleanupSpeckles: Boolean = true,
     val backgroundRemovalSpeckleSize: Float = 48f,
+    val animatedTrimStart: Float? = null,
+    val animatedTrimEnd: Float? = null,
+    val animatedFrameRate: Float? = null,
+    val animatedQuality: Float? = null,
 )
 
 data class BrushPoint(

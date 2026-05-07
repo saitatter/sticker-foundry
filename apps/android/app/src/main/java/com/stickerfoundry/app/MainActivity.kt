@@ -93,15 +93,18 @@ private fun StickerApp(viewModel: StickerViewModel = viewModel(factory = Sticker
     val cacheUsage by viewModel.cacheUsage.collectAsState()
     val context = LocalContext.current
     var stickerUploadPackId by remember { mutableStateOf<String?>(null) }
+    var stickerUploadPackAnimated by remember { mutableStateOf(false) }
     var trayIconPackId by remember { mutableStateOf<String?>(null) }
     var pendingEdit by remember { mutableStateOf<PendingImageEdit?>(null) }
     var showSettings by remember { mutableStateOf(false) }
     var showTroubleshooting by remember { mutableStateOf(false) }
     val stickerPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         val packId = stickerUploadPackId
+        val isAnimated = stickerUploadPackAnimated
         stickerUploadPackId = null
+        stickerUploadPackAnimated = false
         if (uri != null && packId != null) {
-            pendingEdit = PendingImageEdit(packId, uri, ImageEditTarget.Sticker)
+            pendingEdit = PendingImageEdit(packId, uri, ImageEditTarget.Sticker, isAnimated)
         }
     }
     val trayIconPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
@@ -142,6 +145,7 @@ private fun StickerApp(viewModel: StickerViewModel = viewModel(factory = Sticker
                         onClearLocal = { viewModel.clearPackCache(pack.id) },
                         onUploadSticker = {
                             stickerUploadPackId = pack.id
+                            stickerUploadPackAnimated = pack.isAnimated
                             stickerPicker.launch("image/*")
                         },
                         onReplaceTrayIcon = {
@@ -466,6 +470,11 @@ private fun ImageEditDialog(
     var backgroundRemovalFeather by remember(edit.uri) { mutableStateOf(8f) }
     var backgroundRemovalCleanupSpeckles by remember(edit.uri) { mutableStateOf(true) }
     var backgroundRemovalSpeckleSize by remember(edit.uri) { mutableStateOf(48f) }
+    var animatedOptionsEnabled by remember(edit.uri) { mutableStateOf(false) }
+    var animatedTrimStart by remember(edit.uri) { mutableStateOf(0f) }
+    var animatedTrimEnd by remember(edit.uri) { mutableStateOf(10f) }
+    var animatedFrameRate by remember(edit.uri) { mutableStateOf(15f) }
+    var animatedQuality by remember(edit.uri) { mutableStateOf(80f) }
     val title = when (edit.target) {
         ImageEditTarget.Sticker -> "Edit sticker"
         ImageEditTarget.TrayIcon -> "Edit tray icon"
@@ -494,6 +503,10 @@ private fun ImageEditDialog(
         backgroundRemovalFeather = backgroundRemovalFeather,
         backgroundRemovalCleanupSpeckles = backgroundRemovalCleanupSpeckles,
         backgroundRemovalSpeckleSize = backgroundRemovalSpeckleSize,
+        animatedTrimStart = if (edit.isAnimated && animatedOptionsEnabled) animatedTrimStart else null,
+        animatedTrimEnd = if (edit.isAnimated && animatedOptionsEnabled) animatedTrimEnd else null,
+        animatedFrameRate = if (edit.isAnimated && animatedOptionsEnabled) animatedFrameRate else null,
+        animatedQuality = if (edit.isAnimated && animatedOptionsEnabled) animatedQuality else null,
     )
     val estimatedBytes = sourceInfo?.let {
         estimateEditedBytes(it, currentOptions)
@@ -734,6 +747,44 @@ private fun ImageEditDialog(
                         )
                     }
                 }
+                if (edit.target == ImageEditTarget.Sticker && edit.isAnimated) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Checkbox(
+                            checked = animatedOptionsEnabled,
+                            onCheckedChange = { animatedOptionsEnabled = it },
+                        )
+                        Text("Animated controls")
+                    }
+                    if (animatedOptionsEnabled) {
+                        Text("Trim start", style = MaterialTheme.typography.bodySmall)
+                        Slider(
+                            value = animatedTrimStart,
+                            onValueChange = { animatedTrimStart = minOf(it, animatedTrimEnd - 0.1f).coerceAtLeast(0f) },
+                            valueRange = 0f..10f,
+                        )
+                        Text("Trim end", style = MaterialTheme.typography.bodySmall)
+                        Slider(
+                            value = animatedTrimEnd,
+                            onValueChange = { animatedTrimEnd = maxOf(it, animatedTrimStart + 0.1f).coerceAtMost(10f) },
+                            valueRange = 0.1f..10f,
+                        )
+                        Text("Frame rate", style = MaterialTheme.typography.bodySmall)
+                        Slider(
+                            value = animatedFrameRate,
+                            onValueChange = { animatedFrameRate = it },
+                            valueRange = 1f..30f,
+                        )
+                        Text("Animated quality", style = MaterialTheme.typography.bodySmall)
+                        Slider(
+                            value = animatedQuality,
+                            onValueChange = { animatedQuality = it },
+                            valueRange = 35f..95f,
+                        )
+                    }
+                }
                 Text(
                     text = estimatedBytes?.let { "Estimated upload: ~${formatBytes(it)}" } ?: "Estimated upload: unavailable",
                     style = MaterialTheme.typography.bodySmall,
@@ -766,6 +817,7 @@ private data class PendingImageEdit(
     val packId: String,
     val uri: Uri,
     val target: ImageEditTarget,
+    val isAnimated: Boolean = false,
 )
 
 private data class ImageSourceInfo(
