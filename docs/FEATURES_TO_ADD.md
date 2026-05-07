@@ -1,6 +1,6 @@
 # StickerFoundry Features To Add
 
-This is the live feature backlog. It should only contain work that still needs to be built or validated.
+This backlog intentionally contains only work that is not implemented yet or cannot be validated in the current environment.
 
 ## Next: Real WhatsApp Validation
 
@@ -12,8 +12,8 @@ This is the live feature backlog. It should only contain work that still needs t
 
 ## Deployment And Ops
 
-- Validate `docker compose up -d --build` on a host with Docker installed.
+- Validate `docker compose up -d --build` on a host with Docker installed. Docker is not available in the current local environment.
 
 ## Release And Quality
 
-- Finalize Android package identity before publishing signed release APKs.
+- Finalize Android package identity before publishing signed release APKs. Signing scaffolding exists, but the starter `applicationId` must be replaced first.
