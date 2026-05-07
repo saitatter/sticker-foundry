@@ -36,6 +36,7 @@ import {
 import { type Dispatch, type DragEvent, type FormEvent, type PointerEvent, type SetStateAction, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AdminSettings,
+  AnimatedStickerOptions,
   ApiError,
   AuditLogEntry,
   AuthResponse,
@@ -1912,6 +1913,7 @@ function PackDetail({
             {stickers.map((sticker, index) => (
               <StickerTile
                 api={api}
+                isAnimatedPack={pack.isAnimated}
                 key={sticker.id}
                 packId={pack.id}
                 transferTargets={transferTargets}
@@ -2433,8 +2435,8 @@ function UploadPanel({
         .slice(0, 3);
 
       for (const [index, file] of files.entries()) {
-        const uploadFile = await editImageFile(file, editOptions);
-        await api.uploadSticker(pack.id, uploadFile, uploadEmojis, accessibilityText);
+        const uploadFile = await editableUploadFile(file, pack.isAnimated, editOptions);
+        await api.uploadSticker(pack.id, uploadFile, uploadEmojis, accessibilityText, animatedOptionsFromEdit(file, pack.isAnimated, editOptions));
         setUploadedCount(index + 1);
       }
 
@@ -2524,6 +2526,7 @@ function UploadPanel({
 
 function StickerTile({
   api,
+  isAnimatedPack,
   packId,
   transferTargets,
   sticker,
@@ -2544,6 +2547,7 @@ function StickerTile({
   onSelectedChange,
 }: {
   api: StickerFoundryApi;
+  isAnimatedPack: boolean;
   packId: string;
   transferTargets: Pack[];
   sticker: Sticker;
@@ -2644,8 +2648,13 @@ function StickerTile({
     if (!replacementFile) return;
     setReplacing(true);
     try {
-      const editedFile = await editImageFile(replacementFile, replacementEditOptions);
-      await api.replaceStickerImage(packId, sticker.id, editedFile);
+      const editedFile = await editableUploadFile(replacementFile, isAnimatedPack, replacementEditOptions);
+      await api.replaceStickerImage(
+        packId,
+        sticker.id,
+        editedFile,
+        animatedOptionsFromEdit(replacementFile, isAnimatedPack, replacementEditOptions),
+      );
       setReplacementFile(null);
       setReplacementEditOptions(defaultImageEditOptions);
       await onChanged();
@@ -3810,6 +3819,24 @@ function inviteStatusLabel(invite: PackInvite) {
   if (isExpiredInvite(invite)) return `Expired ${new Date(invite.expiresAt as string).toLocaleDateString()}`;
   if (invite.expiresAt) return `${roleLabel(invite.role)} · expires ${new Date(invite.expiresAt).toLocaleDateString()}`;
   return roleLabel(invite.role);
+}
+
+function isAnimatedSourceFile(file: File) {
+  return file.type === 'image/gif' || file.type === 'image/webp' || /\.(gif|webp)$/i.test(file.name);
+}
+
+function animatedOptionsFromEdit(file: File, isAnimatedPack: boolean, options: ImageEditOptions): AnimatedStickerOptions | undefined {
+  if (!isAnimatedPack || !isAnimatedSourceFile(file)) return undefined;
+  return {
+    animatedTrimStart: options.animatedTrimStart,
+    animatedTrimEnd: options.animatedTrimEnd,
+    animatedFrameRate: options.animatedFrameRate,
+    animatedQuality: options.animatedCompress ? options.outputQuality : undefined,
+  };
+}
+
+async function editableUploadFile(file: File, isAnimatedPack: boolean, options: ImageEditOptions) {
+  return isAnimatedPack && isAnimatedSourceFile(file) ? file : editImageFile(file, options);
 }
 
 async function editImageFile(file: File, options: ImageEditOptions) {

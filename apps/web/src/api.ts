@@ -82,6 +82,13 @@ export type StickerComment = {
 export type PackRole = 'VIEWER' | 'EDITOR' | 'OWNER';
 export type StickerReviewStatus = 'PENDING' | 'APPROVED' | 'NEEDS_WORK';
 
+export type AnimatedStickerOptions = {
+  animatedTrimStart?: number;
+  animatedTrimEnd?: number;
+  animatedFrameRate?: number;
+  animatedQuality?: number;
+};
+
 export type Pack = {
   id: string;
   name: string;
@@ -190,6 +197,14 @@ async function readError(response: Response) {
     return body.message ?? fallback;
   } catch {
     return fallback;
+  }
+}
+
+function appendAnimatedOptions(form: FormData, options?: AnimatedStickerOptions) {
+  if (!options) return;
+  for (const [key, value] of Object.entries(options)) {
+    if (value === undefined || value === null) continue;
+    form.append(key, String(value));
   }
 }
 
@@ -444,13 +459,14 @@ export class StickerFoundryApi {
     });
   }
 
-  async uploadSticker(packId: string, file: File, emojis: string[], accessibilityText: string) {
+  async uploadSticker(packId: string, file: File, emojis: string[], accessibilityText: string, animatedOptions?: AnimatedStickerOptions) {
     const form = new FormData();
     form.append('file', file);
     form.append('emojis', emojis.join(','));
     if (accessibilityText.trim()) {
       form.append('accessibilityText', accessibilityText.trim());
     }
+    appendAnimatedOptions(form, animatedOptions);
 
     return this.request<Sticker>(`/packs/${packId}/stickers`, {
       method: 'POST',
@@ -507,9 +523,10 @@ export class StickerFoundryApi {
     });
   }
 
-  async replaceStickerImage(packId: string, stickerId: string, file: File) {
+  async replaceStickerImage(packId: string, stickerId: string, file: File, animatedOptions?: AnimatedStickerOptions) {
     const form = new FormData();
     form.append('file', file);
+    appendAnimatedOptions(form, animatedOptions);
 
     return this.request<Sticker>(`/packs/${packId}/stickers/${stickerId}/file`, {
       method: 'PUT',
