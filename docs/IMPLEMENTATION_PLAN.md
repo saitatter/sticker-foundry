@@ -2,28 +2,7 @@
 
 This plan tracks the current state of StickerFoundry and the next implementation milestones.
 
-## Current Baseline
-
-Already implemented:
-
-- Monorepo with NestJS backend, React web app, Kotlin Android app, shared TypeScript DTOs, Docker Compose, CI/release config, and documentation.
-- Backend JWT login/register, refresh-token sessions, session revocation, registration modes (`open`, `invite-only`, `disabled`), password change flow, rate limiting, configurable CORS, health and metrics endpoints.
-- Pack CRUD, pack clone, public/private visibility, sticker upload/delete/reorder/update, tray icon replacement, sticker image replacement, and WhatsApp ZIP export.
-- Sharp media pipeline with real image-content validation, WebP conversion, 512x512 sticker resize, tray icon processing, compression limits, and WhatsApp pack constraints.
-- Export API with `contents.json`, `tray_icon.webp`, sticker files, `GET /packs/:id/contents`, `GET /packs/:id/manifest`, `ETag`, and OpenAPI docs.
-- Sync API with `contentHash`, `syncHash`, ownership flags, export readiness, and relative export/tray paths.
-- Backend HTTP e2e coverage for register, pack creation, sticker upload, manifest `ETag`, ZIP export, and `contents.json` parsing.
-- Pack collaboration with owner/viewer/editor roles, invite creation/acceptance/revocation, member listing, member removal, member role editing, role-aware mutation checks, and sync capability flags.
-- First-user admin bootstrap with admin-only settings for instance branding, registration mode, invite code, and per-owner sticker storage quota.
-- Admin-visible audit log for auth, settings, pack, collaboration, and sticker mutation events, enriched with request IP/user-agent and exportable as CSV.
-- Web UI with auth, demo login, pack dashboard search/filter/sort/status badges, pack detail, create/edit/delete/clone, collaboration invites/member management, invite expiration/history filters, sticker upload, bulk delete/bulk emoji apply, bulk copy/move to another pack, drag-and-drop uploads, image rotate/square crop/pan/zoom, sticker replacement, tray replacement, ordering, ZIP download, contents preview, account password change, and session management.
-- Playwright smoke test coverage for login, pack creation, upload, contents preview, collaboration panel visibility, and bulk copy workflow.
-- Android app with MVVM, Retrofit, Room cache, refresh-token auth, local ZIP extraction, local sticker preview, WhatsApp `ContentProvider`, import intents for WhatsApp and WhatsApp Business, role-aware image upload/tray replacement, image rotate/square crop/pan/zoom, server URL settings, logout, cache size/clear cache, import readiness, content-hash sync, and stale cache pruning.
-- CI validates Android debug lint and debug APK assembly.
-- Docker Compose with backend, web, PostgreSQL, `.env.example`, backend healthcheck, backup/restore docs, Unraid notes, and reverse proxy examples.
-- Semantic-release with emoji release sections, release APK artifact, Dependabot, PR title validation, and issue templates.
-
-Known gaps:
+## Current Gaps
 
 - Real-device WhatsApp and WhatsApp Business import still need hands-on validation.
 - No background media queue, audit retention policy, or advanced upload abuse protection beyond current validation/rate limits.
@@ -77,7 +56,7 @@ Tasks:
 Acceptance criteria:
 
 - Public deployments have documented security controls.
-- Admins can inspect sensitive activity and enforce quotas.
+- Abuse-prone uploads are bounded by documented limits and retention policies.
 
 ## Milestone 4: Release And Ops Quality
 
@@ -86,8 +65,6 @@ Goal: keep changes safer as the project grows.
 Tasks:
 
 - Add web lint/format scripts.
-- Add Android lint to CI.
-- Add Playwright smoke tests for login, pack creation, upload, and export preview.
 - Add release note polish with screenshots or APK install notes.
 - Add Docker validation on an environment with Docker available.
 

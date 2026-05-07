@@ -1,40 +1,6 @@
 # StickerFoundry Features To Add
 
-This is the live feature backlog. Items already shipped are kept briefly at the top so future planning has context.
-
-## Shipped Recently
-
-- Pack dashboard search, filters, sorting, and quick status badges.
-- Pack duplicate/clone flow for remixing existing packs.
-- Web drag-and-drop image upload zone.
-- Web and Android rotate/square-crop image editing before upload.
-- Sticker image replacement from backend and web.
-- Android owner/editor actions for uploading stickers and replacing tray icons.
-- Android settings for server URL, logout, cache usage, and cache cleanup.
-- Android import readiness state and WhatsApp Business import target.
-- Android content-hash sync and stale local cache cleanup.
-- Android local sticker preview before importing into WhatsApp.
-- Swagger/OpenAPI docs.
-- Pack manifest endpoint with `ETag`.
-- Backend export e2e flow with ZIP and `contents.json` parsing.
-- `contentHash` in sync responses.
-- Invite-only/disabled registration modes.
-- Password change flow.
-- Refresh-token sessions with web session revocation and Android token refresh.
-- Configurable CORS origins.
-- Stronger upload content validation.
-- Pack collaboration roles, invite creation/acceptance/revocation, member listing/removal, role editing, and role-aware web/Android controls.
-- Collaboration invite expiration controls and accepted/pending/expired history filters.
-- Web sticker multi-select with bulk delete, bulk emoji apply, and copy/move to another pack.
-- Playwright smoke tests for login, pack creation, upload, contents preview, collaboration panel visibility, and bulk copy workflow.
-- Android lint and debug APK assembly in CI.
-- Admin-only web settings for instance branding, registration mode, invite code, and per-owner storage quotas.
-- Admin audit log for auth, settings, pack, collaboration, and sticker mutations, enriched with request IP/user-agent and exportable as CSV.
-- Web pan/zoom crop controls before upload and sticker replacement.
-- Android pan/zoom crop controls before upload and tray replacement.
-- Compose `.env.example` and reverse proxy examples.
-- Dependabot and GitHub issue templates.
-- Metrics endpoint for basic monitoring.
+This is the live feature backlog. It should only contain work that still needs to be built or validated.
 
 ## Next: Real WhatsApp Validation
 
