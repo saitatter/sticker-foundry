@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PackRole, StickerReviewStatus } from '@prisma/client';
 import { randomBytes } from 'crypto';
@@ -34,6 +34,8 @@ type AccessPack = {
 
 @Injectable()
 export class PacksService {
+  private readonly logger = new Logger(PacksService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly imageService: StickerImageService,
@@ -900,14 +902,18 @@ export class PacksService {
         }),
       ]);
 
-      await Promise.all(
-        moves.map((move) => this.storage.deleteFile(sourcePackId, move.sticker.fileName)),
-      );
+      await this.deleteFilesWithRetry(sourcePackId, moves.map((move) => move.sticker.fileName), {
+        actorId: userId,
+        action: 'sticker.move.sourceCleanup.failed',
+        targetPackId: dto.targetPackId,
+      });
       await this.compactStickerPositions(sourcePackId);
     } catch (error) {
-      await Promise.all(
-        moves.map((move) => this.storage.deleteFile(dto.targetPackId, move.fileName)),
-      );
+      await this.deleteFilesWithRetry(dto.targetPackId, moves.map((move) => move.fileName), {
+        actorId: userId,
+        action: 'sticker.move.rollbackCleanup.failed',
+        targetPackId: dto.targetPackId,
+      });
       throw error;
     }
 
@@ -956,6 +962,34 @@ export class PacksService {
         }),
       ),
     );
+  }
+
+  private async deleteFilesWithRetry(
+    packId: string,
+    fileNames: string[],
+    context: { actorId: string; action: string; targetPackId?: string },
+  ) {
+    let pending = [...new Set(fileNames)];
+    for (let attempt = 1; attempt <= 2 && pending.length > 0; attempt += 1) {
+      const results = await Promise.allSettled(pending.map((fileName) => this.storage.deleteFile(packId, fileName)));
+      pending = pending.filter((_, index) => results[index].status === 'rejected');
+    }
+
+    if (pending.length === 0) return;
+
+    this.logger.warn(`Failed to delete ${pending.length} storage file(s) from pack ${packId}: ${pending.join(', ')}`);
+    await this.audit.record({
+      actorId: context.actorId,
+      action: context.action,
+      entityType: 'pack',
+      entityId: packId,
+      metadata: {
+        targetPackId: context.targetPackId ?? null,
+        fileNames: pending,
+      },
+    }).catch((error: unknown) => {
+      this.logger.warn(`Failed to record storage cleanup audit entry: ${error instanceof Error ? error.message : String(error)}`);
+    });
   }
 
   private newImageDataVersion(previous: string) {

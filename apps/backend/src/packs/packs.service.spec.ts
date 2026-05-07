@@ -714,6 +714,75 @@ describe(PacksService, () => {
     });
   });
 
+  it('keeps a successful move response when source file cleanup needs later attention', async () => {
+    const { service, prisma, storage, audit } = createService();
+
+    prisma.pack.findUnique
+      .mockResolvedValueOnce({
+        id: 'source-pack',
+        ownerId: 'owner-1',
+        imageDataVersion: '3',
+        members: [],
+        _count: { stickers: 1 },
+      })
+      .mockResolvedValueOnce({
+        id: 'target-pack',
+        ownerId: 'owner-1',
+        imageDataVersion: '7',
+        members: [],
+        _count: { stickers: 2 },
+      })
+      .mockResolvedValueOnce({
+        id: 'target-pack',
+        ownerId: 'owner-1',
+        imageDataVersion: '8',
+        isPublic: false,
+        stickers: [],
+        members: [],
+        _count: { stickers: 3 },
+      });
+    prisma.sticker.findMany.mockResolvedValue([
+      {
+        id: 'sticker-1',
+        packId: 'source-pack',
+        fileName: 'source.webp',
+        emojis: ['😀'],
+        accessibilityText: 'happy',
+        sizeBytes: 42,
+        sha256: 'sha',
+        position: 0,
+      },
+    ]);
+    prisma.pack.update.mockResolvedValue({ id: 'pack', imageDataVersion: '8' });
+    storage.deleteFile.mockRejectedValue(new Error('storage is temporarily locked'));
+
+    await expect(
+      service.moveStickers('owner-1', 'source-pack', {
+        targetPackId: 'target-pack',
+        stickerIds: ['sticker-1'],
+      }),
+    ).resolves.toEqual(expect.objectContaining({ id: 'target-pack' }));
+
+    expect(storage.deleteFile).toHaveBeenCalledTimes(2);
+    expect(audit.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorId: 'owner-1',
+        action: 'sticker.move.sourceCleanup.failed',
+        entityType: 'pack',
+        entityId: 'source-pack',
+        metadata: expect.objectContaining({ fileNames: ['source.webp'], targetPackId: 'target-pack' }),
+      }),
+    );
+    expect(audit.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorId: 'owner-1',
+        action: 'sticker.move',
+        entityType: 'pack',
+        entityId: 'target-pack',
+      }),
+    );
+  });
+
   it('replaces a sticker image without changing its metadata or file name', async () => {
     const { service, prisma, imageService, storage } = createService();
     const processed = { buffer: Buffer.from('new-sticker'), sizeBytes: 77, sha256: 'new-sha' };
