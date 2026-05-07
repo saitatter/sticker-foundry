@@ -1,4 +1,5 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, Optional } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { createHash } from 'crypto';
 import { mkdir, stat, writeFile } from 'fs/promises';
 import { dirname } from 'path';
@@ -16,11 +17,19 @@ type ImageMetadata = Awaited<ReturnType<sharp.Sharp['metadata']>>;
 
 @Injectable()
 export class StickerImageService {
+  constructor(@Optional() private readonly config?: ConfigService) {}
+
   async processSticker(input: Buffer, options: { animated?: boolean } = {}): Promise<ProcessedImage> {
     return options.animated ? this.processAnimatedWebp(input) : this.processStaticWebp(input);
   }
 
   async processTrayIcon(input: Buffer): Promise<ProcessedImage> {
+    const metadata = await this.metadataFor(input);
+    this.assertSupportedImageContent(metadata);
+    this.assertInputBounds(metadata);
+    if ((metadata.pages ?? 1) > 1) {
+      throw new BadRequestException('Tray icons must be static images');
+    }
     return this.processWebp(input, WHATSAPP_LIMITS.trayIconPixels, WHATSAPP_LIMITS.maxTrayIconBytes, false);
   }
 
@@ -39,6 +48,7 @@ export class StickerImageService {
   private async processStaticWebp(input: Buffer): Promise<ProcessedImage> {
     const metadata = await this.metadataFor(input);
     this.assertSupportedImageContent(metadata);
+    this.assertInputBounds(metadata);
     if ((metadata.pages ?? 1) > 1) {
       throw new BadRequestException('Animated uploads require an animated pack');
     }
@@ -48,6 +58,7 @@ export class StickerImageService {
   private async processAnimatedWebp(input: Buffer): Promise<ProcessedImage> {
     const metadata = await this.metadataFor(input);
     this.assertSupportedImageContent(metadata);
+    this.assertInputBounds(metadata);
     this.assertAnimatedStickerMetadata(metadata);
     return this.processWebp(input, WHATSAPP_LIMITS.stickerPixels, WHATSAPP_LIMITS.maxAnimatedStickerBytes, true);
   }
@@ -99,6 +110,31 @@ export class StickerImageService {
     const format = metadata.format;
     if (!format || !['avif', 'gif', 'heif', 'jpeg', 'jpg', 'png', 'tiff', 'webp'].includes(format)) {
       throw new BadRequestException(`Unsupported image format: ${format ?? 'unknown'}`);
+    }
+  }
+
+  private assertInputBounds(metadata: ImageMetadata) {
+    const width = metadata.width ?? 0;
+    const frameHeight = metadata.pageHeight ?? metadata.height ?? 0;
+    const pages = metadata.pages ?? 1;
+    if (width <= 0 || frameHeight <= 0) {
+      throw new BadRequestException('Image dimensions could not be read');
+    }
+
+    const framePixels = width * frameHeight;
+    const totalPixels = framePixels * pages;
+    const maxFramePixels = this.configInt('UPLOAD_MAX_PIXELS', 25_000_000);
+    const maxTotalPixels = this.configInt('UPLOAD_MAX_TOTAL_PIXELS', 80_000_000);
+    const maxFrames = this.configInt('UPLOAD_MAX_ANIMATED_FRAMES', 300);
+
+    if (framePixels > maxFramePixels) {
+      throw new BadRequestException(`Image is too large: ${width}x${frameHeight} exceeds ${maxFramePixels} pixels`);
+    }
+    if (pages > maxFrames) {
+      throw new BadRequestException(`Animated image has too many frames: ${pages} exceeds ${maxFrames}`);
+    }
+    if (totalPixels > maxTotalPixels) {
+      throw new BadRequestException(`Image has too many total pixels across frames: ${totalPixels} exceeds ${maxTotalPixels}`);
     }
   }
 
@@ -155,5 +191,10 @@ export class StickerImageService {
       .map((total) => Math.round(total / pixelCount).toString(16).padStart(2, '0'))
       .join('');
     return `${shapeHash}${colorHash}`;
+  }
+
+  private configInt(key: string, fallback: number) {
+    const parsed = Number.parseInt(this.config?.get<string>(key, String(fallback)) ?? String(fallback), 10);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
   }
 }

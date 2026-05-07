@@ -54,6 +54,15 @@ describe(StickerImageService, () => {
       }),
     );
   });
+
+  it('rejects images that exceed configured pixel bounds before processing', async () => {
+    const guardedService = new StickerImageService({
+      get: jest.fn((key: string, fallback: string) => (key === 'UPLOAD_MAX_PIXELS' ? '1000' : fallback)),
+    } as never);
+    const source = await frameBuffer({ r: 255, g: 0, b: 0, alpha: 1 });
+
+    await expect(guardedService.processSticker(source)).rejects.toBeInstanceOf(BadRequestException);
+  });
 });
 
 function frameBuffer(background: sharp.Color) {

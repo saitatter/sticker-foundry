@@ -149,6 +149,8 @@ Password reset is available when SMTP is configured. Set `SMTP_HOST`, `SMTP_FROM
 
 Audit log retention is configurable with `AUDIT_RETENTION_DAYS` or from the web admin settings. Admins can run audit cleanup manually from the account dialog; empty retention keeps audit entries indefinitely.
 
+Upload safety limits reject oversized image bombs before processing. Tune `UPLOAD_MAX_PIXELS`, `UPLOAD_MAX_TOTAL_PIXELS`, and `UPLOAD_MAX_ANIMATED_FRAMES` if your deployment needs stricter or looser media intake.
+
 CORS is open by default for local development. For production, set `CORS_ORIGIN` to a comma-separated allowlist, for example:
 
 ```bash
