@@ -25,6 +25,12 @@ export type AdminSettings = {
   registrationInviteCode: string;
   storageQuotaBytes: number | null;
   auditRetentionDays: number | null;
+  backgroundRemoval: {
+    thresholdAvailable: boolean;
+    aiCommandConfigured: boolean;
+    aiMode: 'command' | null;
+    fallbackMode: 'threshold';
+  };
   instanceName: string;
   instanceDescription: string;
 };

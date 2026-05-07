@@ -83,6 +83,7 @@ export function App() {
   const [teams, setTeams] = useState<Team[]>([]);
   const [selectedPackId, setSelectedPackId] = useState<string | null>(null);
   const [selectedPack, setSelectedPack] = useState<Pack | null>(null);
+  const [backgroundRemovalStatus, setBackgroundRemovalStatus] = useState<AdminSettings['backgroundRemoval'] | undefined>(undefined);
   const [notice, setNotice] = useState<Notice | null>(null);
   const [loading, setLoading] = useState(false);
   const [showAccountDialog, setShowAccountDialog] = useState(false);
@@ -164,6 +165,14 @@ export function App() {
   }, [refreshPacks]);
 
   useEffect(() => {
+    if (!user?.isAdmin) {
+      setBackgroundRemovalStatus(undefined);
+      return;
+    }
+    api.adminSettings().then((settings) => setBackgroundRemovalStatus(settings.backgroundRemoval)).catch(reportError);
+  }, [api, reportError, user?.isAdmin]);
+
+  useEffect(() => {
     void refreshSelectedPack();
   }, [refreshSelectedPack]);
 
@@ -190,6 +199,7 @@ export function App() {
     setPacks([]);
     setSelectedPack(null);
     setSelectedPackId(null);
+    setBackgroundRemovalStatus(undefined);
   };
 
   if (!token) {
@@ -297,6 +307,7 @@ export function App() {
           {selectedPack ? (
             <PackDetail
               api={api}
+              backgroundRemovalStatus={backgroundRemovalStatus}
               pack={selectedPack}
               packs={packs}
               onChanged={async (message) => {
@@ -632,6 +643,22 @@ function AccountDialog({
               <h3>Admin settings</h3>
               <ShieldCheck size={18} />
             </div>
+            {adminSettings ? (
+              <div className="admin-status-row">
+                <span>
+                  <strong>Background removal</strong>
+                  <small>
+                    Threshold ready ·{' '}
+                    {adminSettings.backgroundRemoval.aiCommandConfigured
+                      ? 'AI command configured'
+                      : 'AI fallback only'}
+                  </small>
+                </span>
+                <span className={adminSettings.backgroundRemoval.aiCommandConfigured ? 'status-pill ready' : 'status-pill warning'}>
+                  {adminSettings.backgroundRemoval.aiCommandConfigured ? 'AI ready' : 'Threshold fallback'}
+                </span>
+              </div>
+            ) : null}
             <label>
               Instance name
               <input
@@ -1434,6 +1461,7 @@ function PackList({
 
 function PackDetail({
   api,
+  backgroundRemovalStatus,
   pack,
   packs,
   onChanged,
@@ -1443,6 +1471,7 @@ function PackDetail({
   onNotice,
 }: {
   api: StickerFoundryApi;
+  backgroundRemovalStatus?: AdminSettings['backgroundRemoval'];
   pack: Pack;
   packs: Pack[];
   onChanged: (message: string) => Promise<void>;
@@ -1823,6 +1852,7 @@ function PackDetail({
       {canEdit ? (
         <UploadPanel
           api={api}
+          backgroundRemovalStatus={backgroundRemovalStatus}
           pack={pack}
           remainingSlots={Math.max(0, 30 - stickers.length)}
           onChanged={onChanged}
@@ -2408,12 +2438,14 @@ function UploadPanel({
   remainingSlots,
   onChanged,
   onError,
+  backgroundRemovalStatus,
 }: {
   api: StickerFoundryApi;
   pack: Pack;
   remainingSlots: number;
   onChanged: (message: string) => Promise<void>;
   onError: (error: unknown) => void;
+  backgroundRemovalStatus?: AdminSettings['backgroundRemoval'];
 }) {
   const [files, setFiles] = useState<File[]>([]);
   const [editOptions, setEditOptions] = useState<ImageEditOptions>(defaultImageEditOptions);
@@ -2520,7 +2552,14 @@ function UploadPanel({
           {uploading ? `Uploading ${uploadedCount}/${files.length}` : 'Upload'}
         </button>
       </form>
-      {files[0] ? <ImageEditControls file={files[0]} options={editOptions} onChange={setEditOptions} /> : null}
+      {files[0] ? (
+        <ImageEditControls
+          backgroundRemovalStatus={backgroundRemovalStatus}
+          file={files[0]}
+          options={editOptions}
+          onChange={setEditOptions}
+        />
+      ) : null}
       {files.length > 1 ? <p className="upload-note">Current edit settings and presets apply to all selected files in upload order.</p> : null}
     </section>
   );
@@ -3071,11 +3110,13 @@ const imageEditPresets: Array<{ name: string; options: Partial<ImageEditOptions>
 ];
 
 function ImageEditControls({
+  backgroundRemovalStatus,
   file,
   options,
   onChange,
   compact = false,
 }: {
+  backgroundRemovalStatus?: AdminSettings['backgroundRemoval'];
   file: File;
   options: ImageEditOptions;
   onChange: Dispatch<SetStateAction<ImageEditOptions>>;
@@ -3633,9 +3674,7 @@ function ImageEditControls({
       ) : null}
       {options.serverBackgroundRemovalMode !== 'none' ? (
         <p className="upload-note server-bg-note">
-          {options.serverBackgroundRemovalMode === 'ai'
-            ? 'Server AI uses the configured self-hosted model and falls back to threshold cleanup.'
-            : 'Server threshold cleanup uses the same threshold, soft edge, and speckle controls.'}
+          {serverBackgroundRemovalMessage(options.serverBackgroundRemovalMode, backgroundRemovalStatus)}
         </p>
       ) : null}
       {showBackgroundControls ? (
@@ -3872,6 +3911,16 @@ function backgroundRemovalOptionsFromEdit(isAnimatedPack: boolean, options: Imag
     backgroundRemovalCleanupSpeckles: options.cleanupSpeckles,
     backgroundRemovalSpeckleSize: options.speckleSize,
   };
+}
+
+function serverBackgroundRemovalMessage(
+  mode: ImageEditOptions['serverBackgroundRemovalMode'],
+  status?: AdminSettings['backgroundRemoval'],
+) {
+  if (mode === 'threshold') return 'Server threshold cleanup uses the same threshold, soft edge, and speckle controls.';
+  if (!status) return 'Server AI availability is visible to admins; uploads fall back to threshold if no model is configured.';
+  if (status.aiCommandConfigured) return 'Server AI command is configured; failed AI runs fall back to threshold cleanup.';
+  return 'Server AI is not configured yet; this upload will use threshold fallback.';
 }
 
 function stickerUploadOptionsFromEdit(file: File, isAnimatedPack: boolean, options: ImageEditOptions): StickerUploadOptions | undefined {

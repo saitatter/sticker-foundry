@@ -130,11 +130,30 @@ async function mockApi(page: Page, state: ReturnType<typeof createMockState>) {
       return json(route, {
         accessToken: 'access-token',
         refreshToken: 'refresh-token-that-is-long-enough',
-        user: { id: 'user-1', email: 'demo@stickerfoundry.local', displayName: 'Demo' },
+        user: { id: 'user-1', email: 'demo@stickerfoundry.local', displayName: 'Demo', isAdmin: true },
       });
     }
     if (method === 'GET' && path === '/auth/me') {
-      return json(route, { id: 'user-1', email: 'demo@stickerfoundry.local', displayName: 'Demo' });
+      return json(route, { id: 'user-1', email: 'demo@stickerfoundry.local', displayName: 'Demo', isAdmin: true });
+    }
+    if (method === 'GET' && path === '/admin/settings') {
+      return json(route, {
+        registrationMode: 'open',
+        registrationInviteCode: '',
+        storageQuotaBytes: null,
+        auditRetentionDays: null,
+        instanceName: 'StickerFoundry',
+        instanceDescription: 'Self-hosted sticker pack management',
+        backgroundRemoval: {
+          thresholdAvailable: true,
+          aiCommandConfigured: true,
+          aiMode: 'command',
+          fallbackMode: 'threshold',
+        },
+      });
+    }
+    if (method === 'GET' && path === '/admin/audit-log') {
+      return json(route, []);
     }
     if (method === 'GET' && path === '/packs') {
       return json(route, state.packs.map(({ stickers, ...pack }) => pack));

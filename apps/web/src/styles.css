@@ -589,6 +589,48 @@ select:focus {
   border-top: 1px solid var(--border);
 }
 
+.admin-status-row {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 44px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-muted);
+}
+
+.admin-status-row span:first-child {
+  display: grid;
+  gap: 2px;
+}
+
+.admin-status-row small {
+  color: var(--muted);
+}
+
+.status-pill {
+  min-height: 26px;
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 0 9px;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.status-pill.ready {
+  color: var(--primary);
+  background: #e8f5f2;
+}
+
+.status-pill.warning {
+  color: #92400e;
+  background: #fff7ed;
+}
+
 .audit-list {
   padding-top: 12px;
   border-top: 1px solid var(--border);
