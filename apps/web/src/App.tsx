@@ -2616,6 +2616,8 @@ type ImageEditOptions = {
   rotation: 0 | 90 | 180 | 270;
   cropSquare: boolean;
   removeLightBackground: boolean;
+  outline: boolean;
+  shadow: boolean;
   zoom: number;
   offsetX: number;
   offsetY: number;
@@ -2625,6 +2627,8 @@ const defaultImageEditOptions: ImageEditOptions = {
   rotation: 0,
   cropSquare: false,
   removeLightBackground: false,
+  outline: false,
+  shadow: false,
   zoom: 1,
   offsetX: 0,
   offsetY: 0,
@@ -2702,6 +2706,14 @@ function ImageEditControls({
             type="checkbox"
           />
           Remove light background
+        </label>
+        <label className="checkbox-row image-edit-toggle">
+          <input checked={options.outline} onChange={(event) => onChange({ ...options, outline: event.target.checked })} type="checkbox" />
+          Outline
+        </label>
+        <label className="checkbox-row image-edit-toggle">
+          <input checked={options.shadow} onChange={(event) => onChange({ ...options, shadow: event.target.checked })} type="checkbox" />
+          Shadow
         </label>
       </div>
       {options.cropSquare ? (
@@ -2863,7 +2875,15 @@ function inviteStatusLabel(invite: PackInvite) {
 }
 
 async function editImageFile(file: File, options: ImageEditOptions) {
-  if (options.rotation === 0 && !options.cropSquare && !options.removeLightBackground) return file;
+  if (
+    options.rotation === 0 &&
+    !options.cropSquare &&
+    !options.removeLightBackground &&
+    !options.outline &&
+    !options.shadow
+  ) {
+    return file;
+  }
 
   const image = await loadImage(file);
   const sourceSize = options.cropSquare ? Math.min(image.naturalWidth, image.naturalHeight) / Math.max(options.zoom, 1) : undefined;
@@ -2899,6 +2919,12 @@ async function editImageFile(file: File, options: ImageEditOptions) {
   if (options.removeLightBackground) {
     removeLightBackground(context, canvas.width, canvas.height);
   }
+  if (options.outline) {
+    applyOutline(context, canvas.width, canvas.height);
+  }
+  if (options.shadow) {
+    applyShadow(context, canvas.width, canvas.height);
+  }
 
   const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'));
   if (!blob) return file;
@@ -2920,6 +2946,58 @@ function removeLightBackground(context: CanvasRenderingContext2D, width: number,
     }
   }
   context.putImageData(imageData, 0, 0);
+}
+
+function applyOutline(context: CanvasRenderingContext2D, width: number, height: number) {
+  const original = context.getImageData(0, 0, width, height);
+  const output = context.createImageData(width, height);
+  output.data.set(original.data);
+  const radius = 2;
+
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const index = (y * width + x) * 4;
+      if (original.data[index + 3] > 0) continue;
+
+      let nearOpaque = false;
+      for (let offsetY = -radius; offsetY <= radius && !nearOpaque; offsetY += 1) {
+        for (let offsetX = -radius; offsetX <= radius; offsetX += 1) {
+          const sampleX = x + offsetX;
+          const sampleY = y + offsetY;
+          if (sampleX < 0 || sampleY < 0 || sampleX >= width || sampleY >= height) continue;
+          if (original.data[(sampleY * width + sampleX) * 4 + 3] > 64) {
+            nearOpaque = true;
+            break;
+          }
+        }
+      }
+
+      if (nearOpaque) {
+        output.data[index] = 18;
+        output.data[index + 1] = 22;
+        output.data[index + 2] = 25;
+        output.data[index + 3] = 220;
+      }
+    }
+  }
+
+  context.putImageData(output, 0, 0);
+}
+
+function applyShadow(context: CanvasRenderingContext2D, width: number, height: number) {
+  const source = document.createElement('canvas');
+  source.width = width;
+  source.height = height;
+  source.getContext('2d')?.drawImage(context.canvas, 0, 0);
+
+  context.clearRect(0, 0, width, height);
+  context.save();
+  context.shadowColor = 'rgba(15, 23, 42, 0.35)';
+  context.shadowBlur = 12;
+  context.shadowOffsetY = 8;
+  context.drawImage(source, 0, 0);
+  context.restore();
+  context.drawImage(source, 0, 0);
 }
 
 function clamp(value: number, min: number, max: number) {

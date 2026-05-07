@@ -14,7 +14,6 @@ This is the live feature backlog. It should only contain work that still needs t
 
 ## Media Editing
 
-- Outline/stroke and shadow controls.
 - Transparent background checkerboard preview.
 - Batch image normalization before upload.
 - Duplicate sticker detection using perceptual hashes.
