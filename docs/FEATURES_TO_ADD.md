@@ -16,4 +16,4 @@ This is the live feature backlog. It should only contain work that still needs t
 
 ## Release And Quality
 
-- Signed Android release builds later, once package identity is finalized.
+- Finalize Android package identity before publishing signed release APKs.

@@ -27,6 +27,33 @@ android {
         buildConfig = true
     }
 
+    signingConfigs {
+        create("release") {
+            val keystorePath = providers.environmentVariable("ANDROID_KEYSTORE_PATH").orNull
+            if (!keystorePath.isNullOrBlank()) {
+                storeFile = file(keystorePath)
+                storePassword = providers.environmentVariable("ANDROID_KEYSTORE_PASSWORD").orNull
+                keyAlias = providers.environmentVariable("ANDROID_KEY_ALIAS").orNull
+                keyPassword = providers.environmentVariable("ANDROID_KEY_PASSWORD").orNull
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            isMinifyEnabled = false
+            val hasReleaseSigning = listOf(
+                "ANDROID_KEYSTORE_PATH",
+                "ANDROID_KEYSTORE_PASSWORD",
+                "ANDROID_KEY_ALIAS",
+                "ANDROID_KEY_PASSWORD",
+            ).all { providers.environmentVariable(it).orNull?.isNotBlank() == true }
+            if (hasReleaseSigning) {
+                signingConfig = signingConfigs.getByName("release")
+            }
+        }
+    }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
