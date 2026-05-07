@@ -30,6 +30,7 @@ This is the live feature backlog. Items already shipped are kept briefly at the 
 - Android lint and debug APK assembly in CI.
 - Admin-only web settings for instance branding, registration mode, invite code, and per-owner storage quotas.
 - Admin audit log for auth, settings, pack, collaboration, and sticker mutations, enriched with request IP/user-agent and exportable as CSV.
+- Web pan/zoom crop controls before upload and sticker replacement.
 - Compose `.env.example` and reverse proxy examples.
 - Dependabot and GitHub issue templates.
 - Metrics endpoint for basic monitoring.
@@ -66,7 +67,6 @@ This is the live feature backlog. Items already shipped are kept briefly at the 
 
 ## Media Editing
 
-- Web editor with pan/zoom crop.
 - Android editor with pan/zoom crop and live output size estimate.
 - Background removal.
 - Outline/stroke and shadow controls.

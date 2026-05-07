@@ -737,6 +737,17 @@ select:focus {
   min-height: 40px;
 }
 
+.image-edit-sliders {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(120px, 1fr));
+  gap: 10px;
+}
+
+.image-edit-sliders input {
+  padding: 0;
+}
+
 .edit-form {
   display: grid;
   grid-template-columns: minmax(180px, 1fr) minmax(180px, 1fr) minmax(220px, 1.4fr) auto auto;

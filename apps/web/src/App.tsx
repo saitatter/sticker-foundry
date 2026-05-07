@@ -1921,11 +1921,17 @@ function StickerTile({
 type ImageEditOptions = {
   rotation: 0 | 90 | 180 | 270;
   cropSquare: boolean;
+  zoom: number;
+  offsetX: number;
+  offsetY: number;
 };
 
 const defaultImageEditOptions: ImageEditOptions = {
   rotation: 0,
   cropSquare: false,
+  zoom: 1,
+  offsetX: 0,
+  offsetY: 0,
 };
 
 function ImageEditControls({
@@ -1980,12 +1986,57 @@ function ImageEditControls({
         <label className="checkbox-row image-edit-toggle">
           <input
             checked={options.cropSquare}
-            onChange={(event) => onChange({ ...options, cropSquare: event.target.checked })}
+            onChange={(event) =>
+              onChange({
+                ...options,
+                cropSquare: event.target.checked,
+                zoom: event.target.checked ? options.zoom : 1,
+                offsetX: event.target.checked ? options.offsetX : 0,
+                offsetY: event.target.checked ? options.offsetY : 0,
+              })
+            }
             type="checkbox"
           />
           Square crop
         </label>
       </div>
+      {options.cropSquare ? (
+        <div className="image-edit-sliders">
+          <label>
+            Zoom
+            <input
+              max="3"
+              min="1"
+              onChange={(event) => onChange({ ...options, zoom: Number(event.target.value) })}
+              step="0.05"
+              type="range"
+              value={options.zoom}
+            />
+          </label>
+          <label>
+            Horizontal
+            <input
+              max="100"
+              min="-100"
+              onChange={(event) => onChange({ ...options, offsetX: Number(event.target.value) })}
+              step="1"
+              type="range"
+              value={options.offsetX}
+            />
+          </label>
+          <label>
+            Vertical
+            <input
+              max="100"
+              min="-100"
+              onChange={(event) => onChange({ ...options, offsetY: Number(event.target.value) })}
+              step="1"
+              type="range"
+              value={options.offsetY}
+            />
+          </label>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -2094,11 +2145,23 @@ async function editImageFile(file: File, options: ImageEditOptions) {
   if (options.rotation === 0 && !options.cropSquare) return file;
 
   const image = await loadImage(file);
-  const sourceSize = options.cropSquare ? Math.min(image.naturalWidth, image.naturalHeight) : undefined;
-  const sourceX = sourceSize ? Math.floor((image.naturalWidth - sourceSize) / 2) : 0;
-  const sourceY = sourceSize ? Math.floor((image.naturalHeight - sourceSize) / 2) : 0;
+  const sourceSize = options.cropSquare ? Math.min(image.naturalWidth, image.naturalHeight) / Math.max(options.zoom, 1) : undefined;
   const sourceWidth = sourceSize ?? image.naturalWidth;
   const sourceHeight = sourceSize ?? image.naturalHeight;
+  const sourceX = sourceSize
+    ? clamp(
+        (image.naturalWidth - sourceWidth) / 2 + ((image.naturalWidth - sourceWidth) / 2) * (options.offsetX / 100),
+        0,
+        image.naturalWidth - sourceWidth,
+      )
+    : 0;
+  const sourceY = sourceSize
+    ? clamp(
+        (image.naturalHeight - sourceHeight) / 2 + ((image.naturalHeight - sourceHeight) / 2) * (options.offsetY / 100),
+        0,
+        image.naturalHeight - sourceHeight,
+      )
+    : 0;
   const rotated = options.rotation === 90 || options.rotation === 270;
 
   const canvas = document.createElement('canvas');
@@ -2116,6 +2179,10 @@ async function editImageFile(file: File, options: ImageEditOptions) {
   if (!blob) return file;
 
   return new File([blob], editedFileName(file), { type: 'image/png' });
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(Math.max(value, min), max);
 }
 
 function loadImage(file: File) {
