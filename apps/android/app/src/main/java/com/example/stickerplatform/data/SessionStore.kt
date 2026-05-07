@@ -8,10 +8,19 @@ class SessionStore(context: Context) {
 
     fun token(): String? = prefs.getString("token", null)
 
+    fun refreshToken(): String? = prefs.getString("refreshToken", null)
+
     fun serverUrl(): String = prefs.getString("serverUrl", null) ?: BuildConfig.API_BASE_URL
 
     fun saveToken(token: String) {
         prefs.edit().putString("token", token).apply()
+    }
+
+    fun saveTokens(token: String, refreshToken: String) {
+        prefs.edit()
+            .putString("token", token)
+            .putString("refreshToken", refreshToken)
+            .apply()
     }
 
     fun saveServerUrl(url: String) {
@@ -19,7 +28,7 @@ class SessionStore(context: Context) {
     }
 
     fun clearToken() {
-        prefs.edit().remove("token").apply()
+        prefs.edit().remove("token").remove("refreshToken").apply()
     }
 
     private fun normalizeServerUrl(url: String): String {

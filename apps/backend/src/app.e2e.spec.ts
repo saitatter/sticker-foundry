@@ -42,13 +42,24 @@ type StickerRecord = {
   createdAt: Date;
 };
 
+type UserSessionRecord = {
+  id: string;
+  userId: string;
+  refreshTokenHash: string;
+  createdAt: Date;
+  expiresAt: Date;
+  revokedAt: Date | null;
+};
+
 class InMemoryPrisma {
   users: UserRecord[] = [];
   packs: PackRecord[] = [];
   stickers: StickerRecord[] = [];
+  sessions: UserSessionRecord[] = [];
   userSeq = 1;
   packSeq = 1;
   stickerSeq = 1;
+  sessionSeq = 1;
 
   user = {
     findUnique: jest.fn(async ({ where }: { where: { email?: string; id?: string } }) =>
@@ -78,6 +89,41 @@ class InMemoryPrisma {
       if (!user) throw new Error('User not found');
       Object.assign(user, data, { updatedAt: new Date() });
       return user;
+    }),
+  };
+
+  userSession = {
+    create: jest.fn(async ({ data }: { data: { userId: string; refreshTokenHash: string; expiresAt: Date } }) => {
+      const session: UserSessionRecord = {
+        id: `session-${this.sessionSeq++}`,
+        userId: data.userId,
+        refreshTokenHash: data.refreshTokenHash,
+        createdAt: new Date(),
+        expiresAt: data.expiresAt,
+        revokedAt: null,
+      };
+      this.sessions.push(session);
+      return session;
+    }),
+    findUnique: jest.fn(async ({ where, include }: { where: { refreshTokenHash: string }; include?: { user?: unknown } }) => {
+      const session = this.sessions.find((item) => item.refreshTokenHash === where.refreshTokenHash);
+      if (!session) return null;
+      const user = this.users.find((item) => item.id === session.userId);
+      return { ...session, ...(include?.user && user ? { user } : {}) };
+    }),
+    findMany: jest.fn(async ({ where }: { where: { userId: string } }) => this.sessions.filter((session) => session.userId === where.userId)),
+    update: jest.fn(async ({ where, data }: { where: { id: string }; data: Partial<UserSessionRecord> }) => {
+      const session = this.sessions.find((item) => item.id === where.id);
+      if (!session) throw new Error('Session not found');
+      Object.assign(session, data);
+      return session;
+    }),
+    updateMany: jest.fn(async ({ where, data }: { where: Partial<UserSessionRecord>; data: Partial<UserSessionRecord> }) => {
+      const matches = this.sessions.filter((session) =>
+        Object.entries(where).every(([key, value]) => session[key as keyof UserSessionRecord] === value),
+      );
+      matches.forEach((session) => Object.assign(session, data));
+      return { count: matches.length };
     }),
   };
 
@@ -212,6 +258,14 @@ describe('StickerFoundry API e2e', () => {
       })
       .expect(201);
     const token = auth.body.accessToken as string;
+    expect(auth.body.refreshToken).toEqual(expect.any(String));
+
+    const refreshed = await request(server)
+      .post('/api/auth/refresh')
+      .send({ refreshToken: auth.body.refreshToken })
+      .expect(201);
+    expect(refreshed.body.accessToken).toEqual(expect.any(String));
+    expect(refreshed.body.refreshToken).toEqual(expect.any(String));
 
     const createdPack = await request(server)
       .post('/api/packs')

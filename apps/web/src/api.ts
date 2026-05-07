@@ -6,7 +6,15 @@ export type User = {
 
 export type AuthResponse = {
   accessToken: string;
+  refreshToken: string;
   user: User;
+};
+
+export type UserSession = {
+  id: string;
+  createdAt: string;
+  expiresAt: string;
+  revokedAt?: string | null;
 };
 
 export type Sticker = {
@@ -105,7 +113,11 @@ async function readError(response: Response) {
 }
 
 export class StickerFoundryApi {
-  constructor(private readonly getToken: () => string | null) {}
+  constructor(
+    private readonly getToken: () => string | null,
+    private readonly getRefreshToken: () => string | null = () => null,
+    private readonly onAuth: (auth: AuthResponse | null) => void = () => undefined,
+  ) {}
 
   async register(email: string, displayName: string, password: string, inviteCode?: string) {
     return this.request<AuthResponse>('/auth/register', {
@@ -130,6 +142,31 @@ export class StickerFoundryApi {
       method: 'PATCH',
       auth: true,
       body: JSON.stringify({ currentPassword, newPassword }),
+    });
+  }
+
+  async logout(refreshToken: string) {
+    return this.request<{ revoked: boolean }>('/auth/logout', {
+      method: 'POST',
+      body: JSON.stringify({ refreshToken }),
+    });
+  }
+
+  async sessions() {
+    return this.request<UserSession[]>('/auth/sessions', { auth: true });
+  }
+
+  async revokeSession(id: string) {
+    return this.request<{ revoked: boolean }>(`/auth/sessions/${id}`, {
+      method: 'DELETE',
+      auth: true,
+    });
+  }
+
+  async revokeAllSessions() {
+    return this.request<{ revoked: boolean }>('/auth/sessions', {
+      method: 'DELETE',
+      auth: true,
     });
   }
 
@@ -330,10 +367,23 @@ export class StickerFoundryApi {
       }
     }
 
-    const response = await fetch(`${API_BASE_URL}${path}`, {
+    let response = await fetch(`${API_BASE_URL}${path}`, {
       ...options,
       headers,
     });
+
+    const refreshedToken = response.status === 401 && options.auth ? await this.refreshAuth() : null;
+    if (refreshedToken) {
+      const retryHeaders = new Headers(options.headers);
+      if (!options.isMultipart) {
+        retryHeaders.set('Content-Type', 'application/json');
+      }
+      retryHeaders.set('Authorization', `Bearer ${refreshedToken}`);
+      response = await fetch(`${API_BASE_URL}${path}`, {
+        ...options,
+        headers: retryHeaders,
+      });
+    }
 
     if (!response.ok) {
       throw new ApiError(await readError(response), response.status);
@@ -345,5 +395,24 @@ export class StickerFoundryApi {
   private authHeaders(): Record<string, string> {
     const token = this.getToken();
     return token ? { Authorization: `Bearer ${token}` } : {};
+  }
+
+  private async refreshAuth() {
+    const refreshToken = this.getRefreshToken();
+    if (!refreshToken) return null;
+
+    const response = await fetch(`${API_BASE_URL}/auth/refresh`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refreshToken }),
+    });
+    if (!response.ok) {
+      this.onAuth(null);
+      return null;
+    }
+
+    const auth = (await response.json()) as AuthResponse;
+    this.onAuth(auth);
+    return auth.accessToken;
   }
 }

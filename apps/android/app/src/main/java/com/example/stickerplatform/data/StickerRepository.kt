@@ -15,6 +15,7 @@ import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MultipartBody
 import okhttp3.OkHttpClient
 import okhttp3.RequestBody.Companion.toRequestBody
+import retrofit2.HttpException
 import retrofit2.Retrofit
 import retrofit2.converter.moshi.MoshiConverterFactory
 import java.io.ByteArrayOutputStream
@@ -46,13 +47,11 @@ class StickerRepository private constructor(context: Context) {
 
     suspend fun login(email: String, password: String) {
         val response = api().login(LoginRequest(email, password))
-        session.saveToken(response.accessToken)
+        session.saveTokens(response.accessToken, response.refreshToken)
     }
 
     suspend fun sync() = withContext(Dispatchers.IO) {
-        val token = session.token() ?: error("Login first")
-        val bearer = "Bearer $token"
-        val remotePacks = api().syncPacks(bearer).packs
+        val remotePacks = withAuthRetry { bearer -> api().syncPacks(bearer).packs }
         val remotePackIds = remotePacks.map { it.id }.toSet()
 
         for (local in db.stickerDao().getAllPacksBlocking()) {
@@ -86,7 +85,7 @@ class StickerRepository private constructor(context: Context) {
                 continue
             }
 
-            val bytes = api().exportPack(bearer, remote.id).bytes()
+            val bytes = withAuthRetry { bearer -> api().exportPack(bearer, remote.id).bytes() }
             val extracted = extractor.extract(remote.id, bytes)
             db.stickerDao().upsertPack(
                 extracted.entity.copy(
@@ -106,16 +105,19 @@ class StickerRepository private constructor(context: Context) {
     }
 
     suspend fun uploadSticker(packId: String, uri: Uri, options: ImageEditOptions) = withContext(Dispatchers.IO) {
-        api().uploadSticker(bearerToken(), packId, multipartFromUri(uri, options)).close()
+        withAuthRetry { bearer -> api().uploadSticker(bearer, packId, multipartFromUri(uri, options)).close() }
         sync()
     }
 
     suspend fun replaceTrayIcon(packId: String, uri: Uri, options: ImageEditOptions) = withContext(Dispatchers.IO) {
-        api().replaceTrayIcon(bearerToken(), packId, multipartFromUri(uri, options)).close()
+        withAuthRetry { bearer -> api().replaceTrayIcon(bearer, packId, multipartFromUri(uri, options)).close() }
         sync()
     }
 
     suspend fun logout() = withContext(Dispatchers.IO) {
+        session.refreshToken()?.let { token ->
+            runCatching { api().logout(RefreshTokenRequest(token)).close() }
+        }
         session.clearToken()
     }
 
@@ -148,6 +150,22 @@ class StickerRepository private constructor(context: Context) {
     private fun bearerToken(): String {
         val token = session.token() ?: error("Login first")
         return "Bearer $token"
+    }
+
+    private suspend fun <T> withAuthRetry(block: suspend (String) -> T): T {
+        return try {
+            block(bearerToken())
+        } catch (error: HttpException) {
+            if (error.code() != 401) throw error
+            block(refreshAccessToken())
+        }
+    }
+
+    private suspend fun refreshAccessToken(): String {
+        val refreshToken = session.refreshToken() ?: error("Login first")
+        val response = api().refresh(RefreshTokenRequest(refreshToken))
+        session.saveTokens(response.accessToken, response.refreshToken)
+        return "Bearer ${response.accessToken}"
     }
 
     private fun multipartFromUri(uri: Uri, options: ImageEditOptions): MultipartBody.Part {

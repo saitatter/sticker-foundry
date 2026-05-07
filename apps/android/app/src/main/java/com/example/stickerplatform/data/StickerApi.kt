@@ -15,6 +15,12 @@ interface StickerApi {
     @POST("auth/login")
     suspend fun login(@Body request: LoginRequest): AuthResponse
 
+    @POST("auth/refresh")
+    suspend fun refresh(@Body request: RefreshTokenRequest): AuthResponse
+
+    @POST("auth/logout")
+    suspend fun logout(@Body request: RefreshTokenRequest): ResponseBody
+
     @GET("packs")
     suspend fun packs(@Header("Authorization") bearerToken: String): List<PackDto>
 

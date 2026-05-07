@@ -14,6 +14,7 @@ StickerFoundry is a self-hosted collaborative WhatsApp sticker pack manager, sha
 
 - Self-hosted NestJS API with PostgreSQL and Prisma.
 - JWT register/login.
+- Short-lived access tokens with refresh-token sessions, logout revocation, and web session management.
 - Registration mode control with `REGISTRATION_MODE=open|invite-only|disabled` and optional `REGISTRATION_INVITE_CODE`.
 - Authenticated password change endpoint and web account dialog.
 - Pack CRUD with ownership, public visibility, viewer/editor collaboration roles, invite codes, member management, and invite revocation.
@@ -117,6 +118,8 @@ The web login screen includes a **Use demo account** button that fills these see
 
 Registration is open by default. For public deployments, set `REGISTRATION_MODE=invite-only` with `REGISTRATION_INVITE_CODE`, or set `REGISTRATION_MODE=disabled` after creating your admin account.
 
+Access tokens default to `ACCESS_TOKEN_TTL=15m`; refresh sessions default to `REFRESH_TOKEN_TTL_DAYS=30`. Users can revoke sessions from the web account dialog, and Android refreshes tokens automatically during sync/upload flows.
+
 CORS is open by default for local development. For production, set `CORS_ORIGIN` to a comma-separated allowlist, for example:
 
 ```bash
@@ -150,6 +153,19 @@ http://localhost:3000/api/docs-json
 curl -X POST http://localhost:3000/api/auth/register \
   -H "Content-Type: application/json" \
   -d '{"email":"admin@example.com","displayName":"Admin","password":"password123"}'
+```
+
+Register/login responses include both `accessToken` and `refreshToken`. Use the refresh token to rotate credentials:
+
+```bash
+curl -X POST http://localhost:3000/api/auth/refresh \
+  -H "Content-Type: application/json" \
+  -d '{"refreshToken":"paste-refresh-token-here"}'
+```
+
+```bash
+curl -X DELETE http://localhost:3000/api/auth/sessions/SESSION_ID \
+  -H "Authorization: Bearer $TOKEN"
 ```
 
 ```bash
@@ -452,7 +468,7 @@ Initial commit structure should include:
 
 ## 📝 Notes
 
-This project is a real starting point, not a complete production deployment. Before exposing it outside your LAN, add HTTPS, rate limiting, refresh tokens or short-lived access tokens, backups, stricter upload scanning, and richer admin controls.
+This project is a real starting point, not a complete production deployment. Before exposing it outside your LAN, add HTTPS, backups, stricter upload scanning, richer admin controls, storage quotas, and audit logs.
 
 WhatsApp limitations to remember:
 

@@ -29,6 +29,8 @@ services:
       PORT: 3000
       DATABASE_URL: postgresql://${POSTGRES_USER:-stickers}:${POSTGRES_PASSWORD:-stickers}@postgres:5432/${POSTGRES_DB:-stickers}?schema=public
       JWT_SECRET: ${JWT_SECRET:-change-this-long-random-secret}
+      ACCESS_TOKEN_TTL: ${ACCESS_TOKEN_TTL:-15m}
+      REFRESH_TOKEN_TTL_DAYS: ${REFRESH_TOKEN_TTL_DAYS:-30}
       DATA_DIR: /data
       PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost:3000}
       CORS_ORIGIN: ${CORS_ORIGIN:-*}

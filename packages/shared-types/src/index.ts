@@ -107,9 +107,17 @@ export type PackInviteDto = {
 
 export type AuthResponseDto = {
   accessToken: string;
+  refreshToken: string;
   user: {
     id: string;
     email: string;
     displayName: string;
   };
+};
+
+export type UserSessionDto = {
+  id: string;
+  createdAt: string;
+  expiresAt: string;
+  revokedAt?: string | null;
 };

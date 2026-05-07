@@ -27,9 +27,10 @@ import {
   Users,
 } from 'lucide-react';
 import { DragEvent, FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
-import { ApiError, Pack, PackInvite, PackMember, PackRole, Sticker, StickerFoundryApi, User } from './api';
+import { ApiError, AuthResponse, Pack, PackInvite, PackMember, PackRole, Sticker, StickerFoundryApi, User, UserSession } from './api';
 
 const TOKEN_KEY = 'stickerfoundry.token';
+const REFRESH_TOKEN_KEY = 'stickerfoundry.refreshToken';
 const DEMO_EMAIL = 'demo@stickerfoundry.local';
 const DEMO_PASSWORD = 'stickerfoundry123';
 
@@ -43,6 +44,7 @@ type PackSort = 'updated' | 'name' | 'stickers';
 
 export function App() {
   const [token, setToken] = useState(() => localStorage.getItem(TOKEN_KEY));
+  const [refreshToken, setRefreshToken] = useState(() => localStorage.getItem(REFRESH_TOKEN_KEY));
   const [user, setUser] = useState<User | null>(null);
   const [packs, setPacks] = useState<Pack[]>([]);
   const [selectedPackId, setSelectedPackId] = useState<string | null>(null);
@@ -51,7 +53,24 @@ export function App() {
   const [loading, setLoading] = useState(false);
   const [showAccountDialog, setShowAccountDialog] = useState(false);
 
-  const api = useMemo(() => new StickerFoundryApi(() => token), [token]);
+  const saveAuth = useCallback((auth: AuthResponse | null) => {
+    if (!auth) {
+      localStorage.removeItem(TOKEN_KEY);
+      localStorage.removeItem(REFRESH_TOKEN_KEY);
+      setToken(null);
+      setRefreshToken(null);
+      setUser(null);
+      return;
+    }
+
+    localStorage.setItem(TOKEN_KEY, auth.accessToken);
+    localStorage.setItem(REFRESH_TOKEN_KEY, auth.refreshToken);
+    setToken(auth.accessToken);
+    setRefreshToken(auth.refreshToken);
+    setUser(auth.user);
+  }, []);
+
+  const api = useMemo(() => new StickerFoundryApi(() => token, () => refreshToken, saveAuth), [refreshToken, saveAuth, token]);
 
   const reportError = useCallback((error: unknown) => {
     const text = error instanceof ApiError || error instanceof Error ? error.message : 'Something went wrong';
@@ -91,7 +110,9 @@ export function App() {
       .then(setUser)
       .catch(() => {
         localStorage.removeItem(TOKEN_KEY);
+        localStorage.removeItem(REFRESH_TOKEN_KEY);
         setToken(null);
+        setRefreshToken(null);
       });
   }, [api, token]);
 
@@ -103,16 +124,20 @@ export function App() {
     void refreshSelectedPack();
   }, [refreshSelectedPack]);
 
-  const saveSession = (authToken: string, authUser: User) => {
-    localStorage.setItem(TOKEN_KEY, authToken);
-    setToken(authToken);
-    setUser(authUser);
+  const saveSession = (auth: AuthResponse) => {
+    saveAuth(auth);
     setNotice({ tone: 'success', text: 'Signed in' });
   };
 
   const signOut = () => {
+    const tokenToRevoke = refreshToken;
+    if (tokenToRevoke) {
+      void api.logout(tokenToRevoke).catch(() => undefined);
+    }
     localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(REFRESH_TOKEN_KEY);
     setToken(null);
+    setRefreshToken(null);
     setUser(null);
     setPacks([]);
     setSelectedPack(null);
@@ -231,7 +256,12 @@ function AccountDialog({
 }) {
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
+  const [sessions, setSessions] = useState<UserSession[]>([]);
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    api.sessions().then(setSessions).catch(onError);
+  }, [api, onError]);
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -244,6 +274,25 @@ function AccountDialog({
       onError(error);
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function revokeSession(id: string) {
+    try {
+      await api.revokeSession(id);
+      setSessions((current) => current.map((session) => (session.id === id ? { ...session, revokedAt: new Date().toISOString() } : session)));
+    } catch (error) {
+      onError(error);
+    }
+  }
+
+  async function revokeAllSessions() {
+    try {
+      await api.revokeAllSessions();
+      const revokedAt = new Date().toISOString();
+      setSessions((current) => current.map((session) => ({ ...session, revokedAt: session.revokedAt ?? revokedAt })));
+    } catch (error) {
+      onError(error);
     }
   }
 
@@ -279,6 +328,30 @@ function AccountDialog({
           <KeyRound size={17} />
           {saving ? 'Saving' : 'Change password'}
         </button>
+        <div className="session-list">
+          <div className="section-heading">
+            <h3>Sessions</h3>
+            <button className="secondary-button danger-button" onClick={() => void revokeAllSessions()} type="button">
+              Revoke all
+            </button>
+          </div>
+          {sessions.map((session) => (
+            <div className="session-row" key={session.id}>
+              <span>
+                <strong>{session.revokedAt ? 'Revoked' : 'Active'}</strong>
+                <small>Expires {new Date(session.expiresAt).toLocaleDateString()}</small>
+              </span>
+              <button
+                className="secondary-button danger-button"
+                disabled={Boolean(session.revokedAt)}
+                onClick={() => void revokeSession(session.id)}
+                type="button"
+              >
+                Revoke
+              </button>
+            </div>
+          ))}
+        </div>
       </form>
     </div>
   );
@@ -291,7 +364,7 @@ function AuthScreen({
   notice,
 }: {
   api: StickerFoundryApi;
-  onSignedIn: (token: string, user: User) => void;
+  onSignedIn: (auth: AuthResponse) => void;
   onError: (error: unknown) => void;
   notice: Notice | null;
 }) {
@@ -311,7 +384,7 @@ function AuthScreen({
         mode === 'register'
           ? await api.register(email, displayName || email.split('@')[0], password, inviteCode)
           : await api.login(email, password);
-      onSignedIn(response.accessToken, response.user);
+      onSignedIn(response);
     } catch (error) {
       onError(error);
     } finally {

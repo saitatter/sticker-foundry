@@ -19,12 +19,21 @@ function createService(mode = 'open', inviteCode = 'let-me-in') {
       }),
       update: jest.fn().mockResolvedValue({ id: 'user-1' }),
     },
+    userSession: {
+      create: jest.fn().mockResolvedValue({ id: 'session-1' }),
+      findMany: jest.fn().mockResolvedValue([]),
+      findUnique: jest.fn(),
+      update: jest.fn().mockResolvedValue({ id: 'session-1' }),
+      updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+    },
   };
   const jwt = { sign: jest.fn().mockReturnValue('jwt-token') };
   const config = {
     get: jest.fn((key: string, fallback?: string) => {
       if (key === 'REGISTRATION_MODE') return mode;
       if (key === 'REGISTRATION_INVITE_CODE') return inviteCode;
+      if (key === 'ACCESS_TOKEN_TTL') return '15m';
+      if (key === 'REFRESH_TOKEN_TTL_DAYS') return '30';
       return fallback;
     }),
   };
@@ -47,6 +56,7 @@ describe(AuthService, () => {
       }),
     ).resolves.toEqual({
       accessToken: 'jwt-token',
+      refreshToken: expect.any(String),
       user: {
         id: 'user-1',
         email: 'demo@example.com',
@@ -105,6 +115,45 @@ describe(AuthService, () => {
     expect(prisma.user.update).toHaveBeenCalledWith({
       where: { id: 'user-1' },
       data: { passwordHash: expect.any(String) },
+    });
+    expect(prisma.userSession.updateMany).toHaveBeenCalledWith({
+      where: { userId: 'user-1', revokedAt: null },
+      data: { revokedAt: expect.any(Date) },
+    });
+  });
+
+  it('rotates a valid refresh token', async () => {
+    const { service, prisma } = createService();
+    prisma.userSession.findUnique.mockResolvedValue({
+      id: 'session-1',
+      revokedAt: null,
+      expiresAt: new Date(Date.now() + 60_000),
+      user: { id: 'user-1', email: 'demo@example.com', displayName: 'Demo' },
+    });
+
+    await expect(service.refresh({ refreshToken: 'refresh-token-that-is-long-enough' })).resolves.toEqual({
+      accessToken: 'jwt-token',
+      refreshToken: expect.any(String),
+      user: {
+        id: 'user-1',
+        email: 'demo@example.com',
+        displayName: 'Demo',
+      },
+    });
+    expect(prisma.userSession.update).toHaveBeenCalledWith({
+      where: { id: 'session-1' },
+      data: { refreshTokenHash: expect.any(String), expiresAt: expect.any(Date), revokedAt: null },
+    });
+  });
+
+  it('revokes sessions', async () => {
+    const { service, prisma } = createService();
+
+    await expect(service.revokeSession('user-1', 'session-1')).resolves.toEqual({ revoked: true });
+    await expect(service.logout({ refreshToken: 'refresh-token-that-is-long-enough' })).resolves.toEqual({ revoked: true });
+    expect(prisma.userSession.updateMany).toHaveBeenCalledWith({
+      where: { id: 'session-1', userId: 'user-1', revokedAt: null },
+      data: { revokedAt: expect.any(Date) },
     });
   });
 });

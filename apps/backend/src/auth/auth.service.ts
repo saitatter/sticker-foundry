@@ -1,10 +1,12 @@
-import { ConflictException, ForbiddenException, Injectable, UnauthorizedException } from '@nestjs/common';
+import { ConflictException, ForbiddenException, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { JwtService } from '@nestjs/jwt';
+import { JwtService, JwtSignOptions } from '@nestjs/jwt';
 import * as bcrypt from 'bcryptjs';
+import { createHash, randomBytes } from 'crypto';
 import { PrismaService } from '../prisma.service';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { LoginDto } from './dto/login.dto';
+import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { RegisterDto } from './dto/register.dto';
 
 @Injectable()
@@ -48,6 +50,18 @@ export class AuthService {
     return this.authResponse(user);
   }
 
+  async refresh(dto: RefreshTokenDto) {
+    const session = await this.prisma.userSession.findUnique({
+      where: { refreshTokenHash: this.refreshTokenHash(dto.refreshToken) },
+      include: { user: { select: { id: true, email: true, displayName: true } } },
+    });
+    if (!session || session.revokedAt || session.expiresAt.getTime() <= Date.now()) {
+      throw new UnauthorizedException('Refresh token is invalid or expired');
+    }
+
+    return this.authResponse(session.user, session.id);
+  }
+
   async me(userId: string) {
     const user = await this.prisma.user.findUniqueOrThrow({
       where: { id: userId },
@@ -68,19 +82,93 @@ export class AuthService {
       where: { id: userId },
       data: { passwordHash },
     });
+    await this.prisma.userSession.updateMany({
+      where: { userId, revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
 
     return { changed: true };
   }
 
-  private authResponse(user: { id: string; email: string; displayName: string }) {
+  async sessions(userId: string) {
+    return this.prisma.userSession.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+      select: { id: true, createdAt: true, expiresAt: true, revokedAt: true },
+    });
+  }
+
+  async logout(dto: RefreshTokenDto) {
+    await this.prisma.userSession.updateMany({
+      where: { refreshTokenHash: this.refreshTokenHash(dto.refreshToken), revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
+    return { revoked: true };
+  }
+
+  async revokeSession(userId: string, sessionId: string) {
+    const result = await this.prisma.userSession.updateMany({
+      where: { id: sessionId, userId, revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
+    if (result.count === 0) {
+      throw new NotFoundException('Active session not found');
+    }
+    return { revoked: true };
+  }
+
+  async revokeAllSessions(userId: string) {
+    await this.prisma.userSession.updateMany({
+      where: { userId, revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
+    return { revoked: true };
+  }
+
+  private async authResponse(user: { id: string; email: string; displayName: string }, existingSessionId?: string) {
+    const refreshToken = this.newRefreshToken();
+    const expiresAt = this.refreshTokenExpiry();
+    const refreshTokenHash = this.refreshTokenHash(refreshToken);
+    if (existingSessionId) {
+      await this.prisma.userSession.update({
+        where: { id: existingSessionId },
+        data: { refreshTokenHash, expiresAt, revokedAt: null },
+      });
+    } else {
+      await this.prisma.userSession.create({
+        data: { userId: user.id, refreshTokenHash, expiresAt },
+      });
+    }
+
     return {
-      accessToken: this.jwt.sign({ sub: user.id, email: user.email }),
+      accessToken: this.jwt.sign(
+        { sub: user.id, email: user.email },
+        { expiresIn: this.accessTokenTtl() },
+      ),
+      refreshToken,
       user: {
         id: user.id,
         email: user.email,
         displayName: user.displayName,
       },
     };
+  }
+
+  private newRefreshToken() {
+    return randomBytes(48).toString('base64url');
+  }
+
+  private refreshTokenHash(refreshToken: string) {
+    return createHash('sha256').update(refreshToken).digest('hex');
+  }
+
+  private refreshTokenExpiry() {
+    const ttlDays = Number.parseInt(this.config.get<string>('REFRESH_TOKEN_TTL_DAYS', '30'), 10);
+    return new Date(Date.now() + (Number.isFinite(ttlDays) ? ttlDays : 30) * 24 * 60 * 60 * 1000);
+  }
+
+  private accessTokenTtl(): NonNullable<JwtSignOptions['expiresIn']> {
+    return this.config.get<string>('ACCESS_TOKEN_TTL', '15m') as NonNullable<JwtSignOptions['expiresIn']>;
   }
 
   private assertRegistrationAllowed(inviteCode: string | undefined) {

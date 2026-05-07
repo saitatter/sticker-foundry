@@ -565,6 +565,7 @@ select:focus {
 
 .member-list,
 .invite-list,
+.session-list,
 .invite-form {
   display: grid;
   gap: 10px;
@@ -572,7 +573,8 @@ select:focus {
 }
 
 .member-row,
-.invite-row {
+.invite-row,
+.session-row {
   min-height: 46px;
   display: flex;
   align-items: center;
@@ -585,7 +587,8 @@ select:focus {
 }
 
 .member-row span:first-child,
-.invite-row span:first-child {
+.invite-row span:first-child,
+.session-row span:first-child {
   display: grid;
   gap: 2px;
   min-width: 0;
@@ -594,7 +597,9 @@ select:focus {
 .member-row strong,
 .member-row small,
 .invite-row strong,
-.invite-row small {
+.invite-row small,
+.session-row strong,
+.session-row small {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

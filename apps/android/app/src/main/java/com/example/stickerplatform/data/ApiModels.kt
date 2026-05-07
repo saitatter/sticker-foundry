@@ -9,7 +9,12 @@ data class LoginRequest(
 
 data class AuthResponse(
     val accessToken: String,
+    val refreshToken: String,
     val user: UserDto,
+)
+
+data class RefreshTokenRequest(
+    val refreshToken: String,
 )
 
 data class UserDto(

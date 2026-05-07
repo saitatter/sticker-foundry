@@ -7,14 +7,14 @@ This plan tracks the current state of StickerFoundry and the next implementation
 Already implemented:
 
 - Monorepo with NestJS backend, React web app, Kotlin Android app, shared TypeScript DTOs, Docker Compose, CI/release config, and documentation.
-- Backend JWT login/register, registration modes (`open`, `invite-only`, `disabled`), password change flow, rate limiting, configurable CORS, health and metrics endpoints.
+- Backend JWT login/register, refresh-token sessions, session revocation, registration modes (`open`, `invite-only`, `disabled`), password change flow, rate limiting, configurable CORS, health and metrics endpoints.
 - Pack CRUD, pack clone, public/private visibility, sticker upload/delete/reorder/update, tray icon replacement, sticker image replacement, and WhatsApp ZIP export.
 - Sharp media pipeline with real image-content validation, WebP conversion, 512x512 sticker resize, tray icon processing, compression limits, and WhatsApp pack constraints.
 - Export API with `contents.json`, `tray_icon.webp`, sticker files, `GET /packs/:id/contents`, `GET /packs/:id/manifest`, `ETag`, and OpenAPI docs.
 - Sync API with `contentHash`, `syncHash`, ownership flags, export readiness, and relative export/tray paths.
 - Pack collaboration with owner/viewer/editor roles, invite creation/acceptance/revocation, member listing, member removal, member role editing, role-aware mutation checks, and sync capability flags.
 - Web UI with auth, demo login, pack dashboard search/filter/sort/status badges, pack detail, create/edit/delete/clone, collaboration invites/member management, sticker upload, bulk delete/bulk emoji apply, drag-and-drop uploads, image rotate/square crop, sticker replacement, tray replacement, ordering, ZIP download, contents preview, and account password change.
-- Android app with MVVM, Retrofit, Room cache, local ZIP extraction, local sticker preview, WhatsApp `ContentProvider`, import intents for WhatsApp and WhatsApp Business, role-aware image upload/tray replacement, image rotate/square crop, server URL settings, logout, cache size/clear cache, import readiness, content-hash sync, and stale cache pruning.
+- Android app with MVVM, Retrofit, Room cache, refresh-token auth, local ZIP extraction, local sticker preview, WhatsApp `ContentProvider`, import intents for WhatsApp and WhatsApp Business, role-aware image upload/tray replacement, image rotate/square crop, server URL settings, logout, cache size/clear cache, import readiness, content-hash sync, and stale cache pruning.
 - Docker Compose with backend, web, PostgreSQL, `.env.example`, backend healthcheck, backup/restore docs, Unraid notes, and reverse proxy examples.
 - Semantic-release with emoji release sections, release APK artifact, Dependabot, PR title validation, and issue templates.
 
@@ -23,7 +23,6 @@ Known gaps:
 - Real-device WhatsApp and WhatsApp Business import still need hands-on validation.
 - No Playwright/web smoke tests yet.
 - No Android lint/test job yet, only debug build validation.
-- No refresh tokens/session revocation yet.
 - No background media queue, audit log, quotas, or advanced upload abuse protection beyond current validation/rate limits.
 
 ## Milestone 1: Real Import Validation
@@ -120,7 +119,6 @@ Goal: make internet-facing deployments safer.
 
 Tasks:
 
-- Add refresh tokens and session revocation.
 - Add admin settings for registration mode and instance branding.
 - Add per-user or per-instance storage quotas.
 - Add audit logging for auth, pack, and sticker changes.
@@ -153,9 +151,9 @@ Acceptance criteria:
 
 1. Real-device WhatsApp import validation.
 2. Web copy/move sticker actions.
-3. Refresh-token/session revocation.
-4. Playwright web smoke tests.
-5. Android lint/test CI.
+3. Playwright web smoke tests.
+4. Android lint/test CI.
+5. Admin settings and quotas.
 
 ## Design Notes
 

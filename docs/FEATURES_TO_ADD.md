@@ -24,6 +24,7 @@ This is the live feature backlog. Items already shipped are kept briefly at the 
 - Android shared-pack role display and role-aware editor controls.
 - Android local sticker preview before importing into WhatsApp.
 - Web sticker multi-select with bulk delete and bulk emoji apply.
+- Refresh-token sessions with web session revocation and Android token refresh.
 - Compose `.env.example` and reverse proxy examples.
 - Dependabot and GitHub issue templates.
 - Metrics endpoint for basic monitoring.
@@ -84,7 +85,6 @@ This is the live feature backlog. Items already shipped are kept briefly at the 
 
 ## Backend
 
-- Refresh-token auth and session revocation.
 - Password reset flow if email is configured.
 - Admin settings page/API for registration mode, quotas, and instance branding.
 - Per-user storage quotas.
