@@ -500,6 +500,7 @@ Unraid deployment:
 
 Reverse proxy examples for Caddy, Nginx Proxy Manager, and Traefik live in [docs/REVERSE_PROXY.md](docs/REVERSE_PROXY.md).
 Use [docs/PRODUCTION_CHECKLIST.md](docs/PRODUCTION_CHECKLIST.md) before exposing StickerFoundry outside your LAN.
+Unraid-specific volume and proxy notes are in [docs/UNRAID.md](docs/UNRAID.md).
 
 ## 🔄 Releases
 
