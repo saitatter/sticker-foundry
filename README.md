@@ -150,6 +150,8 @@ Use OpenAPI at `/api/docs` for the full contract.
 
 - [Implementation plan](docs/IMPLEMENTATION_PLAN.md)
 - [Feature backlog](docs/FEATURES_TO_ADD.md)
+- [Real WhatsApp validation](docs/WHATSAPP_VALIDATION.md)
+- [Docker validation](docs/DOCKER_VALIDATION.md)
 - [Reverse proxy examples](docs/REVERSE_PROXY.md)
 - [Production checklist](docs/PRODUCTION_CHECKLIST.md)
 - [Unraid notes](docs/UNRAID.md)
