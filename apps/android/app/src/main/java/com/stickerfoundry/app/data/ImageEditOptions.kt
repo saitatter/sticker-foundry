@@ -13,7 +13,24 @@ data class ImageEditOptions(
     val textEnabled: Boolean = false,
     val textContent: String = "",
     val textSize: Float = 64f,
+    val brushStrokes: List<BrushStroke> = emptyList(),
 )
+
+data class BrushPoint(
+    val x: Float,
+    val y: Float,
+)
+
+data class BrushStroke(
+    val mode: BrushMode,
+    val size: Float,
+    val points: List<BrushPoint>,
+)
+
+enum class BrushMode {
+    Erase,
+    Restore,
+}
 
 fun ImageEditOptions.hasGeometryEdits(): Boolean =
     rotationDegrees.floorMod(360) != 0 ||
@@ -31,7 +48,10 @@ fun ImageEditOptions.hasColorEdits(): Boolean =
 fun ImageEditOptions.hasTextEdit(): Boolean =
     textEnabled && textContent.isNotBlank()
 
+fun ImageEditOptions.hasBrushEdits(): Boolean =
+    brushStrokes.any { it.points.isNotEmpty() }
+
 fun ImageEditOptions.hasEdits(): Boolean =
-    hasGeometryEdits() || hasColorEdits() || hasTextEdit()
+    hasGeometryEdits() || hasColorEdits() || hasTextEdit() || hasBrushEdits()
 
 private fun Int.floorMod(divisor: Int): Int = ((this % divisor) + divisor) % divisor

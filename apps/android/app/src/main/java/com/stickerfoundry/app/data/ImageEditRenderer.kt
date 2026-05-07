@@ -35,7 +35,8 @@ object ImageEditRenderer {
             Bitmap.createBitmap(cropped, 0, 0, cropped.width, cropped.height, matrix, true)
         }
         val colorAdjusted = applyColorAdjustments(rotated, options)
-        return drawTextOverlay(colorAdjusted, options)
+        val masked = applyBrushMask(colorAdjusted, options)
+        return drawTextOverlay(masked, options)
     }
 
     private fun applyColorAdjustments(bitmap: Bitmap, options: ImageEditOptions): Bitmap {
@@ -76,6 +77,56 @@ object ImageEditRenderer {
 
         canvas.drawText(text, x, y, strokePaint)
         canvas.drawText(text, x, y, fillPaint)
+        return output
+    }
+
+    private fun applyBrushMask(bitmap: Bitmap, options: ImageEditOptions): Bitmap {
+        if (!options.hasBrushEdits()) return bitmap
+
+        val width = bitmap.width
+        val height = bitmap.height
+        val mask = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888).apply {
+            eraseColor(Color.WHITE)
+        }
+        val canvas = Canvas(mask)
+        val scale = maxOf(width, height) / 512f
+
+        options.brushStrokes.forEach { stroke ->
+            val color = if (stroke.mode == BrushMode.Erase) Color.BLACK else Color.WHITE
+            val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                this.color = color
+                style = Paint.Style.STROKE
+                strokeCap = Paint.Cap.ROUND
+                strokeJoin = Paint.Join.ROUND
+                strokeWidth = stroke.size.coerceIn(8f, 128f) * scale
+            }
+            val points = stroke.points.map {
+                it.x.coerceIn(0f, 1f) * width to it.y.coerceIn(0f, 1f) * height
+            }
+
+            if (points.size == 1) {
+                val radius = paint.strokeWidth / 2f
+                canvas.drawCircle(points.first().first, points.first().second, radius, paint)
+            } else {
+                points.zipWithNext().forEach { (start, end) ->
+                    canvas.drawLine(start.first, start.second, end.first, end.second, paint)
+                }
+            }
+        }
+
+        val output = bitmap.copy(Bitmap.Config.ARGB_8888, true)
+        val pixels = IntArray(width * height)
+        val maskPixels = IntArray(width * height)
+        output.getPixels(pixels, 0, width, 0, 0, width, height)
+        mask.getPixels(maskPixels, 0, width, 0, 0, width, height)
+
+        pixels.indices.forEach { index ->
+            val alpha = Color.alpha(pixels[index])
+            val maskAlpha = Color.red(maskPixels[index])
+            val nextAlpha = alpha * maskAlpha / 255
+            pixels[index] = (pixels[index] and 0x00FFFFFF) or (nextAlpha shl 24)
+        }
+        output.setPixels(pixels, 0, width, 0, 0, width, height)
         return output
     }
 

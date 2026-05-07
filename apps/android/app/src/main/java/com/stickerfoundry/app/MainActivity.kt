@@ -9,8 +9,11 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -42,8 +45,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -52,6 +58,9 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.stickerfoundry.app.data.EXTRACTION_FAILED
 import com.stickerfoundry.app.data.EXTRACTION_READY
 import com.stickerfoundry.app.data.EXTRACTION_SYNCING
+import com.stickerfoundry.app.data.BrushMode
+import com.stickerfoundry.app.data.BrushPoint
+import com.stickerfoundry.app.data.BrushStroke
 import com.stickerfoundry.app.data.ImageEditOptions
 import com.stickerfoundry.app.data.ImageEditRenderer
 import com.stickerfoundry.app.data.PackEntity
@@ -445,9 +454,20 @@ private fun ImageEditDialog(
     var textEnabled by remember(edit.uri) { mutableStateOf(false) }
     var textContent by remember(edit.uri) { mutableStateOf("") }
     var textSize by remember(edit.uri) { mutableStateOf(64f) }
+    var brushEnabled by remember(edit.uri) { mutableStateOf(false) }
+    var brushMode by remember(edit.uri) { mutableStateOf(BrushMode.Erase) }
+    var brushSize by remember(edit.uri) { mutableStateOf(36f) }
+    var brushStrokes by remember(edit.uri) { mutableStateOf(emptyList<BrushStroke>()) }
+    var undoneBrushStrokes by remember(edit.uri) { mutableStateOf(emptyList<BrushStroke>()) }
+    var activeBrushPoints by remember(edit.uri) { mutableStateOf(emptyList<BrushPoint>()) }
     val title = when (edit.target) {
         ImageEditTarget.Sticker -> "Edit sticker"
         ImageEditTarget.TrayIcon -> "Edit tray icon"
+    }
+    val previewBrushStrokes = if (activeBrushPoints.isEmpty()) {
+        brushStrokes
+    } else {
+        brushStrokes + BrushStroke(brushMode, brushSize, activeBrushPoints)
     }
     val currentOptions = ImageEditOptions(
         rotationDegrees = rotation,
@@ -462,6 +482,7 @@ private fun ImageEditDialog(
         textEnabled = textEnabled,
         textContent = textContent,
         textSize = textSize,
+        brushStrokes = previewBrushStrokes,
     )
     val estimatedBytes = sourceInfo?.let {
         estimateEditedBytes(it, currentOptions)
@@ -479,15 +500,68 @@ private fun ImageEditDialog(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 if (preview != null) {
-                    Image(
-                        bitmap = preview,
-                        contentDescription = null,
+                    Box(
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(220.dp)
                             .clipToBounds(),
-                        contentScale = ContentScale.Fit,
-                    )
+                    ) {
+                        Image(
+                            bitmap = preview,
+                            contentDescription = null,
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Fit,
+                        )
+                        Canvas(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .pointerInput(brushEnabled, brushMode, brushSize, preview.width, preview.height) {
+                                    if (!brushEnabled) return@pointerInput
+                                    fun normalized(offset: Offset): BrushPoint {
+                                        val boxWidth = size.width.toFloat().coerceAtLeast(1f)
+                                        val boxHeight = size.height.toFloat().coerceAtLeast(1f)
+                                        val scale = minOf(
+                                            boxWidth / preview.width.coerceAtLeast(1),
+                                            boxHeight / preview.height.coerceAtLeast(1),
+                                        )
+                                        val imageWidth = preview.width * scale
+                                        val imageHeight = preview.height * scale
+                                        val imageLeft = (boxWidth - imageWidth) / 2f
+                                        val imageTop = (boxHeight - imageHeight) / 2f
+                                        return BrushPoint(
+                                            x = ((offset.x - imageLeft) / imageWidth.coerceAtLeast(1f)).coerceIn(0f, 1f),
+                                            y = ((offset.y - imageTop) / imageHeight.coerceAtLeast(1f)).coerceIn(0f, 1f),
+                                        )
+                                    }
+
+                                    detectDragGestures(
+                                        onDragStart = { offset ->
+                                            activeBrushPoints = listOf(normalized(offset))
+                                        },
+                                        onDrag = { change, _ ->
+                                            activeBrushPoints = activeBrushPoints + normalized(change.position)
+                                            change.consume()
+                                        },
+                                        onDragEnd = {
+                                            if (activeBrushPoints.isNotEmpty()) {
+                                                brushStrokes = brushStrokes + BrushStroke(
+                                                    brushMode,
+                                                    brushSize,
+                                                    activeBrushPoints,
+                                                )
+                                                undoneBrushStrokes = emptyList()
+                                                activeBrushPoints = emptyList()
+                                            }
+                                        },
+                                        onDragCancel = { activeBrushPoints = emptyList() },
+                                    )
+                                },
+                        ) {
+                            if (brushEnabled) {
+                                drawRect(Color.Transparent)
+                            }
+                        }
+                    }
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     TextButton(onClick = { rotation = (rotation + 270) % 360 }) {
@@ -557,6 +631,53 @@ private fun ImageEditDialog(
                     )
                     Text("Text size", style = MaterialTheme.typography.bodySmall)
                     Slider(value = textSize, onValueChange = { textSize = it }, valueRange = 18f..140f)
+                }
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Checkbox(
+                        checked = brushEnabled,
+                        onCheckedChange = {
+                            brushEnabled = it
+                            activeBrushPoints = emptyList()
+                        },
+                    )
+                    Text("Brush")
+                }
+                if (brushEnabled) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        TextButton(onClick = { brushMode = BrushMode.Erase }) {
+                            Text(if (brushMode == BrushMode.Erase) "Erase *" else "Erase")
+                        }
+                        TextButton(onClick = { brushMode = BrushMode.Restore }) {
+                            Text(if (brushMode == BrushMode.Restore) "Restore *" else "Restore")
+                        }
+                    }
+                    Text("Brush size", style = MaterialTheme.typography.bodySmall)
+                    Slider(value = brushSize, onValueChange = { brushSize = it }, valueRange = 8f..96f)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        TextButton(
+                            enabled = brushStrokes.isNotEmpty(),
+                            onClick = {
+                                val last = brushStrokes.lastOrNull() ?: return@TextButton
+                                brushStrokes = brushStrokes.dropLast(1)
+                                undoneBrushStrokes = undoneBrushStrokes + last
+                            },
+                        ) {
+                            Text("Undo")
+                        }
+                        TextButton(
+                            enabled = undoneBrushStrokes.isNotEmpty(),
+                            onClick = {
+                                val last = undoneBrushStrokes.lastOrNull() ?: return@TextButton
+                                undoneBrushStrokes = undoneBrushStrokes.dropLast(1)
+                                brushStrokes = brushStrokes + last
+                            },
+                        ) {
+                            Text("Redo")
+                        }
+                    }
                 }
                 Text(
                     text = estimatedBytes?.let { "Estimated upload: ~${formatBytes(it)}" } ?: "Estimated upload: unavailable",
