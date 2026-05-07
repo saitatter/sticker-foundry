@@ -366,6 +366,7 @@ export class PacksService {
             accessibilityText: sticker.accessibilityText,
             sizeBytes: sticker.sizeBytes,
             sha256: sticker.sha256,
+            perceptualHash: sticker.perceptualHash,
             position: sticker.position,
             reviewStatus: sticker.reviewStatus,
           })),
@@ -451,6 +452,7 @@ export class PacksService {
     }
 
     const processed = await this.imageService.processSticker(file.buffer);
+    await this.rejectDuplicateSticker(packId, processed.perceptualHash);
     await this.enforceStorageQuota(pack.ownerId, processed.sizeBytes);
     const fileName = `${uuidv4()}.webp`;
     const packDir = this.exportService.packDirectory(packId);
@@ -470,6 +472,7 @@ export class PacksService {
         accessibilityText: dto.accessibilityText,
         sizeBytes: processed.sizeBytes,
         sha256: processed.sha256,
+        perceptualHash: processed.perceptualHash,
         position: pack._count.stickers,
       },
     });
@@ -601,6 +604,7 @@ export class PacksService {
     }
 
     const processed = await this.imageService.processSticker(file.buffer);
+    await this.rejectDuplicateSticker(packId, processed.perceptualHash, stickerId);
     const existingSize = typeof sticker.sizeBytes === 'number' ? sticker.sizeBytes : 0;
     await this.enforceStorageQuota(pack.ownerId, Math.max(0, processed.sizeBytes - existingSize));
     await this.imageService.writeProcessedImage(
@@ -613,6 +617,7 @@ export class PacksService {
       data: {
         sizeBytes: processed.sizeBytes,
         sha256: processed.sha256,
+        perceptualHash: processed.perceptualHash,
       },
     });
 
@@ -800,6 +805,7 @@ export class PacksService {
               accessibilityText: copy.sticker.accessibilityText,
               sizeBytes: copy.sticker.sizeBytes,
               sha256: copy.sticker.sha256,
+              perceptualHash: copy.sticker.perceptualHash,
               position: copy.position,
               reviewStatus: copy.sticker.reviewStatus,
             },
@@ -1003,6 +1009,21 @@ export class PacksService {
     const usedBytes = usage._sum.sizeBytes ?? 0;
     if (usedBytes + incomingBytes > quota) {
       throw new BadRequestException('Storage quota exceeded for this pack owner');
+    }
+  }
+
+  private async rejectDuplicateSticker(packId: string, perceptualHash?: string, ignoreStickerId?: string) {
+    if (!perceptualHash) return;
+    const duplicate = await this.prisma.sticker.findFirst({
+      where: {
+        packId,
+        perceptualHash,
+        ...(ignoreStickerId ? { id: { not: ignoreStickerId } } : {}),
+      },
+      select: { id: true },
+    });
+    if (duplicate) {
+      throw new BadRequestException('This image looks like a duplicate of an existing sticker in the pack');
     }
   }
 

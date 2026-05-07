@@ -40,6 +40,7 @@ type StickerRecord = {
   accessibilityText: string | null;
   sizeBytes: number;
   sha256: string;
+  perceptualHash?: string | null;
   position: number;
   reviewStatus: 'PENDING' | 'APPROVED' | 'NEEDS_WORK';
   createdAt: Date;
@@ -262,8 +263,22 @@ class InMemoryPrisma {
         .reduce((total, sticker) => total + sticker.sizeBytes, 0);
       return { _sum: { sizeBytes } };
     }),
-    findFirst: jest.fn(async ({ where }: { where: { id?: string; packId?: string } }) =>
-      this.stickers.find((sticker) => (!where.id || sticker.id === where.id) && (!where.packId || sticker.packId === where.packId)) ?? null,
+    findFirst: jest.fn(
+      async ({
+        where,
+      }: {
+        where: { id?: string | { not?: string }; packId?: string; perceptualHash?: string };
+      }) =>
+        this.stickers.find((sticker) => {
+          const idMatches =
+            !where.id ||
+            (typeof where.id === 'string' ? sticker.id === where.id : sticker.id !== where.id.not);
+          return (
+            idMatches &&
+            (!where.packId || sticker.packId === where.packId) &&
+            (!where.perceptualHash || sticker.perceptualHash === where.perceptualHash)
+          );
+        }) ?? null,
     ),
     findMany: jest.fn(async ({ where }: { where: { packId: string } }) => this.sortedStickers(where.packId)),
     update: jest.fn(async ({ where, data }: { where: { id: string }; data: Partial<StickerRecord> }) => {

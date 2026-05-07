@@ -12,6 +12,7 @@ type Sticker = {
   accessibilityText?: string | null;
   sizeBytes: number;
   sha256: string;
+  perceptualHash?: string | null;
   position: number;
   reviewStatus: 'PENDING' | 'APPROVED' | 'NEEDS_WORK';
   createdAt: string;

@@ -125,6 +125,7 @@ model Sticker {
   accessibilityText String?
   sizeBytes         Int
   sha256            String
+  perceptualHash    String?
   position          Int                 @default(0)
   reviewStatus      StickerReviewStatus @default(PENDING)
   comments          StickerComment[]
@@ -133,6 +134,7 @@ model Sticker {
   @@unique([packId, fileName])
   @@index([packId])
   @@index([packId, position])
+  @@index([packId, perceptualHash])
 }
 
 enum PackRole {

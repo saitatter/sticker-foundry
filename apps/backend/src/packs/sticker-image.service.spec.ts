@@ -25,6 +25,7 @@ describe(StickerImageService, () => {
 
     expect(processed.sizeBytes).toBeLessThanOrEqual(100 * 1024);
     expect(processed.sha256).toMatch(/^[a-f0-9]{64}$/);
+    expect(processed.perceptualHash).toMatch(/^[a-f0-9]{22}$/);
     await expect(sharp(processed.bytes).metadata()).resolves.toEqual(
       expect.objectContaining({
         format: 'webp',

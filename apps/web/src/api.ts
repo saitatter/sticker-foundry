@@ -61,6 +61,7 @@ export type Sticker = {
   accessibilityText?: string | null;
   sizeBytes: number;
   sha256: string;
+  perceptualHash?: string | null;
   position: number;
   reviewStatus: StickerReviewStatus;
   createdAt: string;

@@ -9,6 +9,7 @@ export type ProcessedImage = {
   bytes: Buffer;
   sizeBytes: number;
   sha256: string;
+  perceptualHash: string;
 };
 
 @Injectable()
@@ -59,6 +60,7 @@ export class StickerImageService {
           bytes: output,
           sizeBytes: output.byteLength,
           sha256: createHash('sha256').update(output).digest('hex'),
+          perceptualHash: await this.perceptualHash(output),
         };
       }
     }
@@ -79,5 +81,40 @@ export class StickerImageService {
     if (!format || !['avif', 'gif', 'heif', 'jpeg', 'jpg', 'png', 'tiff', 'webp'].includes(format)) {
       throw new BadRequestException(`Unsupported image format: ${format ?? 'unknown'}`);
     }
+  }
+
+  private async perceptualHash(input: Buffer) {
+    const { data } = await sharp(input, { animated: false })
+      .flatten({ background: { r: 255, g: 255, b: 255 } })
+      .resize(8, 8, { fit: 'fill' })
+      .raw()
+      .toBuffer({ resolveWithObject: true });
+    const grayscale: number[] = [];
+    let redTotal = 0;
+    let greenTotal = 0;
+    let blueTotal = 0;
+    for (let index = 0; index < data.length; index += 3) {
+      const red = data[index];
+      const green = data[index + 1];
+      const blue = data[index + 2];
+      redTotal += red;
+      greenTotal += green;
+      blueTotal += blue;
+      grayscale.push(Math.round(red * 0.299 + green * 0.587 + blue * 0.114));
+    }
+    const average = grayscale.reduce((total, value) => total + value, 0) / grayscale.length;
+    let binary = '';
+    for (const value of grayscale) {
+      binary += value >= average ? '1' : '0';
+    }
+    const shapeHash = binary
+      .match(/.{1,4}/g)
+      ?.map((chunk) => Number.parseInt(chunk.padEnd(4, '0'), 2).toString(16))
+      .join('') ?? '';
+    const pixelCount = grayscale.length || 1;
+    const colorHash = [redTotal, greenTotal, blueTotal]
+      .map((total) => Math.round(total / pixelCount).toString(16).padStart(2, '0'))
+      .join('');
+    return `${shapeHash}${colorHash}`;
   }
 }
