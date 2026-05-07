@@ -18,7 +18,7 @@ Already implemented:
 - Admin-visible audit log for auth, settings, pack, collaboration, and sticker mutation events, enriched with request IP/user-agent and exportable as CSV.
 - Web UI with auth, demo login, pack dashboard search/filter/sort/status badges, pack detail, create/edit/delete/clone, collaboration invites/member management, invite expiration/history filters, sticker upload, bulk delete/bulk emoji apply, bulk copy/move to another pack, drag-and-drop uploads, image rotate/square crop/pan/zoom, sticker replacement, tray replacement, ordering, ZIP download, contents preview, account password change, and session management.
 - Playwright smoke test coverage for login, pack creation, upload, contents preview, collaboration panel visibility, and bulk copy workflow.
-- Android app with MVVM, Retrofit, Room cache, refresh-token auth, local ZIP extraction, local sticker preview, WhatsApp `ContentProvider`, import intents for WhatsApp and WhatsApp Business, role-aware image upload/tray replacement, image rotate/square crop, server URL settings, logout, cache size/clear cache, import readiness, content-hash sync, and stale cache pruning.
+- Android app with MVVM, Retrofit, Room cache, refresh-token auth, local ZIP extraction, local sticker preview, WhatsApp `ContentProvider`, import intents for WhatsApp and WhatsApp Business, role-aware image upload/tray replacement, image rotate/square crop/pan/zoom, server URL settings, logout, cache size/clear cache, import readiness, content-hash sync, and stale cache pruning.
 - CI validates Android debug lint and debug APK assembly.
 - Docker Compose with backend, web, PostgreSQL, `.env.example`, backend healthcheck, backup/restore docs, Unraid notes, and reverse proxy examples.
 - Semantic-release with emoji release sections, release APK artifact, Dependabot, PR title validation, and issue templates.
@@ -54,7 +54,6 @@ Goal: reduce the need for external image tools.
 
 Tasks:
 
-- Add pan/zoom crop in Android.
 - Add outline/stroke and shadow controls.
 - Add transparent background preview.
 - Add duplicate detection with perceptual hashes.

@@ -170,7 +170,11 @@ class StickerRepository private constructor(context: Context) {
 
     private fun multipartFromUri(uri: Uri, options: ImageEditOptions): MultipartBody.Part {
         val resolver = appContext.contentResolver
-        val hasEdits = options.rotationDegrees.floorMod(360) != 0 || options.cropSquare
+        val hasEdits = options.rotationDegrees.floorMod(360) != 0 ||
+            options.cropSquare ||
+            options.zoom != 1f ||
+            options.offsetX != 0f ||
+            options.offsetY != 0f
         val mediaType = if (hasEdits) "image/png" else resolver.getType(uri) ?: "image/*"
         val fileName = if (hasEdits) {
             "sticker-foundry-edited-${System.currentTimeMillis()}.png"
@@ -192,9 +196,16 @@ class StickerRepository private constructor(context: Context) {
         } ?: error("Cannot decode selected image")
 
         val cropped = if (options.cropSquare) {
-            val size = minOf(source.width, source.height)
-            val x = (source.width - size) / 2
-            val y = (source.height - size) / 2
+            val baseSize = minOf(source.width, source.height)
+            val size = (baseSize / options.zoom.coerceAtLeast(1f)).toInt().coerceAtLeast(1)
+            val maxX = source.width - size
+            val maxY = source.height - size
+            val x = ((maxX / 2f) + (maxX / 2f) * (options.offsetX.coerceIn(-100f, 100f) / 100f))
+                .toInt()
+                .coerceIn(0, maxX)
+            val y = ((maxY / 2f) + (maxY / 2f) * (options.offsetY.coerceIn(-100f, 100f) / 100f))
+                .toInt()
+                .coerceIn(0, maxY)
             Bitmap.createBitmap(source, x, y, size, size)
         } else {
             source

@@ -26,6 +26,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -345,6 +346,9 @@ private fun ImageEditDialog(
     val preview = remember(edit.uri) { loadImageBitmap(context, edit.uri) }
     var rotation by remember(edit.uri) { mutableStateOf(0) }
     var cropSquare by remember(edit.uri) { mutableStateOf(false) }
+    var zoom by remember(edit.uri) { mutableStateOf(1f) }
+    var offsetX by remember(edit.uri) { mutableStateOf(0f) }
+    var offsetY by remember(edit.uri) { mutableStateOf(0f) }
     val title = when (edit.target) {
         ImageEditTarget.Sticker -> "Edit sticker"
         ImageEditTarget.TrayIcon -> "Edit tray icon"
@@ -363,7 +367,13 @@ private fun ImageEditDialog(
                             .fillMaxWidth()
                             .height(220.dp)
                             .clipToBounds()
-                            .graphicsLayer(rotationZ = rotation.toFloat()),
+                            .graphicsLayer(
+                                rotationZ = rotation.toFloat(),
+                                scaleX = if (cropSquare) zoom else 1f,
+                                scaleY = if (cropSquare) zoom else 1f,
+                                translationX = if (cropSquare) offsetX else 0f,
+                                translationY = if (cropSquare) offsetY else 0f,
+                            ),
                         contentScale = if (cropSquare) ContentScale.Crop else ContentScale.Fit,
                     )
                 }
@@ -379,15 +389,41 @@ private fun ImageEditDialog(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    Checkbox(checked = cropSquare, onCheckedChange = { cropSquare = it })
+                    Checkbox(
+                        checked = cropSquare,
+                        onCheckedChange = {
+                            cropSquare = it
+                            if (!it) {
+                                zoom = 1f
+                                offsetX = 0f
+                                offsetY = 0f
+                            }
+                        },
+                    )
                     Text("Square crop")
+                }
+                if (cropSquare) {
+                    Text("Zoom", style = MaterialTheme.typography.bodySmall)
+                    Slider(value = zoom, onValueChange = { zoom = it }, valueRange = 1f..3f)
+                    Text("Horizontal", style = MaterialTheme.typography.bodySmall)
+                    Slider(value = offsetX, onValueChange = { offsetX = it }, valueRange = -100f..100f)
+                    Text("Vertical", style = MaterialTheme.typography.bodySmall)
+                    Slider(value = offsetY, onValueChange = { offsetY = it }, valueRange = -100f..100f)
                 }
             }
         },
         confirmButton = {
             Button(
                 onClick = {
-                    onSubmit(ImageEditOptions(rotationDegrees = rotation, cropSquare = cropSquare))
+                    onSubmit(
+                        ImageEditOptions(
+                            rotationDegrees = rotation,
+                            cropSquare = cropSquare,
+                            zoom = zoom,
+                            offsetX = offsetX,
+                            offsetY = offsetY,
+                        ),
+                    )
                 },
             ) {
                 Text("Upload")

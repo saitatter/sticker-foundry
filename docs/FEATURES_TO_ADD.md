@@ -31,6 +31,7 @@ This is the live feature backlog. Items already shipped are kept briefly at the 
 - Admin-only web settings for instance branding, registration mode, invite code, and per-owner storage quotas.
 - Admin audit log for auth, settings, pack, collaboration, and sticker mutations, enriched with request IP/user-agent and exportable as CSV.
 - Web pan/zoom crop controls before upload and sticker replacement.
+- Android pan/zoom crop controls before upload and tray replacement.
 - Compose `.env.example` and reverse proxy examples.
 - Dependabot and GitHub issue templates.
 - Metrics endpoint for basic monitoring.
@@ -67,7 +68,7 @@ This is the live feature backlog. Items already shipped are kept briefly at the 
 
 ## Media Editing
 
-- Android editor with pan/zoom crop and live output size estimate.
+- Android editor live output size estimate.
 - Background removal.
 - Outline/stroke and shadow controls.
 - Transparent background checkerboard preview.
