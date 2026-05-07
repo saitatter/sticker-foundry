@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.1.0](https://github.com/saitatter/sticker-foundry/compare/v1.0.0...v1.1.0) (2026-05-07)
+
+### ✨ Features
+
+* complete StickerFoundry platform polish ([#2](https://github.com/saitatter/sticker-foundry/issues/2)) ([4142c89](https://github.com/saitatter/sticker-foundry/commit/4142c899196cdd8ca1ea249870f4413726035b91))
+
 ## 1.0.0 (2026-05-06)
 
 ### Features
