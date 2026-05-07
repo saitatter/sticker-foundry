@@ -7,6 +7,12 @@ type QueueItem<T> = {
   reject: (reason: unknown) => void;
 };
 
+export class MediaQueueFullException extends ServiceUnavailableException {
+  constructor(readonly retryAfterSeconds: number) {
+    super('Media processing queue is full. Try again shortly.');
+  }
+}
+
 @Injectable()
 export class MediaQueueService {
   private readonly queue: QueueItem<unknown>[] = [];
@@ -16,7 +22,7 @@ export class MediaQueueService {
 
   enqueue<T>(task: () => Promise<T>): Promise<T> {
     if (this.queue.length >= this.maxWaiting()) {
-      throw new ServiceUnavailableException('Media processing queue is full. Try again shortly.');
+      throw new MediaQueueFullException(this.retryAfterSeconds());
     }
 
     return new Promise<T>((resolve, reject) => {
@@ -47,6 +53,10 @@ export class MediaQueueService {
 
   private maxWaiting() {
     return this.configInt('MEDIA_QUEUE_MAX_WAITING', 50);
+  }
+
+  private retryAfterSeconds() {
+    return this.configInt('MEDIA_QUEUE_RETRY_AFTER_SECONDS', 5);
   }
 
   private configInt(key: string, fallback: number) {

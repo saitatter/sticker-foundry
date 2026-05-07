@@ -1,5 +1,4 @@
-import { ServiceUnavailableException } from '@nestjs/common';
-import { MediaQueueService } from './media-queue.service';
+import { MediaQueueFullException, MediaQueueService } from './media-queue.service';
 
 function createQueue(overrides: Record<string, string> = {}) {
   return new MediaQueueService({
@@ -33,11 +32,21 @@ describe(MediaQueueService, () => {
     expect(order).toEqual(['first-start', 'second-start']);
   });
 
-  it('rejects new jobs when the waiting queue is full', () => {
-    const queue = createQueue({ MEDIA_QUEUE_CONCURRENCY: '1', MEDIA_QUEUE_MAX_WAITING: '1' });
+  it('rejects new jobs with retry guidance when the waiting queue is full', () => {
+    const queue = createQueue({
+      MEDIA_QUEUE_CONCURRENCY: '1',
+      MEDIA_QUEUE_MAX_WAITING: '1',
+      MEDIA_QUEUE_RETRY_AFTER_SECONDS: '9',
+    });
     void queue.enqueue(() => new Promise(() => undefined));
     void queue.enqueue(async () => 'second');
 
-    expect(() => queue.enqueue(async () => 'third')).toThrow(ServiceUnavailableException);
+    try {
+      queue.enqueue(async () => 'third');
+      throw new Error('Expected queue enqueue to throw');
+    } catch (error) {
+      expect(error).toBeInstanceOf(MediaQueueFullException);
+      expect((error as MediaQueueFullException).retryAfterSeconds).toBe(9);
+    }
   });
 });
