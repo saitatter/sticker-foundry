@@ -1,4 +1,4 @@
-import { ForbiddenException } from '@nestjs/common';
+import { ForbiddenException, ServiceUnavailableException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { AuthService } from './auth.service';
 
@@ -32,9 +32,19 @@ function createService(mode = 'open', inviteCode = 'let-me-in') {
       update: jest.fn().mockResolvedValue({ id: 'session-1' }),
       updateMany: jest.fn().mockResolvedValue({ count: 1 }),
     },
+    passwordResetToken: {
+      create: jest.fn().mockResolvedValue({ id: 'reset-1' }),
+      findUnique: jest.fn(),
+      update: jest.fn().mockResolvedValue({ id: 'reset-1' }),
+    },
+    $transaction: jest.fn(async (operations: unknown[]) => Promise.all(operations)),
   };
   const jwt = { sign: jest.fn().mockReturnValue('jwt-token') };
   const audit = { record: jest.fn().mockResolvedValue({ id: 'audit-1' }) };
+  const mailer = {
+    isConfigured: jest.fn().mockReturnValue(true),
+    sendPasswordReset: jest.fn().mockResolvedValue(undefined),
+  };
   const config = {
     get: jest.fn((key: string, fallback?: string) => {
       if (key === 'REGISTRATION_MODE') return mode;
@@ -46,9 +56,10 @@ function createService(mode = 'open', inviteCode = 'let-me-in') {
   };
 
   return {
-    service: new AuthService(prisma as never, jwt as unknown as JwtService, config as never, audit as never),
+    service: new AuthService(prisma as never, jwt as unknown as JwtService, config as never, audit as never, mailer as never),
     prisma,
     audit,
+    mailer,
   };
 }
 
@@ -159,6 +170,70 @@ describe(AuthService, () => {
     expect(prisma.userSession.update).toHaveBeenCalledWith({
       where: { id: 'session-1' },
       data: { refreshTokenHash: expect.any(String), expiresAt: expect.any(Date), revokedAt: null },
+    });
+  });
+
+  it('requests a password reset without leaking unknown emails', async () => {
+    const { service, prisma, mailer } = createService();
+    prisma.user.findUnique.mockResolvedValueOnce({
+      id: 'user-1',
+      email: 'demo@example.com',
+      displayName: 'Demo',
+    });
+
+    await expect(service.requestPasswordReset({ email: 'Demo@Example.com' })).resolves.toEqual({ accepted: true });
+    expect(prisma.passwordResetToken.create).toHaveBeenCalledWith({
+      data: {
+        userId: 'user-1',
+        tokenHash: expect.any(String),
+        expiresAt: expect.any(Date),
+      },
+    });
+    expect(mailer.sendPasswordReset).toHaveBeenCalledWith(
+      'demo@example.com',
+      'Demo',
+      expect.stringContaining('/reset-password?token='),
+      expect.any(Date),
+    );
+
+    prisma.user.findUnique.mockResolvedValueOnce(null);
+    await expect(service.requestPasswordReset({ email: 'missing@example.com' })).resolves.toEqual({ accepted: true });
+  });
+
+  it('rejects password reset requests when email is not configured', async () => {
+    const { service, mailer } = createService();
+    mailer.isConfigured.mockReturnValue(false);
+
+    await expect(service.requestPasswordReset({ email: 'demo@example.com' })).rejects.toBeInstanceOf(ServiceUnavailableException);
+  });
+
+  it('resets a password with a valid reset token and revokes sessions', async () => {
+    const { service, prisma } = createService();
+    prisma.passwordResetToken.findUnique.mockResolvedValue({
+      id: 'reset-1',
+      userId: 'user-1',
+      usedAt: null,
+      expiresAt: new Date(Date.now() + 60_000),
+      user: { id: 'user-1' },
+    });
+
+    await expect(
+      service.resetPassword({
+        token: 'reset-token-that-is-long-enough',
+        newPassword: 'new-password123',
+      }),
+    ).resolves.toEqual({ changed: true });
+    expect(prisma.user.update).toHaveBeenCalledWith({
+      where: { id: 'user-1' },
+      data: { passwordHash: expect.any(String) },
+    });
+    expect(prisma.passwordResetToken.update).toHaveBeenCalledWith({
+      where: { id: 'reset-1' },
+      data: { usedAt: expect.any(Date) },
+    });
+    expect(prisma.userSession.updateMany).toHaveBeenCalledWith({
+      where: { userId: 'user-1', revokedAt: null },
+      data: { revokedAt: expect.any(Date) },
     });
   });
 

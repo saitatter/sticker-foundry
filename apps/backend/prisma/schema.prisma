@@ -17,6 +17,7 @@ model User {
   ownedTeams      Team[]           @relation("OwnedTeams")
   teamMemberships TeamMember[]
   sessions        UserSession[]
+  passwordResets  PasswordResetToken[]
   memberships     PackMember[]
   createdInvites  PackInvite[]     @relation("CreatedInvites")
   acceptedInvites PackInvite[]     @relation("AcceptedInvites")
@@ -44,6 +45,20 @@ model UserSession {
   @@index([userId])
   @@index([expiresAt])
   @@index([revokedAt])
+}
+
+model PasswordResetToken {
+  id        String    @id @default(uuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@index([usedAt])
 }
 
 model AuditLog {

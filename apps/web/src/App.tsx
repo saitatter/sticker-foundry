@@ -80,6 +80,10 @@ export function App() {
   const [notice, setNotice] = useState<Notice | null>(null);
   const [loading, setLoading] = useState(false);
   const [showAccountDialog, setShowAccountDialog] = useState(false);
+  const passwordResetToken = useMemo(() => {
+    const params = new URLSearchParams(window.location.search);
+    return window.location.pathname === '/reset-password' ? params.get('token') : null;
+  }, []);
 
   const saveAuth = useCallback((auth: AuthResponse | null) => {
     if (!auth) {
@@ -183,7 +187,32 @@ export function App() {
   };
 
   if (!token) {
-    return <AuthScreen api={api} instanceSettings={instanceSettings} onSignedIn={saveSession} onError={reportError} notice={notice} />;
+    if (passwordResetToken) {
+      return (
+        <ResetPasswordScreen
+          api={api}
+          instanceSettings={instanceSettings}
+          token={passwordResetToken}
+          onChanged={() => {
+            window.history.replaceState(null, '', '/');
+            setNotice({ tone: 'success', text: 'Password reset complete. You can log in now.' });
+          }}
+          onError={reportError}
+          notice={notice}
+        />
+      );
+    }
+
+    return (
+      <AuthScreen
+        api={api}
+        instanceSettings={instanceSettings}
+        onSignedIn={saveSession}
+        onError={reportError}
+        onNotice={setNotice}
+        notice={notice}
+      />
+    );
   }
 
   return (
@@ -655,12 +684,14 @@ function AuthScreen({
   instanceSettings,
   onSignedIn,
   onError,
+  onNotice,
   notice,
 }: {
   api: StickerFoundryApi;
   instanceSettings: InstanceSettings;
   onSignedIn: (auth: AuthResponse) => void;
   onError: (error: unknown) => void;
+  onNotice: (notice: Notice) => void;
   notice: Notice | null;
 }) {
   const [mode, setMode] = useState<'login' | 'register'>('login');
@@ -670,6 +701,7 @@ function AuthScreen({
   const [inviteCode, setInviteCode] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [requestingReset, setRequestingReset] = useState(false);
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -693,6 +725,22 @@ function AuthScreen({
     setDisplayName('');
     setInviteCode('');
     setPassword(DEMO_PASSWORD);
+  }
+
+  async function requestPasswordReset() {
+    if (!email.trim()) {
+      onNotice({ tone: 'error', text: 'Enter your email first.' });
+      return;
+    }
+    setRequestingReset(true);
+    try {
+      await api.requestPasswordReset(email);
+      onNotice({ tone: 'success', text: 'If that account exists, a reset link has been sent.' });
+    } catch (error) {
+      onError(error);
+    } finally {
+      setRequestingReset(false);
+    }
   }
 
   return (
@@ -757,6 +805,71 @@ function AuthScreen({
           <button className="primary-button" disabled={submitting} type="submit">
             <Lock size={17} />
             {mode === 'register' ? 'Create account' : 'Login'}
+          </button>
+          {mode === 'login' ? (
+            <button className="secondary-button" disabled={requestingReset} onClick={() => void requestPasswordReset()} type="button">
+              <KeyRound size={17} />
+              {requestingReset ? 'Sending reset' : 'Email reset link'}
+            </button>
+          ) : null}
+        </form>
+      </section>
+    </main>
+  );
+}
+
+function ResetPasswordScreen({
+  api,
+  instanceSettings,
+  token,
+  onChanged,
+  onError,
+  notice,
+}: {
+  api: StickerFoundryApi;
+  instanceSettings: InstanceSettings;
+  token: string;
+  onChanged: () => void;
+  onError: (error: unknown) => void;
+  notice: Notice | null;
+}) {
+  const [password, setPassword] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    setSubmitting(true);
+    try {
+      await api.resetPassword(token, password);
+      onChanged();
+    } catch (error) {
+      onError(error);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <main className="auth-layout">
+      <section className="auth-panel">
+        <div className="brand auth-brand">
+          <span className="brand-mark">SF</span>
+          <div>
+            <h1>{instanceSettings.instanceName}</h1>
+            <p>Choose a new password</p>
+          </div>
+        </div>
+
+        {notice ? <NoticeBar notice={notice} /> : null}
+
+        <form className="form-grid" onSubmit={submit}>
+          <label>
+            New password
+            <input value={password} onChange={(event) => setPassword(event.target.value)} type="password" minLength={8} required />
+          </label>
+          <button className="primary-button" disabled={submitting} type="submit">
+            <Lock size={17} />
+            {submitting ? 'Saving' : 'Reset password'}
           </button>
         </form>
       </section>

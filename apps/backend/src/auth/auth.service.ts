@@ -1,4 +1,12 @@
-import { ConflictException, ForbiddenException, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+  ServiceUnavailableException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService, JwtSignOptions } from '@nestjs/jwt';
 import * as bcrypt from 'bcryptjs';
@@ -9,6 +17,9 @@ import { ChangePasswordDto } from './dto/change-password.dto';
 import { LoginDto } from './dto/login.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { RegisterDto } from './dto/register.dto';
+import { RequestPasswordResetDto } from './dto/request-password-reset.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
+import { MailerService } from './mailer.service';
 
 @Injectable()
 export class AuthService {
@@ -17,6 +28,7 @@ export class AuthService {
     private readonly jwt: JwtService,
     private readonly config: ConfigService,
     private readonly audit: AuditService,
+    private readonly mailer: MailerService,
   ) {}
 
   async register(dto: RegisterDto) {
@@ -95,6 +107,70 @@ export class AuthService {
       data: { revokedAt: new Date() },
     });
     await this.audit.record({ actorId: userId, action: 'auth.password.change', entityType: 'user', entityId: userId });
+
+    return { changed: true };
+  }
+
+  async requestPasswordReset(dto: RequestPasswordResetDto) {
+    if (!this.mailer.isConfigured()) {
+      throw new ServiceUnavailableException('Password reset email is not configured');
+    }
+
+    const user = await this.prisma.user.findUnique({ where: { email: dto.email.toLowerCase() } });
+    if (!user) {
+      return { accepted: true };
+    }
+
+    const token = randomBytes(36).toString('base64url');
+    const expiresAt = this.passwordResetExpiry();
+    await this.prisma.passwordResetToken.create({
+      data: {
+        userId: user.id,
+        tokenHash: this.passwordResetTokenHash(token),
+        expiresAt,
+      },
+    });
+
+    await this.mailer.sendPasswordReset(user.email, user.displayName, this.passwordResetUrl(token), expiresAt);
+    await this.audit.record({
+      actorId: user.id,
+      action: 'auth.passwordReset.request',
+      entityType: 'user',
+      entityId: user.id,
+    });
+    return { accepted: true };
+  }
+
+  async resetPassword(dto: ResetPasswordDto) {
+    const reset = await this.prisma.passwordResetToken.findUnique({
+      where: { tokenHash: this.passwordResetTokenHash(dto.token) },
+      include: { user: { select: { id: true } } },
+    });
+    if (!reset || reset.usedAt || reset.expiresAt.getTime() <= Date.now()) {
+      throw new BadRequestException('Password reset token is invalid or expired');
+    }
+
+    const passwordHash = await bcrypt.hash(dto.newPassword, 12);
+    await this.prisma.$transaction([
+      this.prisma.user.update({
+        where: { id: reset.userId },
+        data: { passwordHash },
+      }),
+      this.prisma.passwordResetToken.update({
+        where: { id: reset.id },
+        data: { usedAt: new Date() },
+      }),
+      this.prisma.userSession.updateMany({
+        where: { userId: reset.userId, revokedAt: null },
+        data: { revokedAt: new Date() },
+      }),
+    ]);
+    await this.audit.record({
+      actorId: reset.userId,
+      action: 'auth.passwordReset.complete',
+      entityType: 'user',
+      entityId: reset.userId,
+    });
 
     return { changed: true };
   }
@@ -182,6 +258,10 @@ export class AuthService {
     return createHash('sha256').update(refreshToken).digest('hex');
   }
 
+  private passwordResetTokenHash(token: string) {
+    return createHash('sha256').update(token).digest('hex');
+  }
+
   private refreshTokenExpiry() {
     const ttlDays = Number.parseInt(this.config.get<string>('REFRESH_TOKEN_TTL_DAYS', '30'), 10);
     return new Date(Date.now() + (Number.isFinite(ttlDays) ? ttlDays : 30) * 24 * 60 * 60 * 1000);
@@ -189,6 +269,18 @@ export class AuthService {
 
   private accessTokenTtl(): NonNullable<JwtSignOptions['expiresIn']> {
     return this.config.get<string>('ACCESS_TOKEN_TTL', '15m') as NonNullable<JwtSignOptions['expiresIn']>;
+  }
+
+  private passwordResetExpiry() {
+    const ttlMinutes = Number.parseInt(this.config.get<string>('PASSWORD_RESET_TTL_MINUTES', '30'), 10);
+    return new Date(Date.now() + (Number.isFinite(ttlMinutes) ? ttlMinutes : 30) * 60 * 1000);
+  }
+
+  private passwordResetUrl(token: string) {
+    const publicUrl = this.config
+      .get<string>('PASSWORD_RESET_PUBLIC_URL', this.config.get<string>('PUBLIC_BASE_URL', 'http://localhost:5173'))
+      .replace(/\/$/, '');
+    return `${publicUrl}/reset-password?token=${encodeURIComponent(token)}`;
   }
 
   private async assertRegistrationAllowed(inviteCode: string | undefined) {

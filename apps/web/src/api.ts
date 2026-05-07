@@ -224,6 +224,20 @@ export class StickerFoundryApi {
     });
   }
 
+  async requestPasswordReset(email: string) {
+    return this.request<{ accepted: boolean }>('/auth/password/reset/request', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    });
+  }
+
+  async resetPassword(token: string, newPassword: string) {
+    return this.request<{ changed: boolean }>('/auth/password/reset/confirm', {
+      method: 'POST',
+      body: JSON.stringify({ token, newPassword }),
+    });
+  }
+
   async logout(refreshToken: string) {
     return this.request<{ revoked: boolean }>('/auth/logout', {
       method: 'POST',

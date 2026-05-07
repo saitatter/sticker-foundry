@@ -145,6 +145,8 @@ Registration is open by default. The first registered account becomes an admin. 
 
 Access tokens default to `ACCESS_TOKEN_TTL=15m`; refresh sessions default to `REFRESH_TOKEN_TTL_DAYS=30`. Users can revoke sessions from the web account dialog, and Android refreshes tokens automatically during sync/upload flows.
 
+Password reset is available when SMTP is configured. Set `SMTP_HOST`, `SMTP_FROM`, and optional `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASSWORD`, `PASSWORD_RESET_TTL_MINUTES`, and `PASSWORD_RESET_PUBLIC_URL`. Reset requests intentionally return the same accepted response for known and unknown emails.
+
 CORS is open by default for local development. For production, set `CORS_ORIGIN` to a comma-separated allowlist, for example:
 
 ```bash
@@ -430,7 +432,7 @@ Copy the example environment file before a real deployment:
 cp .env.example .env
 ```
 
-Then edit `.env` and set strong values for `POSTGRES_PASSWORD` and `JWT_SECRET`.
+Then edit `.env` and set strong values for `POSTGRES_PASSWORD` and `JWT_SECRET`. To enable password reset emails, also set the `SMTP_*` values and `PASSWORD_RESET_PUBLIC_URL` to the public web URL.
 
 Services listen on:
 
