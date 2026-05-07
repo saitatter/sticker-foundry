@@ -335,6 +335,15 @@ buildConfigField("String", "API_BASE_URL", "\"http://192.168.1.50:3000/api/\"")
 
 The Android app also has a Settings dialog where testers can see the current account, change and validate the API URL, log out, inspect cache size, and clear the local cache without rebuilding the APK. Each pack can also be resynced manually or removed from the local cache from its card. Network, HTTP, and invalid URL failures are surfaced as friendly status messages.
 
+### 📲 Real Device Notes
+
+- Use a LAN or HTTPS URL reachable from the phone, not `localhost`. Example: `http://192.168.1.50:3000/api/`.
+- Keep the trailing `/api/` path in Settings; the app validates the URL before saving it.
+- Make sure the backend, PostgreSQL, and `/data` volume are running before tapping `Sync`.
+- Install the debug APK, log in, sync a pack with at least 3 exportable stickers, then test both WhatsApp and WhatsApp Business import buttons if both apps are installed.
+- If WhatsApp says the pack cannot be added, check `adb logcat` for provider validation errors and verify `contentProviderAuthority` in `apps/android/app/build.gradle.kts`.
+- Real-device validation should record phone model, Android version, WhatsApp version, WhatsApp Business version if used, backend commit, and whether static or animated packs were tested.
+
 Local Android validation on Windows needs JDK 17 and a valid Android SDK:
 
 ```powershell

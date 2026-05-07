@@ -12,7 +12,6 @@ This is the live feature backlog. It should only contain work that still needs t
 
 ## Android
 
-- Real-device compatibility notes inside README.
 - Optional import troubleshooting screen for provider/WhatsApp errors.
 
 ## Backend
