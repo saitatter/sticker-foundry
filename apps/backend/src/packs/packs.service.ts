@@ -1,6 +1,6 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { PackRole, StickerReviewStatus } from '@prisma/client';
+import { PackRole, Prisma, StickerReviewStatus } from '@prisma/client';
 import { randomBytes } from 'crypto';
 import { v4 as uuidv4 } from 'uuid';
 import { AuditService } from '../audit/audit.service';
@@ -482,8 +482,7 @@ export class PacksService {
 
     const preparedInput = await this.mediaQueue.enqueue(() => this.prepareStickerInput(file.buffer, pack.isAnimated, dto));
     const processed = await this.mediaQueue.enqueue(() => this.imageService.processSticker(preparedInput, this.stickerProcessingOptions(pack.isAnimated, dto)));
-    await this.rejectDuplicateSticker(packId, processed.perceptualHash);
-    await this.enforceStorageQuota(pack.ownerId, processed.sizeBytes);
+    await this.assertCanInsertSticker(packId, pack.ownerId, processed.sizeBytes, processed.perceptualHash);
     const fileName = `${uuidv4()}.webp`;
     await this.storage.writeImage(packId, fileName, processed);
 
@@ -493,23 +492,45 @@ export class PacksService {
     }
 
     const emojis = (dto.emojis?.filter(Boolean) ?? DEFAULT_STICKER_EMOJIS).slice(0, WHATSAPP_LIMITS.maxStickerEmojis);
-    const sticker = await this.prisma.sticker.create({
-      data: {
-        packId,
-        fileName,
-        emojis,
-        accessibilityText: dto.accessibilityText,
-        sizeBytes: processed.sizeBytes,
-        sha256: processed.sha256,
-        perceptualHash: processed.perceptualHash,
-        position: pack._count.stickers,
-      },
-    });
-
-    await this.prisma.pack.update({
-      where: { id: packId },
-      data: { imageDataVersion: this.newImageDataVersion(pack.imageDataVersion) },
-    });
+    let sticker: Awaited<ReturnType<typeof this.prisma.sticker.create>>;
+    try {
+      sticker = await this.prisma.$transaction(
+        async (tx) => {
+          const freshPack = await this.assertCanInsertSticker(
+            packId,
+            pack.ownerId,
+            processed.sizeBytes,
+            processed.perceptualHash,
+            undefined,
+            tx,
+          );
+          const created = await tx.sticker.create({
+            data: {
+              packId,
+              fileName,
+              emojis,
+              accessibilityText: dto.accessibilityText,
+              sizeBytes: processed.sizeBytes,
+              sha256: processed.sha256,
+              perceptualHash: processed.perceptualHash,
+              position: freshPack._count.stickers,
+            },
+          });
+          await tx.pack.update({
+            where: { id: packId },
+            data: { imageDataVersion: this.newImageDataVersion(freshPack.imageDataVersion) },
+          });
+          return created;
+        },
+        { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+      );
+    } catch (error) {
+      await this.deleteFilesWithRetry(packId, [fileName], {
+        actorId: ownerId,
+        action: 'sticker.upload.rollbackCleanup.failed',
+      });
+      throw error;
+    }
     await this.audit.record({
       actorId: ownerId,
       action: 'sticker.upload',
@@ -1072,11 +1093,40 @@ export class PacksService {
   }
 
   private async enforceStorageQuota(ownerId: string, incomingBytes: number) {
+    await this.enforceStorageQuotaForClient(ownerId, incomingBytes, this.prisma);
+  }
+
+  private async assertCanInsertSticker(
+    packId: string,
+    ownerId: string,
+    incomingBytes: number,
+    perceptualHash?: string,
+    ignoreStickerId?: string,
+    tx: Prisma.TransactionClient | PrismaService = this.prisma,
+  ) {
+    const pack = await tx.pack.findUnique({
+      where: { id: packId },
+      include: { _count: { select: { stickers: true } } },
+    });
+    if (!pack) {
+      throw new NotFoundException('Pack not found');
+    }
+    this.assertTargetCapacity(pack, 1);
+    await this.rejectDuplicateSticker(packId, perceptualHash, ignoreStickerId, tx);
+    await this.enforceStorageQuotaForClient(ownerId, incomingBytes, tx);
+    return pack;
+  }
+
+  private async enforceStorageQuotaForClient(
+    ownerId: string,
+    incomingBytes: number,
+    tx: Prisma.TransactionClient | PrismaService,
+  ) {
     if (incomingBytes <= 0) return;
     const quota = await this.storageQuotaBytes();
     if (!quota) return;
 
-    const usage = await this.prisma.sticker.aggregate({
+    const usage = await tx.sticker.aggregate({
       where: { pack: { ownerId } },
       _sum: { sizeBytes: true },
     });
@@ -1086,9 +1136,14 @@ export class PacksService {
     }
   }
 
-  private async rejectDuplicateSticker(packId: string, perceptualHash?: string, ignoreStickerId?: string) {
+  private async rejectDuplicateSticker(
+    packId: string,
+    perceptualHash?: string,
+    ignoreStickerId?: string,
+    tx: Prisma.TransactionClient | PrismaService = this.prisma,
+  ) {
     if (!perceptualHash) return;
-    const duplicate = await this.prisma.sticker.findFirst({
+    const duplicate = await tx.sticker.findFirst({
       where: {
         packId,
         perceptualHash,

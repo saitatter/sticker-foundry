@@ -5,7 +5,7 @@ import { PacksService } from './packs.service';
 jest.mock('uuid', () => ({ v4: () => 'generated-sticker-id' }));
 
 function createService() {
-  const prisma = {
+  const prisma: any = {
     appSetting: {
       findUnique: jest.fn().mockResolvedValue(null),
     },
@@ -50,7 +50,12 @@ function createService() {
     team: {
       findUnique: jest.fn(),
     },
-    $transaction: jest.fn(async (operations: unknown[]) => operations),
+    $transaction: jest.fn(async (operation: unknown): Promise<unknown> => {
+      if (typeof operation === 'function') {
+        return (operation as (tx: unknown) => Promise<unknown>)(prisma);
+      }
+      return operation;
+    }),
   };
 
   const imageService = {
@@ -113,7 +118,7 @@ describe(PacksService, () => {
     });
     imageService.processSticker.mockResolvedValue(processedSticker);
     imageService.processTrayIcon.mockResolvedValue(processedTray);
-    prisma.sticker.create.mockImplementation(async ({ data }) => ({ id: 'sticker-1', ...data }));
+    prisma.sticker.create.mockImplementation(async ({ data }: { data: any }) => ({ id: 'sticker-1', ...data }));
     prisma.pack.update.mockResolvedValue({ id: 'pack-1', imageDataVersion: '5' });
 
     const sticker = await service.uploadSticker(
@@ -234,7 +239,7 @@ describe(PacksService, () => {
       _count: { stickers: 2 },
     });
     imageService.processSticker.mockResolvedValue({ buffer: Buffer.from('sticker'), sizeBytes: 50, sha256: 'sha' });
-    prisma.sticker.create.mockImplementation(async ({ data }) => ({ id: 'sticker-3', ...data }));
+    prisma.sticker.create.mockImplementation(async ({ data }: { data: any }) => ({ id: 'sticker-3', ...data }));
     prisma.pack.update.mockResolvedValue({ id: 'pack-1', imageDataVersion: '10' });
 
     const sticker = await service.uploadSticker(
@@ -343,7 +348,7 @@ describe(PacksService, () => {
       isPublic: false,
       members: [],
     });
-    prisma.packInvite.create.mockImplementation(async ({ data }) => ({ id: 'invite-1', ...data }));
+    prisma.packInvite.create.mockImplementation(async ({ data }: { data: any }) => ({ id: 'invite-1', ...data }));
 
     const invite = await service.createInvite('owner-1', 'pack-1', {
       email: 'Friend@Example.com',
@@ -392,11 +397,23 @@ describe(PacksService, () => {
       .mockResolvedValueOnce({
         id: 'pack-1',
         ownerId: 'owner-1',
+        imageDataVersion: '5',
+        _count: { stickers: 1 },
+      })
+      .mockResolvedValueOnce({
+        id: 'pack-1',
+        ownerId: 'owner-1',
+        imageDataVersion: '5',
+        _count: { stickers: 1 },
+      })
+      .mockResolvedValueOnce({
+        id: 'pack-1',
+        ownerId: 'owner-1',
         imageDataVersion: '6',
         members: [{ userId: 'viewer-1', role: PackRole.VIEWER }],
       });
     imageService.processSticker.mockResolvedValue({ buffer: Buffer.from('sticker'), sizeBytes: 50, sha256: 'sha' });
-    prisma.sticker.create.mockImplementation(async ({ data }) => ({ id: 'sticker-2', ...data }));
+    prisma.sticker.create.mockImplementation(async ({ data }: { data: any }) => ({ id: 'sticker-2', ...data }));
     prisma.pack.update.mockResolvedValue({ id: 'pack-1', imageDataVersion: '6' });
 
     await expect(
@@ -424,7 +441,7 @@ describe(PacksService, () => {
       members: [{ userId: 'editor-1', role: PackRole.EDITOR }],
     });
     prisma.sticker.findFirst.mockResolvedValue({ id: 'sticker-1' });
-    prisma.stickerComment.create.mockImplementation(async ({ data }) => ({
+    prisma.stickerComment.create.mockImplementation(async ({ data }: { data: any }) => ({
       id: 'comment-1',
       ...data,
       createdAt: new Date('2026-05-07T09:00:00.000Z'),
@@ -576,7 +593,7 @@ describe(PacksService, () => {
         position: 0,
       },
     ]);
-    prisma.sticker.create.mockImplementation(async ({ data }) => ({ id: 'copy-1', ...data }));
+    prisma.sticker.create.mockImplementation(async ({ data }: { data: any }) => ({ id: 'copy-1', ...data }));
     prisma.pack.update.mockResolvedValue({ id: 'target-pack', imageDataVersion: '8' });
 
     await expect(
@@ -613,6 +630,12 @@ describe(PacksService, () => {
         ownerId: 'owner-1',
         imageDataVersion: '1',
         members: [],
+      })
+      .mockResolvedValueOnce({
+        id: 'pack-1',
+        ownerId: 'owner-1',
+        imageDataVersion: '1',
+        _count: { stickers: 0 },
       });
     imageService.processSticker.mockResolvedValue({ buffer: Buffer.from('sticker'), sizeBytes: 50, sha256: 'sha' });
 
