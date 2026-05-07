@@ -2946,6 +2946,13 @@ type ImageEditOptions = {
   textY: number;
   autoFitSubject: boolean;
   subjectPadding: number;
+  brightness: number;
+  contrast: number;
+  saturation: number;
+  sharpen: number;
+  warmth: number;
+  tint: number;
+  grayscale: boolean;
 };
 
 type BrushMode = 'erase' | 'restore';
@@ -2990,6 +2997,13 @@ const defaultImageEditOptions: ImageEditOptions = {
   textY: 82,
   autoFitSubject: false,
   subjectPadding: 12,
+  brightness: 0,
+  contrast: 0,
+  saturation: 0,
+  sharpen: 0,
+  warmth: 0,
+  tint: 0,
+  grayscale: false,
 };
 
 function ImageEditControls({
@@ -3219,6 +3233,14 @@ function ImageEditControls({
           />
           Auto-fit
         </label>
+        <label className="checkbox-row image-edit-toggle">
+          <input
+            checked={options.grayscale}
+            onChange={(event) => onChange((current) => ({ ...current, grayscale: event.target.checked }))}
+            type="checkbox"
+          />
+          Grayscale
+        </label>
       </div>
       <div className="layer-strip" aria-label="Canvas layers">
         <span>Transparent bg</span>
@@ -3324,6 +3346,74 @@ function ImageEditControls({
           </label>
         </div>
       ) : null}
+      <div className="image-edit-sliders color-sliders">
+        <label>
+          Brightness
+          <input
+            max="100"
+            min="-100"
+            onChange={(event) => onChange((current) => ({ ...current, brightness: Number(event.target.value) }))}
+            step="1"
+            type="range"
+            value={options.brightness}
+          />
+        </label>
+        <label>
+          Contrast
+          <input
+            max="100"
+            min="-100"
+            onChange={(event) => onChange((current) => ({ ...current, contrast: Number(event.target.value) }))}
+            step="1"
+            type="range"
+            value={options.contrast}
+          />
+        </label>
+        <label>
+          Saturation
+          <input
+            max="100"
+            min="-100"
+            onChange={(event) => onChange((current) => ({ ...current, saturation: Number(event.target.value) }))}
+            step="1"
+            type="range"
+            value={options.saturation}
+          />
+        </label>
+        <label>
+          Sharpen
+          <input
+            max="100"
+            min="0"
+            onChange={(event) => onChange((current) => ({ ...current, sharpen: Number(event.target.value) }))}
+            step="1"
+            type="range"
+            value={options.sharpen}
+          />
+        </label>
+        <label>
+          Warmth
+          <input
+            max="100"
+            min="-100"
+            onChange={(event) => onChange((current) => ({ ...current, warmth: Number(event.target.value) }))}
+            step="1"
+            type="range"
+            value={options.warmth}
+          />
+        </label>
+        <label>
+          Tint
+          <input
+            max="100"
+            min="-100"
+            onChange={(event) => onChange((current) => ({ ...current, tint: Number(event.target.value) }))}
+            step="1"
+            type="range"
+            value={options.tint}
+          />
+        </label>
+      </div>
       {options.autoFitSubject ? (
         <div className="image-edit-sliders subject-sliders">
           <label>
@@ -3559,6 +3649,7 @@ async function editImageFile(file: File, options: ImageEditOptions) {
     !options.outline &&
     !options.shadow &&
     !options.autoFitSubject &&
+    !hasColorAdjustments(options) &&
     options.brushStrokes.length === 0 &&
     (!options.textEnabled || options.textContent.trim().length === 0)
   ) {
@@ -3599,6 +3690,10 @@ async function editImageFile(file: File, options: ImageEditOptions) {
   context.rotate((options.rotation * Math.PI) / 180);
   context.drawImage(image, sourceX, sourceY, sourceWidth, sourceHeight, -sourceWidth / 2, -sourceHeight / 2, sourceWidth, sourceHeight);
   context.setTransform(1, 0, 0, 1, 0, 0);
+
+  if (hasColorAdjustments(options)) {
+    applyColorAdjustments(context, canvas.width, canvas.height, options);
+  }
 
   const restoreSource = document.createElement('canvas');
   restoreSource.width = canvas.width;
@@ -3699,6 +3794,81 @@ function removeSmallAlphaIslands(imageData: ImageData, width: number, height: nu
     if (component.length <= areaLimit) {
       for (const pixel of component) {
         data[pixel * 4 + 3] = 0;
+      }
+    }
+  }
+}
+
+function hasColorAdjustments(options: ImageEditOptions) {
+  return (
+    options.brightness !== 0 ||
+    options.contrast !== 0 ||
+    options.saturation !== 0 ||
+    options.sharpen !== 0 ||
+    options.warmth !== 0 ||
+    options.tint !== 0 ||
+    options.grayscale
+  );
+}
+
+function applyColorAdjustments(context: CanvasRenderingContext2D, width: number, height: number, options: ImageEditOptions) {
+  const imageData = context.getImageData(0, 0, width, height);
+  const data = imageData.data;
+  const brightness = clamp(options.brightness, -100, 100) * 2.55;
+  const contrast = clamp(options.contrast, -100, 100);
+  const contrastFactor = (259 * (contrast + 255)) / (255 * (259 - contrast));
+  const saturationFactor = 1 + clamp(options.saturation, -100, 100) / 100;
+  const warmth = clamp(options.warmth, -100, 100) * 0.9;
+  const tint = clamp(options.tint, -100, 100) * 0.7;
+
+  for (let index = 0; index < data.length; index += 4) {
+    if (data[index + 3] === 0) continue;
+    let red = data[index] + brightness + warmth + tint * 0.45;
+    let green = data[index + 1] + brightness - tint * 0.6;
+    let blue = data[index + 2] + brightness - warmth + tint * 0.45;
+
+    red = contrastFactor * (red - 128) + 128;
+    green = contrastFactor * (green - 128) + 128;
+    blue = contrastFactor * (blue - 128) + 128;
+
+    const luminance = red * 0.299 + green * 0.587 + blue * 0.114;
+    if (options.grayscale) {
+      red = luminance;
+      green = luminance;
+      blue = luminance;
+    } else {
+      red = luminance + (red - luminance) * saturationFactor;
+      green = luminance + (green - luminance) * saturationFactor;
+      blue = luminance + (blue - luminance) * saturationFactor;
+    }
+
+    data[index] = clamp(Math.round(red), 0, 255);
+    data[index + 1] = clamp(Math.round(green), 0, 255);
+    data[index + 2] = clamp(Math.round(blue), 0, 255);
+  }
+
+  if (options.sharpen > 0) {
+    sharpenImageData(imageData, width, height, clamp(options.sharpen, 0, 100) / 100);
+  }
+
+  context.putImageData(imageData, 0, 0);
+}
+
+function sharpenImageData(imageData: ImageData, width: number, height: number, amount: number) {
+  const source = new Uint8ClampedArray(imageData.data);
+  const data = imageData.data;
+
+  for (let y = 1; y < height - 1; y += 1) {
+    for (let x = 1; x < width - 1; x += 1) {
+      const index = (y * width + x) * 4;
+      if (source[index + 3] === 0) continue;
+      for (let channel = 0; channel < 3; channel += 1) {
+        const center = source[index + channel] * (1 + 4 * amount);
+        const left = source[index - 4 + channel] * amount;
+        const right = source[index + 4 + channel] * amount;
+        const top = source[index - width * 4 + channel] * amount;
+        const bottom = source[index + width * 4 + channel] * amount;
+        data[index + channel] = clamp(Math.round(center - left - right - top - bottom), 0, 255);
       }
     }
   }

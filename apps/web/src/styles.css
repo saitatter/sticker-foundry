@@ -837,6 +837,10 @@ select:focus {
   grid-template-columns: minmax(180px, 1fr);
 }
 
+.color-sliders {
+  grid-template-columns: repeat(6, minmax(110px, 1fr));
+}
+
 .text-sliders input[type='color'] {
   min-height: 40px;
   padding: 4px;
@@ -1435,6 +1439,10 @@ select:focus {
 
   .text-sliders {
     grid-template-columns: repeat(4, minmax(120px, 1fr));
+  }
+
+  .color-sliders {
+    grid-template-columns: repeat(3, minmax(120px, 1fr));
   }
 
   .tray-form .secondary-button {
