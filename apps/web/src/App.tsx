@@ -2615,6 +2615,7 @@ function StickerTile({
 type ImageEditOptions = {
   rotation: 0 | 90 | 180 | 270;
   cropSquare: boolean;
+  removeLightBackground: boolean;
   zoom: number;
   offsetX: number;
   offsetY: number;
@@ -2623,6 +2624,7 @@ type ImageEditOptions = {
 const defaultImageEditOptions: ImageEditOptions = {
   rotation: 0,
   cropSquare: false,
+  removeLightBackground: false,
   zoom: 1,
   offsetX: 0,
   offsetY: 0,
@@ -2692,6 +2694,14 @@ function ImageEditControls({
             type="checkbox"
           />
           Square crop
+        </label>
+        <label className="checkbox-row image-edit-toggle">
+          <input
+            checked={options.removeLightBackground}
+            onChange={(event) => onChange({ ...options, removeLightBackground: event.target.checked })}
+            type="checkbox"
+          />
+          Remove light background
         </label>
       </div>
       {options.cropSquare ? (
@@ -2853,7 +2863,7 @@ function inviteStatusLabel(invite: PackInvite) {
 }
 
 async function editImageFile(file: File, options: ImageEditOptions) {
-  if (options.rotation === 0 && !options.cropSquare) return file;
+  if (options.rotation === 0 && !options.cropSquare && !options.removeLightBackground) return file;
 
   const image = await loadImage(file);
   const sourceSize = options.cropSquare ? Math.min(image.naturalWidth, image.naturalHeight) / Math.max(options.zoom, 1) : undefined;
@@ -2886,10 +2896,30 @@ async function editImageFile(file: File, options: ImageEditOptions) {
   context.rotate((options.rotation * Math.PI) / 180);
   context.drawImage(image, sourceX, sourceY, sourceWidth, sourceHeight, -sourceWidth / 2, -sourceHeight / 2, sourceWidth, sourceHeight);
 
+  if (options.removeLightBackground) {
+    removeLightBackground(context, canvas.width, canvas.height);
+  }
+
   const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'));
   if (!blob) return file;
 
   return new File([blob], editedFileName(file), { type: 'image/png' });
+}
+
+function removeLightBackground(context: CanvasRenderingContext2D, width: number, height: number) {
+  const imageData = context.getImageData(0, 0, width, height);
+  const data = imageData.data;
+  for (let index = 0; index < data.length; index += 4) {
+    const red = data[index];
+    const green = data[index + 1];
+    const blue = data[index + 2];
+    const brightness = (red + green + blue) / 3;
+    const colorSpread = Math.max(red, green, blue) - Math.min(red, green, blue);
+    if (brightness > 238 && colorSpread < 22) {
+      data[index + 3] = 0;
+    }
+  }
+  context.putImageData(imageData, 0, 0);
 }
 
 function clamp(value: number, min: number, max: number) {
