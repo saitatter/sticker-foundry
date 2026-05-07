@@ -40,6 +40,7 @@ StickerFoundry is a self-hosted collaborative WhatsApp sticker pack manager, sha
 - Web image editor with rotate, square crop, pan, and zoom controls before upload or sticker replacement.
 - Web editor light-background removal before upload or sticker replacement.
 - Web editor outline and drop-shadow toggles for sticker prep.
+- Transparent checkerboard previews in sticker and image-edit surfaces.
 - Android `ContentProvider` for WhatsApp metadata and sticker file access.
 - Docker Compose stack for backend + PostgreSQL.
 - Semantic-release workflow with Conventional Commits, changelog generation, GitHub Releases, and Android debug APK release asset.

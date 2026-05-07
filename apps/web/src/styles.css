@@ -751,7 +751,17 @@ select:focus {
   overflow: hidden;
   border: 1px solid var(--border);
   border-radius: 8px;
-  background: var(--surface-muted);
+  background:
+    linear-gradient(45deg, #e7eeec 25%, transparent 25%),
+    linear-gradient(-45deg, #e7eeec 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #e7eeec 75%),
+    linear-gradient(-45deg, transparent 75%, #e7eeec 75%);
+  background-size: 18px 18px;
+  background-position:
+    0 0,
+    0 9px,
+    9px -9px,
+    -9px 0;
 }
 
 .image-edit-controls.compact .image-edit-preview {
