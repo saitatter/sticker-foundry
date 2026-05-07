@@ -32,6 +32,8 @@ class StickerRepository private constructor(context: Context) {
 
     fun observePacks(): Flow<List<PackEntity>> = db.stickerDao().observePacks()
 
+    fun observeStickers(): Flow<List<StickerEntity>> = db.stickerDao().observeStickers()
+
     fun serverUrl(): String = session.serverUrl()
 
     fun cacheSizeBytes(): Long = packsDirectory().sizeBytes()

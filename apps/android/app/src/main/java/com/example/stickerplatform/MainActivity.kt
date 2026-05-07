@@ -16,7 +16,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -46,7 +48,9 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.stickerplatform.data.ImageEditOptions
 import com.example.stickerplatform.data.PackEntity
+import com.example.stickerplatform.data.StickerEntity
 import com.example.stickerplatform.whatsapp.WhatsAppStickerLauncher
+import java.io.File
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -64,6 +68,7 @@ class MainActivity : ComponentActivity() {
 @Composable
 private fun StickerApp(viewModel: StickerViewModel = viewModel(factory = StickerViewModel.factory(LocalContext.current))) {
     val packs by viewModel.packs.collectAsState()
+    val stickersByPack by viewModel.stickersByPack.collectAsState()
     val status by viewModel.status.collectAsState()
     val serverUrl by viewModel.serverUrl.collectAsState()
     val cacheUsage by viewModel.cacheUsage.collectAsState()
@@ -110,6 +115,7 @@ private fun StickerApp(viewModel: StickerViewModel = viewModel(factory = Sticker
                 items(packs, key = { it.id }) { pack ->
                     PackRow(
                         pack = pack,
+                        stickers = stickersByPack[pack.id].orEmpty(),
                         onAdd = { WhatsAppStickerLauncher.addPack(context, pack) },
                         onAddBusiness = { WhatsAppStickerLauncher.addPackToBusiness(context, pack) },
                         onUploadSticker = {
@@ -242,6 +248,7 @@ private fun SettingsDialog(
 @Composable
 private fun PackRow(
     pack: PackEntity,
+    stickers: List<StickerEntity>,
     onAdd: () -> Unit,
     onAddBusiness: () -> Unit,
     onUploadSticker: () -> Unit,
@@ -279,6 +286,7 @@ private fun PackRow(
             if (pack.stickerCount < 3) {
                 Text("Needs at least 3 stickers before WhatsApp import", style = MaterialTheme.typography.bodySmall)
             }
+            StickerPreviewRow(pack = pack, stickers = stickers)
             if (pack.canEdit) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Button(onClick = onUploadSticker) {
@@ -288,6 +296,33 @@ private fun PackRow(
                         Text("Replace tray")
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun StickerPreviewRow(pack: PackEntity, stickers: List<StickerEntity>) {
+    if (stickers.isEmpty()) return
+
+    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        items(stickers.take(12), key = { it.fileName }) { sticker ->
+            val path = remember(pack.localPath, sticker.fileName) {
+                File(pack.localPath, sticker.fileName).absolutePath
+            }
+            val preview = remember(path) { loadImageBitmap(path) }
+            if (preview != null) {
+                Image(
+                    bitmap = preview,
+                    contentDescription = sticker.accessibilityText,
+                    modifier = Modifier.size(64.dp),
+                    contentScale = ContentScale.Fit,
+                )
+            }
+        }
+        if (stickers.size > 12) {
+            item {
+                Text("+${stickers.size - 12}", style = MaterialTheme.typography.bodySmall)
             }
         }
     }
@@ -381,3 +416,6 @@ private fun loadImageBitmap(context: Context, uri: Uri): ImageBitmap? =
     context.contentResolver.openInputStream(uri)?.use { input ->
         BitmapFactory.decodeStream(input)?.asImageBitmap()
     }
+
+private fun loadImageBitmap(path: String): ImageBitmap? =
+    BitmapFactory.decodeFile(path)?.asImageBitmap()

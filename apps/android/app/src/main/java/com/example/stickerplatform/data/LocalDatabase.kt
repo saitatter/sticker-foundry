@@ -71,6 +71,9 @@ interface StickerDao {
     @Query("SELECT * FROM stickers WHERE packId = :packId ORDER BY fileName")
     fun getStickersBlocking(packId: String): List<StickerEntity>
 
+    @Query("SELECT * FROM stickers ORDER BY packId, fileName")
+    fun observeStickers(): Flow<List<StickerEntity>>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertPack(pack: PackEntity)
 

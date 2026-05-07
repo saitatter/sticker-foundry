@@ -8,9 +8,11 @@ import androidx.lifecycle.viewModelScope
 import com.example.stickerplatform.data.ImageEditOptions
 import com.example.stickerplatform.data.PackEntity
 import com.example.stickerplatform.data.StickerRepository
+import com.example.stickerplatform.data.StickerEntity
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.util.Locale
@@ -20,6 +22,10 @@ class StickerViewModel(
 ) : ViewModel() {
     val packs: StateFlow<List<PackEntity>> = repository.observePacks()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    val stickersByPack: StateFlow<Map<String, List<StickerEntity>>> = repository.observeStickers()
+        .map { stickers -> stickers.groupBy { it.packId } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
 
     val status = MutableStateFlow("")
     val serverUrl = MutableStateFlow(repository.serverUrl())

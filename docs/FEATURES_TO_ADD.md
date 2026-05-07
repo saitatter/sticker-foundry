@@ -22,6 +22,7 @@ This is the live feature backlog. Items already shipped are kept briefly at the 
 - Stronger upload content validation.
 - Pack collaboration roles, invite creation/acceptance/revocation, member listing/removal, role editing, and role-aware web controls.
 - Android shared-pack role display and role-aware editor controls.
+- Android local sticker preview before importing into WhatsApp.
 - Web sticker multi-select with bulk delete and bulk emoji apply.
 - Compose `.env.example` and reverse proxy examples.
 - Dependabot and GitHub issue templates.
@@ -75,7 +76,6 @@ This is the live feature backlog. Items already shipped are kept briefly at the 
 
 ## Android
 
-- Local sticker grid preview before importing into WhatsApp.
 - Better friendly error states for network failures and invalid server URLs.
 - Manual per-pack resync control.
 - Per-pack local cache cleanup.

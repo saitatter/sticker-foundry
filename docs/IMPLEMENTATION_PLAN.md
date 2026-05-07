@@ -14,7 +14,7 @@ Already implemented:
 - Sync API with `contentHash`, `syncHash`, ownership flags, export readiness, and relative export/tray paths.
 - Pack collaboration with owner/viewer/editor roles, invite creation/acceptance/revocation, member listing, member removal, member role editing, role-aware mutation checks, and sync capability flags.
 - Web UI with auth, demo login, pack dashboard search/filter/sort/status badges, pack detail, create/edit/delete/clone, collaboration invites/member management, sticker upload, bulk delete/bulk emoji apply, drag-and-drop uploads, image rotate/square crop, sticker replacement, tray replacement, ordering, ZIP download, contents preview, and account password change.
-- Android app with MVVM, Retrofit, Room cache, local ZIP extraction, WhatsApp `ContentProvider`, import intents for WhatsApp and WhatsApp Business, role-aware image upload/tray replacement, image rotate/square crop, server URL settings, logout, cache size/clear cache, import readiness, content-hash sync, and stale cache pruning.
+- Android app with MVVM, Retrofit, Room cache, local ZIP extraction, local sticker preview, WhatsApp `ContentProvider`, import intents for WhatsApp and WhatsApp Business, role-aware image upload/tray replacement, image rotate/square crop, server URL settings, logout, cache size/clear cache, import readiness, content-hash sync, and stale cache pruning.
 - Docker Compose with backend, web, PostgreSQL, `.env.example`, backend healthcheck, backup/restore docs, Unraid notes, and reverse proxy examples.
 - Semantic-release with emoji release sections, release APK artifact, Dependabot, PR title validation, and issue templates.
 
@@ -153,10 +153,9 @@ Acceptance criteria:
 
 1. Real-device WhatsApp import validation.
 2. Web copy/move sticker actions.
-3. Android local sticker grid preview.
-4. Refresh-token/session revocation.
-5. Playwright web smoke tests.
-6. Android lint/test CI.
+3. Refresh-token/session revocation.
+4. Playwright web smoke tests.
+5. Android lint/test CI.
 
 ## Design Notes
 
