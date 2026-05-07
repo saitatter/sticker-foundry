@@ -499,6 +499,7 @@ Unraid deployment:
 6. Start the stack. The backend runs `prisma migrate deploy` before booting.
 
 Reverse proxy examples for Caddy, Nginx Proxy Manager, and Traefik live in [docs/REVERSE_PROXY.md](docs/REVERSE_PROXY.md).
+Use [docs/PRODUCTION_CHECKLIST.md](docs/PRODUCTION_CHECKLIST.md) before exposing StickerFoundry outside your LAN.
 
 ## 🔄 Releases
 

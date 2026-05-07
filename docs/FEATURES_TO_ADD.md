@@ -13,7 +13,6 @@ This is the live feature backlog. It should only contain work that still needs t
 ## Deployment And Ops
 
 - Validate `docker compose up -d --build` on a host with Docker installed.
-- HTTPS-first production checklist.
 - Unraid template notes for web + backend + PostgreSQL volumes.
 
 ## Release And Quality
