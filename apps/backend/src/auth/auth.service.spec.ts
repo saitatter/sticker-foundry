@@ -3,7 +3,10 @@ import { JwtService } from '@nestjs/jwt';
 import { AuthService } from './auth.service';
 
 function createService(mode = 'open', inviteCode = 'let-me-in') {
-  const prisma = {
+  const prisma: {
+    [key: string]: any;
+    $transaction: jest.Mock;
+  } = {
     appSetting: {
       findUnique: jest.fn().mockResolvedValue(null),
     },
@@ -17,12 +20,7 @@ function createService(mode = 'open', inviteCode = 'let-me-in') {
         isAdmin: true,
         passwordHash: '$2b$04$HPxcewj7nFQhvtDcYzW0leCizplvFkhBA4I9vUT91ciNpAqgjwFg2',
       }),
-      create: jest.fn().mockResolvedValue({
-        id: 'user-1',
-        email: 'demo@example.com',
-        displayName: 'Demo',
-        isAdmin: true,
-      }),
+      create: jest.fn(async ({ data }) => ({ id: 'user-1', ...data })),
       update: jest.fn().mockResolvedValue({ id: 'user-1' }),
     },
     userSession: {
@@ -37,7 +35,12 @@ function createService(mode = 'open', inviteCode = 'let-me-in') {
       findUnique: jest.fn(),
       update: jest.fn().mockResolvedValue({ id: 'reset-1' }),
     },
-    $transaction: jest.fn(async (operations: unknown[]) => Promise.all(operations)),
+    $transaction: jest.fn(async (operation: unknown): Promise<unknown> => {
+      if (typeof operation === 'function') {
+        return (operation as (tx: unknown) => Promise<unknown>)(prisma);
+      }
+      return Promise.all(operation as Promise<unknown>[]);
+    }),
   };
   const jwt = { sign: jest.fn().mockReturnValue('jwt-token') };
   const audit = { record: jest.fn().mockResolvedValue({ id: 'audit-1' }) };
@@ -94,6 +97,36 @@ describe(AuthService, () => {
       entityType: 'user',
       entityId: 'user-1',
     });
+  });
+
+  it('retries first-user admin assignment after a serializable registration conflict', async () => {
+    const { service, prisma } = createService();
+    prisma.user.count.mockResolvedValueOnce(0).mockResolvedValueOnce(1);
+    prisma.$transaction
+      .mockImplementationOnce(async (operation: (tx: unknown) => Promise<unknown>) => {
+        await operation(prisma);
+        throw { code: 'P2034' };
+      })
+      .mockImplementationOnce(async (operation: (tx: unknown) => Promise<unknown>) => operation(prisma));
+
+    await expect(
+      service.register({
+        email: 'second@example.com',
+        displayName: 'Second',
+        password: 'password123',
+      }),
+    ).resolves.toMatchObject({
+      user: {
+        email: 'second@example.com',
+        isAdmin: false,
+      },
+    });
+
+    expect(prisma.user.create).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ email: 'second@example.com', isAdmin: false }),
+      }),
+    );
   });
 
   it('blocks registration when disabled', async () => {

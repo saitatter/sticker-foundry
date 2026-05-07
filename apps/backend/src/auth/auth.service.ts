@@ -9,6 +9,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService, JwtSignOptions } from '@nestjs/jwt';
+import { Prisma } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 import { createHash, randomBytes } from 'crypto';
 import { AuditService } from '../audit/audit.service';
@@ -33,25 +34,49 @@ export class AuthService {
 
   async register(dto: RegisterDto) {
     await this.assertRegistrationAllowed(dto.inviteCode);
-    const existing = await this.prisma.user.findUnique({ where: { email: dto.email.toLowerCase() } });
-    if (existing) {
-      throw new ConflictException('Email is already registered');
-    }
-
+    const email = dto.email.toLowerCase();
     const passwordHash = await bcrypt.hash(dto.password, 12);
-    const isFirstUser = (await this.prisma.user.count()) === 0;
-    const user = await this.prisma.user.create({
-      data: {
-        email: dto.email.toLowerCase(),
-        displayName: dto.displayName,
-        passwordHash,
-        isAdmin: isFirstUser,
-      },
-    });
+    const user = await this.createRegisteredUser(email, dto.displayName, passwordHash);
 
     const response = await this.authResponse(user);
     await this.audit.record({ actorId: user.id, action: 'auth.register', entityType: 'user', entityId: user.id });
     return response;
+  }
+
+  private async createRegisteredUser(email: string, displayName: string, passwordHash: string) {
+    for (let attempt = 1; attempt <= 3; attempt += 1) {
+      try {
+        return await this.prisma.$transaction(
+          async (tx) => {
+            const existing = await tx.user.findUnique({ where: { email } });
+            if (existing) {
+              throw new ConflictException('Email is already registered');
+            }
+
+            const isFirstUser = (await tx.user.count()) === 0;
+            return tx.user.create({
+              data: {
+                email,
+                displayName,
+                passwordHash,
+                isAdmin: isFirstUser,
+              },
+            });
+          },
+          { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+        );
+      } catch (error) {
+        if (this.isUniqueConstraintError(error)) {
+          throw new ConflictException('Email is already registered');
+        }
+        if (attempt < 3 && this.isSerializableTransactionConflict(error)) {
+          continue;
+        }
+        throw error;
+      }
+    }
+
+    throw new ServiceUnavailableException('Registration could not be completed. Please retry.');
   }
 
   async login(dto: LoginDto) {
@@ -281,6 +306,20 @@ export class AuthService {
       .get<string>('PASSWORD_RESET_PUBLIC_URL', this.config.get<string>('PUBLIC_BASE_URL', 'http://localhost:5173'))
       .replace(/\/$/, '');
     return `${publicUrl}/reset-password?token=${encodeURIComponent(token)}`;
+  }
+
+  private isSerializableTransactionConflict(error: unknown) {
+    return this.prismaErrorCode(error) === 'P2034';
+  }
+
+  private isUniqueConstraintError(error: unknown) {
+    return this.prismaErrorCode(error) === 'P2002';
+  }
+
+  private prismaErrorCode(error: unknown) {
+    return typeof error === 'object' && error !== null && 'code' in error
+      ? String((error as { code?: unknown }).code)
+      : null;
   }
 
   private async assertRegistrationAllowed(inviteCode: string | undefined) {
