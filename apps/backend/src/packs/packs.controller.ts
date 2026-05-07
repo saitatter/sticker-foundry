@@ -228,13 +228,21 @@ export class PacksController {
   async exportPack(@CurrentUser() user: RequestUser, @Param('id') id: string, @Res() response: Response) {
     await this.packsService.assertCanExport(user.sub, id);
 
+    const cached = await this.exportService.buildCachedZip(id);
+    response.setHeader('Content-Type', 'application/zip');
+    response.setHeader('Content-Disposition', `attachment; filename="sticker-pack-${id}.zip"`);
+    response.setHeader('ETag', this.exportService.etagForHash(cached.contentHash));
+    return response.sendFile(cached.path);
+  }
+
+  @Get(':id/export/live')
+  async exportPackLive(@CurrentUser() user: RequestUser, @Param('id') id: string, @Res() response: Response) {
+    await this.packsService.assertCanExport(user.sub, id);
+
     const archive = this.exportService.createArchive();
     response.setHeader('Content-Type', 'application/zip');
     response.setHeader('Content-Disposition', `attachment; filename="sticker-pack-${id}.zip"`);
-
-    archive.on('error', (error) => {
-      response.destroy(error);
-    });
+    archive.on('error', (error) => response.destroy(error));
     archive.pipe(response);
     await this.exportService.buildZip(id, archive);
     await archive.finalize();

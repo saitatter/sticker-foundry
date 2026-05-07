@@ -10,12 +10,6 @@ This is the live feature backlog. It should only contain work that still needs t
 - Document tested Android/WhatsApp versions.
 - Add fixes for any provider compatibility issues discovered during real-device testing.
 
-## Android
-
-## Backend
-
-- Server-side pack export cache invalidated by `imageDataVersion`.
-
 ## Web App
 
 - Public pack browser for visible packs.

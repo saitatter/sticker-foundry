@@ -155,6 +155,8 @@ Media processing runs through a backend queue to keep Sharp transforms bounded u
 
 File storage defaults to local disk under `/data/packs/{pack_id}`. Set `STORAGE_DRIVER=s3` plus `S3_BUCKET`, `S3_REGION`, optional `S3_ENDPOINT`, `S3_PREFIX`, `S3_FORCE_PATH_STYLE`, `S3_ACCESS_KEY_ID`, and `S3_SECRET_ACCESS_KEY` to use an S3-compatible backend such as MinIO or R2.
 
+ZIP exports are cached under `EXPORT_CACHE_DIR` or `${DATA_DIR}/export-cache` and keyed by pack id, `imageDataVersion`, approval mode, and static/animated mode. Updating stickers, tray icons, or review status increments `imageDataVersion` and naturally creates a fresh cached export.
+
 CORS is open by default for local development. For production, set `CORS_ORIGIN` to a comma-separated allowlist, for example:
 
 ```bash

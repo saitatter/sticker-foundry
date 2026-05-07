@@ -32,7 +32,7 @@ describe(PackExportService, () => {
       get: jest.fn((_key: string, fallback: string) => dataDir ?? fallback),
     };
     const storage = new PackStorageService(config as never);
-    const service = new PackExportService(prisma as never, storage);
+    const service = new PackExportService(prisma as never, config as never, storage);
     return { service, prisma };
   }
 

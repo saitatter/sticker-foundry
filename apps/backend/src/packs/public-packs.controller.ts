@@ -22,14 +22,10 @@ export class PublicPacksController {
       throw new NotFoundException('Public pack is not exportable yet');
     }
 
-    const archive = this.exportService.createArchive();
+    const cached = await this.exportService.buildCachedZip(id);
     response.setHeader('Content-Type', 'application/zip');
     response.setHeader('Content-Disposition', `attachment; filename="sticker-pack-${id}.zip"`);
-    archive.on('error', (error) => {
-      response.destroy(error);
-    });
-    archive.pipe(response);
-    await this.exportService.buildZip(id, archive);
-    await archive.finalize();
+    response.setHeader('ETag', this.exportService.etagForHash(cached.contentHash));
+    return response.sendFile(cached.path);
   }
 }

@@ -1,6 +1,10 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import archiver = require('archiver');
 import { createHash } from 'crypto';
+import { createWriteStream } from 'fs';
+import { mkdir, rename, stat } from 'fs/promises';
+import { join } from 'path';
 import { StickerReviewStatus } from '@prisma/client';
 import { PrismaService } from '../prisma.service';
 import { PackStorageService } from './pack-storage.service';
@@ -26,12 +30,40 @@ type ExportPack = {
 export class PackExportService {
   constructor(
     private readonly prisma: PrismaService,
+    private readonly config: ConfigService,
     private readonly storage: PackStorageService,
   ) {}
 
   async buildZip(packId: string, archive: Archive) {
     const pack = await this.loadValidExportPack(packId);
+    await this.appendPackToArchive(pack, archive);
+  }
 
+  async buildCachedZip(packId: string) {
+    const pack = await this.loadValidExportPack(packId);
+    const cachePath = this.cachePath(pack);
+    if (await this.exists(cachePath)) {
+      return { path: cachePath, contentHash: await this.contentHash(pack) };
+    }
+
+    await mkdir(this.cacheDirectory(), { recursive: true });
+    const tempPath = `${cachePath}.${process.pid}.${Date.now()}.tmp`;
+    const archive = this.createArchive();
+    const output = createWriteStream(tempPath);
+    const done = new Promise<void>((resolve, reject) => {
+      output.on('close', resolve);
+      output.on('error', reject);
+      archive.on('error', reject);
+    });
+    archive.pipe(output);
+    await this.appendPackToArchive(pack, archive);
+    await archive.finalize();
+    await done;
+    await rename(tempPath, cachePath);
+    return { path: cachePath, contentHash: await this.contentHash(pack) };
+  }
+
+  private async appendPackToArchive(pack: ExportPack, archive: Archive) {
     archive.append(JSON.stringify(this.contentsForPack(pack), null, 2), { name: 'contents.json' });
     archive.append(await this.storage.readStream(pack.id, 'tray_icon.webp'), { name: 'tray_icon.webp' });
 
@@ -88,6 +120,10 @@ export class PackExportService {
 
   packDirectory(packId: string) {
     return this.storage.packDirectory(packId);
+  }
+
+  cacheDirectory() {
+    return this.config.get<string>('EXPORT_CACHE_DIR') || join(this.config.get<string>('DATA_DIR', './data'), 'export-cache');
   }
 
   private contentsForPack(pack: ExportPack) {
@@ -166,6 +202,22 @@ export class PackExportService {
     }
 
     return hash.digest('hex');
+  }
+
+  private cachePath(pack: ExportPack) {
+    const slug = [pack.id, pack.imageDataVersion, pack.requiresApproval ? 'approved' : 'all', pack.isAnimated ? 'animated' : 'static']
+      .join('-')
+      .replace(/[^a-zA-Z0-9._-]/g, '_');
+    return join(this.cacheDirectory(), `${slug}.zip`);
+  }
+
+  private async exists(path: string) {
+    try {
+      await stat(path);
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   private cleanEmojis(emojis: string[]) {
