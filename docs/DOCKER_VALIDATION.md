@@ -17,6 +17,21 @@ Expected:
 - `backend` is running.
 - `web` is running.
 
+## Optional AI Background Removal Boot
+
+The AI override builds a backend image with `rembg[cpu]` and sets `BACKGROUND_REMOVAL_COMMAND` automatically:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.ai.yml up -d --build
+docker compose -f docker-compose.yml -f docker-compose.ai.yml exec backend rembg --help
+```
+
+Expected:
+
+- backend starts successfully.
+- Admin settings show AI background removal as configured.
+- `Server bg: AI/fallback` uploads use the AI command or fall back to threshold if the model fails.
+
 ## API Checks
 
 ```bash

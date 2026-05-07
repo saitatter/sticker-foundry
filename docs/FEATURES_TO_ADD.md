@@ -13,7 +13,7 @@ This backlog intentionally contains only work that is not implemented yet or can
 
 ## Sticker Editing / AI
 
-- Choose and package a first-party ONNX background-removal model/runtime for turnkey self-hosted AI mode.
+- Validate the bundled `docker-compose.ai.yml` background-removal image on a Docker host and compare quality/resource usage.
 - Add Android parity for the advanced web editor tools that are currently web-only.
 
 ## Deployment And Ops

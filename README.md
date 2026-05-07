@@ -89,6 +89,12 @@ BACKGROUND_REMOVAL_COMMAND="rembg i {input} {output}"
 
 Any compatible local tool works here, including a Python ONNX/RMBG/U²-Net/MODNet script. If the command is empty or fails, StickerFoundry automatically uses the backend threshold remover instead.
 
+For a bundled CPU AI image using `rembg`, run Compose with the override:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.ai.yml up -d --build
+```
+
 ## 📱 Android
 
 Build debug APK:

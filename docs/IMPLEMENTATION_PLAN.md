@@ -68,8 +68,8 @@ Goal: make AI background removal turnkey instead of command-configurable only.
 
 Tasks:
 
-- Choose the default model/runtime after testing quality, CPU/RAM use, and Docker image size.
-- Add packaging docs or a companion worker image for the selected ONNX/RMBG/U2-Net/MODNet style model.
+- Validate the optional `docker-compose.ai.yml` CPU image on a Docker host.
+- Compare bundled `rembg` quality, CPU/RAM use, and image size against other ONNX/RMBG/U2-Net/MODNet style options.
 - Keep the admin/web status indicator aligned with the packaged runtime.
 - Keep threshold fallback as the default degraded mode.
 
