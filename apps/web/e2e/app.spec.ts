@@ -107,6 +107,25 @@ test('supports brush editing undo redo and before after compare', async ({ page 
   await expect(editor.getByText('After')).toBeVisible();
 });
 
+test('submits optimizer and server background removal options', async ({ page }) => {
+  const state = createMockState();
+  await mockApi(page, state);
+  await login(page);
+
+  await chooseUploadImage(page, 'server-bg.png', 'image/png', png1x1);
+  const editor = page.locator('.image-edit-controls').first();
+  await editor.getByLabel('Optimize under 100KB').check();
+  await editor.getByLabel('Server bg').selectOption('ai');
+  await expect(editor.locator('.optimizer-panel')).toContainText(/Output/);
+  await expect(editor.getByText('Server AI command is configured')).toBeVisible();
+
+  await page.locator('.upload-panel').getByRole('button', { name: 'Upload' }).click();
+  await expect.poll(() => state.uploads.length).toBe(1);
+  expect(state.uploads[0].body).toContain('name="backgroundRemovalMode"');
+  expect(state.uploads[0].body).toContain('ai');
+  expect(state.uploads[0].body).toContain('name="backgroundRemovalThreshold"');
+});
+
 function createMockState() {
   const stickers: Sticker[] = [0, 1, 2].map((index) => ({
     id: `sticker-${index + 1}`,
@@ -138,7 +157,7 @@ function createMockState() {
     },
   ];
 
-  return { packs };
+  return { packs, uploads: [] as Array<{ packId: string; body: string }> };
 }
 
 async function mockApi(page: Page, state: ReturnType<typeof createMockState>) {
@@ -239,6 +258,7 @@ async function mockApi(page: Page, state: ReturnType<typeof createMockState>) {
     const uploadMatch = path.match(/^\/packs\/([^/]+)\/stickers$/);
     if (method === 'POST' && uploadMatch) {
       const pack = packById(state, uploadMatch[1]);
+      state.uploads.push({ packId: pack.id, body: request.postDataBuffer()?.toString('utf8') ?? '' });
       const sticker = newSticker(pack, `uploaded-${Date.now()}.webp`);
       pack.stickers = [...(pack.stickers ?? []), sticker];
       pack.stickerCount = pack.stickers.length;
