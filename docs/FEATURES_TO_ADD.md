@@ -14,7 +14,11 @@ This backlog intentionally contains only work that is not implemented yet or can
 ## Sticker Editing / AI
 
 - Validate the bundled `docker-compose.ai.yml` background-removal image on a Docker host and compare quality/resource usage.
-- Add Android parity for the advanced web editor tools that are currently web-only.
+- Add Android live preview parity for rendered color/text output before upload.
+- Add Android manual eraser/restore brush with local undo/redo.
+- Add Android background removal controls for server threshold/AI fallback uploads.
+- Add Android animated sticker controls for trim duration and FPS.
+- Add Android batch edit presets for repeated uploads.
 
 ## Deployment And Ops
 

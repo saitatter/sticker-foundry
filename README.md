@@ -16,7 +16,7 @@ StickerFoundry is a self-hosted collaborative WhatsApp sticker pack manager: web
 - Web UI for pack management, collaboration, public share pages, review status, comments, bulk actions, keyboard shortcuts, and responsive sticker grids.
 - Sticker editor with brush erase/restore, undo/redo, background cleanup, text layer, auto-fit subject, color tools, size optimizer, animated controls, batch presets, and before/after compare.
 - Background removal can run in-browser, on the backend threshold pipeline, or through an optional self-hosted AI command with threshold fallback.
-- Android Kotlin app with Retrofit, Room cache, retry-safe ZIP extraction, local extraction status, image upload/editing, WhatsApp and WhatsApp Business import intents, and stale-edit conflict handling.
+- Android Kotlin app with Retrofit, Room cache, retry-safe ZIP extraction, local extraction status, upload-time crop/color/text editing, WhatsApp and WhatsApp Business import intents, and stale-edit conflict handling.
 - Docker Compose stack for PostgreSQL, backend, and web.
 - Semantic-release with emoji changelog sections and Android debug APK release asset.
 
@@ -166,4 +166,4 @@ Use OpenAPI at `/api/docs` for the full contract.
 
 ## 🚧 Remaining Work
 
-The main open items are real-device WhatsApp validation, Docker stack validation on a host with Docker installed, Android package identity/signing, and choosing a first-party packaged ONNX background-removal model. See [docs/FEATURES_TO_ADD.md](docs/FEATURES_TO_ADD.md).
+The main open items are real-device WhatsApp validation, Docker stack validation on a host with Docker installed, Android signing validation, Docker-host validation for the optional AI remover, and the remaining Android editor parity items. See [docs/FEATURES_TO_ADD.md](docs/FEATURES_TO_ADD.md).
