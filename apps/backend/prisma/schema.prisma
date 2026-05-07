@@ -8,21 +8,22 @@ datasource db {
 }
 
 model User {
-  id              String        @id @default(uuid())
-  email           String        @unique
+  id              String           @id @default(uuid())
+  email           String           @unique
   displayName     String
   passwordHash    String
-  isAdmin         Boolean       @default(false)
+  isAdmin         Boolean          @default(false)
   packs           Pack[]
-  ownedTeams      Team[]        @relation("OwnedTeams")
+  ownedTeams      Team[]           @relation("OwnedTeams")
   teamMemberships TeamMember[]
   sessions        UserSession[]
   memberships     PackMember[]
-  createdInvites  PackInvite[]  @relation("CreatedInvites")
-  acceptedInvites PackInvite[]  @relation("AcceptedInvites")
+  createdInvites  PackInvite[]     @relation("CreatedInvites")
+  acceptedInvites PackInvite[]     @relation("AcceptedInvites")
   auditLogs       AuditLog[]
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+  stickerComments StickerComment[]
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
 }
 
 model AppSetting {
@@ -126,6 +127,7 @@ model Sticker {
   sha256            String
   position          Int                 @default(0)
   reviewStatus      StickerReviewStatus @default(PENDING)
+  comments          StickerComment[]
   createdAt         DateTime            @default(now())
 
   @@unique([packId, fileName])
@@ -143,6 +145,20 @@ enum StickerReviewStatus {
   PENDING
   APPROVED
   NEEDS_WORK
+}
+
+model StickerComment {
+  id        String   @id @default(uuid())
+  stickerId String
+  sticker   Sticker  @relation(fields: [stickerId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  body      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([stickerId, createdAt])
+  @@index([userId])
 }
 
 model PackMember {

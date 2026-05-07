@@ -9,6 +9,7 @@ import { AuditService } from '../audit/audit.service';
 import { PrismaService } from '../prisma.service';
 import { CreatePackInviteDto } from './dto/create-pack-invite.dto';
 import { CreatePackDto } from './dto/create-pack.dto';
+import { CreateStickerCommentDto } from './dto/create-sticker-comment.dto';
 import { ReorderStickersDto } from './dto/reorder-stickers.dto';
 import { TransferStickersDto } from './dto/transfer-stickers.dto';
 import { UpdatePackMemberDto } from './dto/update-pack-member.dto';
@@ -622,6 +623,57 @@ export class PacksService {
     return updated;
   }
 
+  async stickerComments(userId: string, packId: string, stickerId: string) {
+    await this.requireStickerView(userId, packId, stickerId);
+    return this.prisma.stickerComment.findMany({
+      where: { stickerId },
+      orderBy: { createdAt: 'asc' },
+      include: { user: { select: { id: true, email: true, displayName: true } } },
+    });
+  }
+
+  async createStickerComment(userId: string, packId: string, stickerId: string, dto: CreateStickerCommentDto) {
+    await this.requireStickerView(userId, packId, stickerId);
+    const body = dto.body.trim();
+    if (!body) {
+      throw new BadRequestException('Comment body is required');
+    }
+
+    const comment = await this.prisma.stickerComment.create({
+      data: { stickerId, userId, body },
+      include: { user: { select: { id: true, email: true, displayName: true } } },
+    });
+    await this.audit.record({
+      actorId: userId,
+      action: 'sticker.comment.create',
+      entityType: 'stickerComment',
+      entityId: comment.id,
+      metadata: { packId, stickerId },
+    });
+    return comment;
+  }
+
+  async deleteStickerComment(userId: string, packId: string, stickerId: string, commentId: string) {
+    const pack = await this.requireStickerView(userId, packId, stickerId);
+    const comment = await this.prisma.stickerComment.findFirst({ where: { id: commentId, stickerId } });
+    if (!comment) {
+      throw new NotFoundException('Comment not found');
+    }
+    if (comment.userId !== userId && !this.canManage(userId, pack)) {
+      throw new ForbiddenException('Only comment authors or pack owners can delete comments');
+    }
+
+    await this.prisma.stickerComment.delete({ where: { id: commentId } });
+    await this.audit.record({
+      actorId: userId,
+      action: 'sticker.comment.delete',
+      entityType: 'stickerComment',
+      entityId: commentId,
+      metadata: { packId, stickerId },
+    });
+    return { deleted: true };
+  }
+
   async reorderStickers(ownerId: string, packId: string, dto: ReorderStickersDto) {
     const pack = await this.prisma.pack.findUnique({
       where: { id: packId },
@@ -937,6 +989,21 @@ export class PacksService {
       throw new ForbiddenException('Only team owners and editors can create packs in this team');
     }
     return team;
+  }
+
+  private async requireStickerView(userId: string, packId: string, stickerId: string) {
+    const pack = await this.loadPackForAccess(userId, packId);
+    if (!pack) {
+      throw new NotFoundException('Pack not found');
+    }
+    if (!this.canView(userId, pack)) {
+      throw new ForbiddenException('You do not have access to this pack');
+    }
+    const sticker = await this.prisma.sticker.findFirst({ where: { id: stickerId, packId }, select: { id: true } });
+    if (!sticker) {
+      throw new NotFoundException('Sticker not found');
+    }
+    return pack;
   }
 
   private accessSummary(userId: string, pack: AccessPack) {

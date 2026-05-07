@@ -30,6 +30,12 @@ function createService() {
       findMany: jest.fn(),
       update: jest.fn((args: unknown) => args),
     },
+    stickerComment: {
+      create: jest.fn(),
+      delete: jest.fn(),
+      findFirst: jest.fn(),
+      findMany: jest.fn(),
+    },
     packMember: {
       delete: jest.fn(),
       findFirst: jest.fn(),
@@ -345,6 +351,36 @@ describe(PacksService, () => {
         emojis: ['\uD83D\uDE00'],
       }),
     ).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it('adds and deletes sticker comments for collaborators', async () => {
+    const { service, prisma } = createService();
+    prisma.pack.findUnique.mockResolvedValue({
+      id: 'pack-1',
+      ownerId: 'owner-1',
+      imageDataVersion: '1',
+      members: [{ userId: 'editor-1', role: PackRole.EDITOR }],
+    });
+    prisma.sticker.findFirst.mockResolvedValue({ id: 'sticker-1' });
+    prisma.stickerComment.create.mockImplementation(async ({ data }) => ({
+      id: 'comment-1',
+      ...data,
+      createdAt: new Date('2026-05-07T09:00:00.000Z'),
+      updatedAt: new Date('2026-05-07T09:00:00.000Z'),
+      user: { id: data.userId, email: 'editor@example.com', displayName: 'Editor' },
+    }));
+    prisma.stickerComment.findFirst.mockResolvedValue({ id: 'comment-1', stickerId: 'sticker-1', userId: 'editor-1' });
+
+    await expect(
+      service.createStickerComment('editor-1', 'pack-1', 'sticker-1', {
+        body: '  needs a brighter outline  ',
+      }),
+    ).resolves.toEqual(expect.objectContaining({ body: 'needs a brighter outline' }));
+    await expect(service.deleteStickerComment('editor-1', 'pack-1', 'sticker-1', 'comment-1')).resolves.toEqual({
+      deleted: true,
+    });
+
+    expect(prisma.stickerComment.delete).toHaveBeenCalledWith({ where: { id: 'comment-1' } });
   });
 
   it('accepts invites by adding or updating pack membership', async () => {

@@ -16,6 +16,7 @@ import {
   KeyRound,
   Lock,
   LogOut,
+  MessageSquare,
   Plus,
   RefreshCw,
   RotateCcw,
@@ -40,6 +41,7 @@ import {
   PackRole,
   RegistrationMode,
   Sticker,
+  StickerComment,
   StickerFoundryApi,
   Team,
   TeamMember,
@@ -2075,6 +2077,11 @@ function StickerTile({
   const [replacementFile, setReplacementFile] = useState<File | null>(null);
   const [replacementEditOptions, setReplacementEditOptions] = useState<ImageEditOptions>(defaultImageEditOptions);
   const [replacing, setReplacing] = useState(false);
+  const [commentsOpen, setCommentsOpen] = useState(false);
+  const [comments, setComments] = useState<StickerComment[]>([]);
+  const [commentBody, setCommentBody] = useState('');
+  const [commentsLoading, setCommentsLoading] = useState(false);
+  const [commentSaving, setCommentSaving] = useState(false);
 
   useEffect(() => {
     setEmojis(sticker.emojis.join(','));
@@ -2149,6 +2156,45 @@ function StickerTile({
     }
   }
 
+  async function toggleComments() {
+    const nextOpen = !commentsOpen;
+    setCommentsOpen(nextOpen);
+    if (!nextOpen || comments.length > 0) return;
+    setCommentsLoading(true);
+    try {
+      setComments(await api.stickerComments(packId, sticker.id));
+    } catch (error) {
+      onError(error);
+    } finally {
+      setCommentsLoading(false);
+    }
+  }
+
+  async function addComment(event: FormEvent) {
+    event.preventDefault();
+    const body = commentBody.trim();
+    if (!body) return;
+    setCommentSaving(true);
+    try {
+      const comment = await api.createStickerComment(packId, sticker.id, body);
+      setComments((current) => [...current, comment]);
+      setCommentBody('');
+    } catch (error) {
+      onError(error);
+    } finally {
+      setCommentSaving(false);
+    }
+  }
+
+  async function deleteComment(commentId: string) {
+    try {
+      await api.deleteStickerComment(packId, sticker.id, commentId);
+      setComments((current) => current.filter((comment) => comment.id !== commentId));
+    } catch (error) {
+      onError(error);
+    }
+  }
+
   const dirty =
     emojis !== sticker.emojis.join(',') ||
     accessibilityText !== (sticker.accessibilityText ?? '') ||
@@ -2190,6 +2236,40 @@ function StickerTile({
         <span>{sticker.emojis.join(' ') || 'No emoji'}</span>
       </div>
       <span className={`status-pill ${reviewStatusClass(sticker.reviewStatus)}`}>{reviewStatusLabel(sticker.reviewStatus)}</span>
+      <button className="secondary-button sticker-comments-toggle" onClick={() => void toggleComments()} type="button">
+        <MessageSquare size={16} />
+        Comments
+      </button>
+      {commentsOpen ? (
+        <div className="sticker-comments">
+          {commentsLoading ? <span className="muted-row">Loading comments</span> : null}
+          {comments.map((comment) => (
+            <div className="comment-row" key={comment.id}>
+              <span>
+                <strong>{comment.user.displayName}</strong>
+                <small>{new Date(comment.createdAt).toLocaleDateString()}</small>
+                <p>{comment.body}</p>
+              </span>
+              <IconButton label="Delete comment" onClick={() => void deleteComment(comment.id)} danger>
+                <Trash2 size={15} />
+              </IconButton>
+            </div>
+          ))}
+          {!commentsLoading && comments.length === 0 ? <span className="muted-row">No comments yet.</span> : null}
+          <form className="comment-form" onSubmit={addComment}>
+            <textarea
+              maxLength={1000}
+              onChange={(event) => setCommentBody(event.target.value)}
+              placeholder="Add a note"
+              value={commentBody}
+            />
+            <button className="secondary-button" disabled={!commentBody.trim() || commentSaving} type="submit">
+              <MessageSquare size={16} />
+              Add
+            </button>
+          </form>
+        </div>
+      ) : null}
       {canEdit ? (
         <>
           <form className="sticker-edit-form" onSubmit={saveMetadata}>

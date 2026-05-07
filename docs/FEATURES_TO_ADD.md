@@ -10,10 +10,6 @@ This is the live feature backlog. It should only contain work that still needs t
 - Document tested Android/WhatsApp versions.
 - Add fixes for any provider compatibility issues discovered during real-device testing.
 
-## Collaboration
-
-- Comments per sticker.
-
 ## Sticker Workflow UX
 
 - Sticker detail panel with larger preview and full metadata editing.

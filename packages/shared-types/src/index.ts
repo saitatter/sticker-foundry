@@ -10,6 +10,20 @@ export type StickerDto = {
   createdAt: string;
 };
 
+export type StickerCommentDto = {
+  id: string;
+  stickerId: string;
+  userId: string;
+  body: string;
+  createdAt: string;
+  updatedAt: string;
+  user: {
+    id: string;
+    email: string;
+    displayName: string;
+  };
+};
+
 export type PackRole = 'VIEWER' | 'EDITOR' | 'OWNER';
 export type StickerReviewStatus = 'PENDING' | 'APPROVED' | 'NEEDS_WORK';
 

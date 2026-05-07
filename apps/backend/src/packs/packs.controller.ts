@@ -20,6 +20,7 @@ import { CurrentUser, RequestUser } from '../common/current-user.decorator';
 import { JwtAuthGuard } from '../common/jwt-auth.guard';
 import { CreatePackInviteDto } from './dto/create-pack-invite.dto';
 import { CreatePackDto } from './dto/create-pack.dto';
+import { CreateStickerCommentDto } from './dto/create-sticker-comment.dto';
 import { ReorderStickersDto } from './dto/reorder-stickers.dto';
 import { TransferStickersDto } from './dto/transfer-stickers.dto';
 import { UpdatePackMemberDto } from './dto/update-pack-member.dto';
@@ -181,6 +182,31 @@ export class PacksController {
   @Delete(':id/stickers/:stickerId')
   deleteSticker(@CurrentUser() user: RequestUser, @Param('id') id: string, @Param('stickerId') stickerId: string) {
     return this.packsService.deleteSticker(user.sub, id, stickerId);
+  }
+
+  @Get(':id/stickers/:stickerId/comments')
+  stickerComments(@CurrentUser() user: RequestUser, @Param('id') id: string, @Param('stickerId') stickerId: string) {
+    return this.packsService.stickerComments(user.sub, id, stickerId);
+  }
+
+  @Post(':id/stickers/:stickerId/comments')
+  createStickerComment(
+    @CurrentUser() user: RequestUser,
+    @Param('id') id: string,
+    @Param('stickerId') stickerId: string,
+    @Body() dto: CreateStickerCommentDto,
+  ) {
+    return this.packsService.createStickerComment(user.sub, id, stickerId, dto);
+  }
+
+  @Delete(':id/stickers/:stickerId/comments/:commentId')
+  deleteStickerComment(
+    @CurrentUser() user: RequestUser,
+    @Param('id') id: string,
+    @Param('stickerId') stickerId: string,
+    @Param('commentId') commentId: string,
+  ) {
+    return this.packsService.deleteStickerComment(user.sub, id, stickerId, commentId);
   }
 
   @Patch(':id/stickers/:stickerId')

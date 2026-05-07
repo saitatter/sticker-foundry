@@ -66,6 +66,16 @@ export type Sticker = {
   createdAt: string;
 };
 
+export type StickerComment = {
+  id: string;
+  stickerId: string;
+  userId: string;
+  body: string;
+  createdAt: string;
+  updatedAt: string;
+  user: User;
+};
+
 export type PackRole = 'VIEWER' | 'EDITOR' | 'OWNER';
 export type StickerReviewStatus = 'PENDING' | 'APPROVED' | 'NEEDS_WORK';
 
@@ -459,6 +469,25 @@ export class StickerFoundryApi {
       auth: true,
       body: form,
       isMultipart: true,
+    });
+  }
+
+  async stickerComments(packId: string, stickerId: string) {
+    return this.request<StickerComment[]>(`/packs/${packId}/stickers/${stickerId}/comments`, { auth: true });
+  }
+
+  async createStickerComment(packId: string, stickerId: string, body: string) {
+    return this.request<StickerComment>(`/packs/${packId}/stickers/${stickerId}/comments`, {
+      method: 'POST',
+      auth: true,
+      body: JSON.stringify({ body }),
+    });
+  }
+
+  async deleteStickerComment(packId: string, stickerId: string, commentId: string) {
+    return this.request<{ deleted: boolean }>(`/packs/${packId}/stickers/${stickerId}/comments/${commentId}`, {
+      method: 'DELETE',
+      auth: true,
     });
   }
 
