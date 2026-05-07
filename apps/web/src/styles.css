@@ -806,6 +806,17 @@ select:focus {
   gap: 6px;
 }
 
+.preset-row {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.preset-row .secondary-button {
+  min-height: 34px;
+}
+
 .layer-strip span {
   min-height: 28px;
   display: inline-flex;

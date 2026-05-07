@@ -2517,7 +2517,7 @@ function UploadPanel({
         </button>
       </form>
       {files[0] ? <ImageEditControls file={files[0]} options={editOptions} onChange={setEditOptions} /> : null}
-      {files.length > 1 ? <p className="upload-note">Files upload one by one in selection order.</p> : null}
+      {files.length > 1 ? <p className="upload-note">Current edit settings and presets apply to all selected files in upload order.</p> : null}
     </section>
   );
 }
@@ -3018,6 +3018,45 @@ const defaultImageEditOptions: ImageEditOptions = {
   animatedCompress: true,
 };
 
+const imageEditPresets: Array<{ name: string; options: Partial<ImageEditOptions> }> = [
+  {
+    name: 'Meme cutout',
+    options: {
+      removeLightBackground: true,
+      backgroundThreshold: 232,
+      backgroundFeather: 18,
+      cleanupSpeckles: true,
+      speckleSize: 36,
+      autoFitSubject: true,
+      normalizeSquare: true,
+      outline: true,
+      textEnabled: true,
+      textContent: 'TEXT',
+      textY: 84,
+    },
+  },
+  {
+    name: 'Soft shadow',
+    options: {
+      normalizeSquare: true,
+      autoFitSubject: true,
+      subjectPadding: 14,
+      shadow: true,
+    },
+  },
+  {
+    name: 'Bold outline',
+    options: {
+      removeLightBackground: true,
+      backgroundThreshold: 236,
+      backgroundFeather: 10,
+      outline: true,
+      autoFitSubject: true,
+      normalizeSquare: true,
+    },
+  },
+];
+
 function ImageEditControls({
   file,
   options,
@@ -3164,6 +3203,11 @@ function ImageEditControls({
     onChange((current) => ({ ...current, brushStrokes: [...current.brushStrokes, stroke] }));
   }
 
+  function applyPreset(preset: Partial<ImageEditOptions>) {
+    setRedoStrokes([]);
+    onChange((current) => ({ ...current, ...preset, brushStrokes: [], brushMode: current.brushMode, brushSize: current.brushSize }));
+  }
+
   return (
     <div className={`image-edit-controls ${compact ? 'compact' : ''}`}>
       <div className="image-edit-preview">
@@ -3266,6 +3310,13 @@ function ImageEditControls({
           />
           Grayscale
         </label>
+      </div>
+      <div className="preset-row" aria-label="Image edit presets">
+        {imageEditPresets.map((preset) => (
+          <button className="secondary-button" key={preset.name} onClick={() => applyPreset(preset.options)} type="button">
+            {preset.name}
+          </button>
+        ))}
       </div>
       <div className="layer-strip" aria-label="Canvas layers">
         <span>Transparent bg</span>
