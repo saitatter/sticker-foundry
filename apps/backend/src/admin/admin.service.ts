@@ -35,6 +35,7 @@ export class AdminService {
       auditRetentionDays: this.parsePositiveInt(
         settings.get(SETTING_KEYS.auditRetentionDays) ?? this.config.get<string>('AUDIT_RETENTION_DAYS', ''),
       ),
+      backgroundRemoval: this.backgroundRemovalStatus(),
       ...(await this.publicSettings(settings)),
     };
   }
@@ -143,5 +144,15 @@ export class AdminService {
     if (!value) return null;
     const parsed = Number.parseInt(value, 10);
     return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+  }
+
+  private backgroundRemovalStatus() {
+    const command = this.config.get<string>('BACKGROUND_REMOVAL_COMMAND', '').trim();
+    return {
+      thresholdAvailable: true,
+      aiCommandConfigured: command.length > 0,
+      aiMode: command ? 'command' : null,
+      fallbackMode: 'threshold',
+    };
   }
 }

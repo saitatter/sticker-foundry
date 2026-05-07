@@ -322,6 +322,7 @@ describe('StickerFoundry API e2e', () => {
   beforeEach(async () => {
     process.env.JWT_SECRET = 'test-secret';
     process.env.REGISTRATION_MODE = 'open';
+    process.env.BACKGROUND_REMOVAL_COMMAND = 'rembg i {input} {output}';
     dataDir = await mkdtemp(join(tmpdir(), 'sticker-foundry-e2e-'));
     process.env.DATA_DIR = dataDir;
 
@@ -345,6 +346,7 @@ describe('StickerFoundry API e2e', () => {
   afterEach(async () => {
     await app.close();
     await rm(dataDir, { recursive: true, force: true });
+    delete process.env.BACKGROUND_REMOVAL_COMMAND;
   });
 
   it('registers, creates a pack, uploads stickers, exports a WhatsApp ZIP, and handles manifest ETags', async () => {
@@ -381,6 +383,12 @@ describe('StickerFoundry API e2e', () => {
             registrationInviteCode: 'team-code',
             storageQuotaBytes: 10_485_760,
             auditRetentionDays: 90,
+            backgroundRemoval: {
+              thresholdAvailable: true,
+              aiCommandConfigured: true,
+              aiMode: 'command',
+              fallbackMode: 'threshold',
+            },
             instanceName: 'Team Stickers',
             instanceDescription: 'Private sticker ops',
           }),
