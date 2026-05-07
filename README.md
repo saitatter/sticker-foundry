@@ -44,7 +44,7 @@ Requirements:
 
 ```bash
 npm install
-cp apps/backend/.env.example apps/backend/.env
+cp .env.example .env
 docker compose up -d postgres
 npm run prisma:migrate
 npm run prisma:seed

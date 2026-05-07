@@ -16,6 +16,7 @@ import { TeamsModule } from './teams/teams.module';
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
+      envFilePath: ['.env', '../../.env'],
     }),
     ThrottlerModule.forRootAsync({
       inject: [ConfigService],

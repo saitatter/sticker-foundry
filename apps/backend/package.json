@@ -9,9 +9,9 @@
     "test": "jest --runInBand",
     "test:e2e": "jest --runInBand src/app.e2e.spec.ts",
     "lint": "eslint \"src/**/*.ts\"",
-    "prisma:generate": "prisma generate",
-    "prisma:migrate": "prisma migrate dev",
-    "prisma:deploy": "prisma migrate deploy",
+    "prisma:generate": "node prisma/with-env.mjs generate",
+    "prisma:migrate": "node prisma/with-env.mjs migrate dev",
+    "prisma:deploy": "node prisma/with-env.mjs migrate deploy",
     "prisma:seed": "node prisma/seed.mjs"
   },
   "dependencies": {
