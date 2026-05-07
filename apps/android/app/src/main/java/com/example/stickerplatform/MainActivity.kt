@@ -270,6 +270,14 @@ private fun PackRow(
                 "${roleLabel(pack)} · ${if (pack.canEdit) "Editable" else "Read-only"}",
                 style = MaterialTheme.typography.bodySmall,
             )
+            Text(
+                collaboratorDetails(pack),
+                style = MaterialTheme.typography.bodySmall,
+            )
+            Text(
+                "${if (pack.isPublic) "Public pack" else "Private pack"} · Updated ${pack.updatedAt.take(10)}",
+                style = MaterialTheme.typography.bodySmall,
+            )
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(
                     onClick = onAdd,
@@ -334,6 +342,12 @@ private fun roleLabel(pack: PackEntity): String = when (pack.role) {
     "EDITOR" -> "Editor"
     "VIEWER" -> "Viewer"
     else -> if (pack.isOwner) "Owner" else "Viewer"
+}
+
+private fun collaboratorDetails(pack: PackEntity): String = when {
+    pack.canManage -> "Can manage members, invites, pack details, and stickers"
+    pack.canEdit -> "Can upload stickers, replace tray icons, and edit sticker images"
+    else -> "Can sync, preview, export, and import into WhatsApp"
 }
 
 @Composable
