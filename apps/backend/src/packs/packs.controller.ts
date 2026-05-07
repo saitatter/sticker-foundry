@@ -151,13 +151,15 @@ export class PacksController {
 
   @Put(':id/stickers/:stickerId/file')
   @UseInterceptors(FileInterceptor('file', stickerUploadOptions))
-  replaceStickerImage(
+  async replaceStickerImage(
     @CurrentUser() user: RequestUser,
     @Param('id') id: string,
     @Param('stickerId') stickerId: string,
+    @Headers('if-match') ifMatch: string | undefined,
     @UploadedFile() file: Express.Multer.File,
     @Body() dto: UploadStickerDto,
   ) {
+    await this.packsService.assertPackVersion(user.sub, id, ifMatch);
     return this.packsService.replaceStickerImage(user.sub, id, stickerId, file, dto);
   }
 

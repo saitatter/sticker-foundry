@@ -659,21 +659,59 @@ export class PacksService {
     await this.rejectDuplicateSticker(packId, processed.perceptualHash, stickerId);
     const existingSize = typeof sticker.sizeBytes === 'number' ? sticker.sizeBytes : 0;
     await this.enforceStorageQuota(pack.ownerId, Math.max(0, processed.sizeBytes - existingSize));
-    await this.storage.writeImage(packId, sticker.fileName, processed);
+    const previousBytes = await this.storage.readBuffer(packId, sticker.fileName).catch(() => null);
+    await this.storage.replaceImage(packId, sticker.fileName, processed);
 
-    const updated = await this.prisma.sticker.update({
-      where: { id: stickerId },
-      data: {
-        sizeBytes: processed.sizeBytes,
-        sha256: processed.sha256,
-        perceptualHash: processed.perceptualHash,
-      },
-    });
+    let updated: Awaited<ReturnType<typeof this.prisma.sticker.update>>;
+    try {
+      updated = await this.prisma.$transaction(
+        async (tx) => {
+          const freshPack = await tx.pack.findUnique({ where: { id: packId } });
+          if (!freshPack) {
+            throw new NotFoundException('Pack not found');
+          }
+          const freshSticker = await tx.sticker.findFirst({ where: { id: stickerId, packId } });
+          if (!freshSticker) {
+            throw new NotFoundException('Sticker not found');
+          }
 
-    await this.prisma.pack.update({
-      where: { id: packId },
-      data: { imageDataVersion: this.newImageDataVersion(pack.imageDataVersion) },
-    });
+          await this.rejectDuplicateSticker(packId, processed.perceptualHash, stickerId, tx);
+          const freshExistingSize = typeof freshSticker.sizeBytes === 'number' ? freshSticker.sizeBytes : 0;
+          await this.enforceStorageQuotaForClient(
+            freshPack.ownerId,
+            Math.max(0, processed.sizeBytes - freshExistingSize),
+            tx,
+          );
+
+          const stickerData = {
+            sizeBytes: processed.sizeBytes,
+            sha256: processed.sha256,
+            ...(processed.perceptualHash ? { perceptualHash: processed.perceptualHash } : {}),
+          };
+          const nextSticker = await tx.sticker.update({
+            where: { id: stickerId },
+            data: stickerData,
+          });
+          await tx.pack.update({
+            where: { id: packId },
+            data: { imageDataVersion: this.newImageDataVersion(freshPack.imageDataVersion) },
+          });
+          return nextSticker;
+        },
+        { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+      );
+    } catch (error) {
+      if (previousBytes) {
+        await this.storage.writeBuffer(packId, sticker.fileName, previousBytes).catch((restoreError: unknown) => {
+          this.logger.warn(
+            `Failed to restore sticker file ${sticker.fileName} after metadata update failed: ${
+              restoreError instanceof Error ? restoreError.message : String(restoreError)
+            }`,
+          );
+        });
+      }
+      throw error;
+    }
     await this.audit.record({
       actorId: ownerId,
       action: 'sticker.image.replace',
@@ -889,9 +927,8 @@ export class PacksService {
       await this.enforceStorageQuota(target.ownerId, stickers.reduce((total, sticker) => total + sticker.sizeBytes, 0));
     }
 
-    const moves = stickers.map((sticker, index) => ({
+    const moves = stickers.map((sticker) => ({
       fileName: `${uuidv4()}.webp`,
-      position: (target._count?.stickers ?? 0) + index,
       sticker,
     }));
 
@@ -902,33 +939,74 @@ export class PacksService {
         ),
       );
 
-      await this.prisma.$transaction([
-        ...moves.map((move) =>
-          this.prisma.sticker.update({
-            where: { id: move.sticker.id },
-            data: {
-              packId: dto.targetPackId,
-              fileName: move.fileName,
-              position: move.position,
-            },
-          }),
-        ),
-        this.prisma.pack.update({
-          where: { id: sourcePackId },
-          data: { imageDataVersion: this.newImageDataVersion(source.imageDataVersion ?? '1') },
-        }),
-        this.prisma.pack.update({
-          where: { id: dto.targetPackId },
-          data: { imageDataVersion: this.newImageDataVersion(target.imageDataVersion ?? '1') },
-        }),
-      ]);
+      await this.prisma.$transaction(
+        async (tx) => {
+          const [freshSource, freshTarget, freshStickers] = await Promise.all([
+            tx.pack.findUnique({ where: { id: sourcePackId } }),
+            tx.pack.findUnique({
+              where: { id: dto.targetPackId },
+              include: { _count: { select: { stickers: true } } },
+            }),
+            tx.sticker.findMany({
+              where: { packId: sourcePackId, id: { in: moves.map((move) => move.sticker.id) } },
+              orderBy: [{ position: 'asc' }, { createdAt: 'asc' }],
+            }),
+          ]);
+          if (!freshSource) {
+            throw new NotFoundException('Source pack not found');
+          }
+          if (!freshTarget) {
+            throw new NotFoundException('Target pack not found');
+          }
+          if (freshStickers.length !== moves.length) {
+            throw new BadRequestException('Transfer request must include stickers from the source pack only');
+          }
+
+          this.assertTargetCapacity(freshTarget, freshStickers.length);
+          const moveByStickerId = new Map(moves.map((move) => [move.sticker.id, move]));
+          const targetStartPosition = freshTarget._count.stickers;
+          for (const [index, sticker] of freshStickers.entries()) {
+            const move = moveByStickerId.get(sticker.id);
+            if (!move) continue;
+            await tx.sticker.update({
+              where: { id: sticker.id },
+              data: {
+                packId: dto.targetPackId,
+                fileName: move.fileName,
+                position: targetStartPosition + index,
+              },
+            });
+          }
+
+          const remainingSourceStickers = await tx.sticker.findMany({
+            where: { packId: sourcePackId },
+            orderBy: [{ position: 'asc' }, { createdAt: 'asc' }],
+            select: { id: true },
+          });
+          for (const [position, sticker] of remainingSourceStickers.entries()) {
+            await tx.sticker.update({
+              where: { id: sticker.id },
+              data: { position },
+            });
+          }
+
+          await tx.pack.update({
+            where: { id: sourcePackId },
+            data: { imageDataVersion: this.newImageDataVersion(freshSource.imageDataVersion ?? '1') },
+          });
+          await tx.pack.update({
+            where: { id: dto.targetPackId },
+            data: { imageDataVersion: this.newImageDataVersion(freshTarget.imageDataVersion ?? '1') },
+          });
+        },
+        { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+      );
 
       await this.deleteFilesWithRetry(sourcePackId, moves.map((move) => move.sticker.fileName), {
         actorId: userId,
         action: 'sticker.move.sourceCleanup.failed',
         targetPackId: dto.targetPackId,
       });
-      await this.compactStickerPositions(sourcePackId);
     } catch (error) {
       await this.deleteFilesWithRetry(dto.targetPackId, moves.map((move) => move.fileName), {
         actorId: userId,

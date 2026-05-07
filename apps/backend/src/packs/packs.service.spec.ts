@@ -69,8 +69,11 @@ function createService() {
 
   const storage = {
     writeImage: jest.fn(),
+    replaceImage: jest.fn(),
+    writeBuffer: jest.fn(),
     deletePack: jest.fn(),
     copyPack: jest.fn(),
+    readBuffer: jest.fn().mockResolvedValue(Buffer.from('old-sticker')),
     readStream: jest.fn(),
     deleteFile: jest.fn(),
     copyFile: jest.fn(),
@@ -708,6 +711,17 @@ describe(PacksService, () => {
         _count: { stickers: 2 },
       })
       .mockResolvedValueOnce({
+        id: 'source-pack',
+        ownerId: 'owner-1',
+        imageDataVersion: '3',
+      })
+      .mockResolvedValueOnce({
+        id: 'target-pack',
+        ownerId: 'owner-1',
+        imageDataVersion: '7',
+        _count: { stickers: 2 },
+      })
+      .mockResolvedValueOnce({
         id: 'target-pack',
         ownerId: 'owner-1',
         imageDataVersion: '8',
@@ -753,6 +767,17 @@ describe(PacksService, () => {
         ownerId: 'owner-1',
         imageDataVersion: '7',
         members: [],
+        _count: { stickers: 2 },
+      })
+      .mockResolvedValueOnce({
+        id: 'source-pack',
+        ownerId: 'owner-1',
+        imageDataVersion: '3',
+      })
+      .mockResolvedValueOnce({
+        id: 'target-pack',
+        ownerId: 'owner-1',
+        imageDataVersion: '7',
         _count: { stickers: 2 },
       })
       .mockResolvedValueOnce({
@@ -841,7 +866,7 @@ describe(PacksService, () => {
       { buffer: Buffer.from('source'), mimetype: 'image/png' } as Express.Multer.File,
     );
 
-    expect(storage.writeImage).toHaveBeenCalledWith('pack-1', 'existing.webp', processed);
+    expect(storage.replaceImage).toHaveBeenCalledWith('pack-1', 'existing.webp', processed);
     expect(prisma.sticker.update).toHaveBeenCalledWith({
       where: { id: 'sticker-1' },
       data: {

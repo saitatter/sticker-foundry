@@ -8,8 +8,9 @@ import {
   PutObjectCommand,
   S3Client,
 } from '@aws-sdk/client-s3';
+import { randomUUID } from 'crypto';
 import { createReadStream } from 'fs';
-import { cp, mkdir, readFile, rm, writeFile } from 'fs/promises';
+import { cp, mkdir, readFile, rename, rm, writeFile } from 'fs/promises';
 import { dirname, join } from 'path';
 import { Readable } from 'stream';
 import { ProcessedImage } from './sticker-image.service';
@@ -26,12 +27,20 @@ export class PackStorageService {
   }
 
   async writeImage(packId: string, fileName: string, image: ProcessedImage) {
+    await this.writeBuffer(packId, fileName, image.bytes);
+  }
+
+  async replaceImage(packId: string, fileName: string, image: ProcessedImage) {
+    await this.writeBuffer(packId, fileName, image.bytes);
+  }
+
+  async writeBuffer(packId: string, fileName: string, bytes: Buffer) {
     if (this.isS3()) {
       await this.s3().send(
         new PutObjectCommand({
           Bucket: this.bucket(),
           Key: this.key(packId, fileName),
-          Body: image.bytes,
+          Body: bytes,
           ContentType: 'image/webp',
         }),
       );
@@ -40,7 +49,13 @@ export class PackStorageService {
 
     const path = join(this.packDirectory(packId), fileName);
     await mkdir(dirname(path), { recursive: true });
-    await writeFile(path, image.bytes);
+    const tempPath = join(dirname(path), `.${fileName}.${randomUUID()}.tmp`);
+    try {
+      await writeFile(tempPath, bytes);
+      await rename(tempPath, path);
+    } finally {
+      await rm(tempPath, { force: true });
+    }
   }
 
   async readBuffer(packId: string, fileName: string) {
