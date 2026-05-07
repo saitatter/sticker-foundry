@@ -58,6 +58,10 @@ function createService() {
     processTrayIcon: jest.fn(),
   };
 
+  const backgroundRemoval = {
+    remove: jest.fn(async (input: Buffer) => input),
+  };
+
   const storage = {
     writeImage: jest.fn(),
     deletePack: jest.fn(),
@@ -82,12 +86,13 @@ function createService() {
   const service = new PacksService(
     prisma as never,
     imageService as never,
+    backgroundRemoval as never,
     config as never,
     audit as never,
     mediaQueue as never,
     storage as never,
   );
-  return { service, prisma, imageService, audit, storage };
+  return { service, prisma, imageService, backgroundRemoval, audit, storage };
 }
 
 describe(PacksService, () => {

@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { MulterModule } from '@nestjs/platform-express';
 import { AuditModule } from '../audit/audit.module';
 import { PrismaService } from '../prisma.service';
+import { BackgroundRemovalService } from './background-removal.service';
 import { PackExportService } from './pack-export.service';
 import { PackStorageService } from './pack-storage.service';
 import { PacksController } from './packs.controller';
@@ -20,6 +21,6 @@ import { StickerImageService } from './sticker-image.service';
     }),
   ],
   controllers: [PacksController, PublicPacksController],
-  providers: [PacksService, PackExportService, PackStorageService, MediaQueueService, StickerImageService, PrismaService],
+  providers: [PacksService, PackExportService, PackStorageService, MediaQueueService, StickerImageService, BackgroundRemovalService, PrismaService],
 })
 export class PacksModule {}

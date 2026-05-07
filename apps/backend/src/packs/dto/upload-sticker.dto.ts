@@ -1,5 +1,5 @@
 import { Transform } from 'class-transformer';
-import { IsArray, IsNumber, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
+import { IsArray, IsBoolean, IsIn, IsNumber, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
 
 export class UploadStickerDto {
   @IsOptional()
@@ -23,6 +23,36 @@ export class UploadStickerDto {
   @IsString()
   @MaxLength(125)
   accessibilityText?: string;
+
+  @IsOptional()
+  @IsIn(['none', 'threshold', 'ai'])
+  backgroundRemovalMode?: 'none' | 'threshold' | 'ai';
+
+  @IsOptional()
+  @Transform(({ value }) => numberFromMultipart(value))
+  @IsNumber()
+  @Min(180)
+  @Max(255)
+  backgroundRemovalThreshold?: number;
+
+  @IsOptional()
+  @Transform(({ value }) => numberFromMultipart(value))
+  @IsNumber()
+  @Min(0)
+  @Max(48)
+  backgroundRemovalFeather?: number;
+
+  @IsOptional()
+  @Transform(({ value }) => booleanFromMultipart(value))
+  @IsBoolean()
+  backgroundRemovalCleanupSpeckles?: boolean;
+
+  @IsOptional()
+  @Transform(({ value }) => numberFromMultipart(value))
+  @IsNumber()
+  @Min(4)
+  @Max(180)
+  backgroundRemovalSpeckleSize?: number;
 
   @IsOptional()
   @Transform(({ value }) => numberFromMultipart(value))
@@ -56,4 +86,10 @@ export class UploadStickerDto {
 function numberFromMultipart(value: unknown) {
   if (value === '' || value === undefined || value === null) return undefined;
   return Number(value);
+}
+
+function booleanFromMultipart(value: unknown) {
+  if (value === '' || value === undefined || value === null) return undefined;
+  if (typeof value === 'boolean') return value;
+  return value === 'true' || value === '1';
 }

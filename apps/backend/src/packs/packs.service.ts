@@ -5,6 +5,7 @@ import { randomBytes } from 'crypto';
 import { v4 as uuidv4 } from 'uuid';
 import { AuditService } from '../audit/audit.service';
 import { PrismaService } from '../prisma.service';
+import { BackgroundRemovalService } from './background-removal.service';
 import { CreatePackInviteDto } from './dto/create-pack-invite.dto';
 import { CreatePackDto } from './dto/create-pack.dto';
 import { CreateStickerCommentDto } from './dto/create-sticker-comment.dto';
@@ -36,6 +37,7 @@ export class PacksService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly imageService: StickerImageService,
+    private readonly backgroundRemoval: BackgroundRemovalService,
     private readonly config: ConfigService,
     private readonly audit: AuditService,
     private readonly mediaQueue: MediaQueueService,
@@ -476,16 +478,15 @@ export class PacksService {
       throw new BadRequestException(`A pack can contain at most ${WHATSAPP_LIMITS.maxStickersPerPack} stickers`);
     }
 
-    const processed = await this.mediaQueue.enqueue(() =>
-      this.imageService.processSticker(file.buffer, this.stickerProcessingOptions(pack.isAnimated, dto)),
-    );
+    const preparedInput = await this.mediaQueue.enqueue(() => this.prepareStickerInput(file.buffer, pack.isAnimated, dto));
+    const processed = await this.mediaQueue.enqueue(() => this.imageService.processSticker(preparedInput, this.stickerProcessingOptions(pack.isAnimated, dto)));
     await this.rejectDuplicateSticker(packId, processed.perceptualHash);
     await this.enforceStorageQuota(pack.ownerId, processed.sizeBytes);
     const fileName = `${uuidv4()}.webp`;
     await this.storage.writeImage(packId, fileName, processed);
 
     if (pack._count.stickers === 0) {
-      const tray = await this.mediaQueue.enqueue(() => this.imageService.processTrayIcon(file.buffer));
+      const tray = await this.mediaQueue.enqueue(() => this.imageService.processTrayIcon(preparedInput));
       await this.storage.writeImage(packId, 'tray_icon.webp', tray);
     }
 
@@ -630,9 +631,8 @@ export class PacksService {
       throw new NotFoundException('Sticker not found');
     }
 
-    const processed = await this.mediaQueue.enqueue(() =>
-      this.imageService.processSticker(file.buffer, this.stickerProcessingOptions(pack.isAnimated, dto)),
-    );
+    const preparedInput = await this.mediaQueue.enqueue(() => this.prepareStickerInput(file.buffer, pack.isAnimated, dto));
+    const processed = await this.mediaQueue.enqueue(() => this.imageService.processSticker(preparedInput, this.stickerProcessingOptions(pack.isAnimated, dto)));
     await this.rejectDuplicateSticker(packId, processed.perceptualHash, stickerId);
     const existingSize = typeof sticker.sizeBytes === 'number' ? sticker.sizeBytes : 0;
     await this.enforceStorageQuota(pack.ownerId, Math.max(0, processed.sizeBytes - existingSize));
@@ -1145,6 +1145,18 @@ export class PacksService {
       animatedFrameRate: dto.animatedFrameRate,
       animatedQuality: dto.animatedQuality,
     };
+  }
+
+  private async prepareStickerInput(input: Buffer, animated: boolean, dto: UploadStickerDto) {
+    if (animated) return input;
+
+    return this.backgroundRemoval.remove(input, {
+      mode: dto.backgroundRemovalMode,
+      threshold: dto.backgroundRemovalThreshold,
+      feather: dto.backgroundRemovalFeather,
+      cleanupSpeckles: dto.backgroundRemovalCleanupSpeckles,
+      speckleSize: dto.backgroundRemovalSpeckleSize,
+    });
   }
 
   private roleFor(userId: string, pack: AccessPack) {
