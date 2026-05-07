@@ -16,6 +16,7 @@ import { UpdatePackMemberDto } from './dto/update-pack-member.dto';
 import { UpdatePackDto } from './dto/update-pack.dto';
 import { UpdateStickerDto } from './dto/update-sticker.dto';
 import { UploadStickerDto } from './dto/upload-sticker.dto';
+import { MediaQueueService } from './media-queue.service';
 import { PackExportService } from './pack-export.service';
 import { StickerImageService } from './sticker-image.service';
 import { DEFAULT_STICKER_EMOJIS, WHATSAPP_LIMITS } from './whatsapp-constraints';
@@ -40,6 +41,7 @@ export class PacksService {
     private readonly imageService: StickerImageService,
     private readonly config: ConfigService,
     private readonly audit: AuditService,
+    private readonly mediaQueue: MediaQueueService,
   ) {}
 
   async create(ownerId: string, dto: CreatePackDto) {
@@ -455,7 +457,7 @@ export class PacksService {
       throw new BadRequestException(`A pack can contain at most ${WHATSAPP_LIMITS.maxStickersPerPack} stickers`);
     }
 
-    const processed = await this.imageService.processSticker(file.buffer, { animated: pack.isAnimated });
+    const processed = await this.mediaQueue.enqueue(() => this.imageService.processSticker(file.buffer, { animated: pack.isAnimated }));
     await this.rejectDuplicateSticker(packId, processed.perceptualHash);
     await this.enforceStorageQuota(pack.ownerId, processed.sizeBytes);
     const fileName = `${uuidv4()}.webp`;
@@ -463,7 +465,7 @@ export class PacksService {
     await this.imageService.writeProcessedImage(join(packDir, fileName), processed);
 
     if (pack._count.stickers === 0) {
-      const tray = await this.imageService.processTrayIcon(file.buffer);
+      const tray = await this.mediaQueue.enqueue(() => this.imageService.processTrayIcon(file.buffer));
       await this.imageService.writeProcessedImage(join(packDir, 'tray_icon.webp'), tray);
     }
 
@@ -513,7 +515,7 @@ export class PacksService {
       throw new ForbiddenException('Only editors can update the tray icon');
     }
 
-    const tray = await this.imageService.processTrayIcon(file.buffer);
+    const tray = await this.mediaQueue.enqueue(() => this.imageService.processTrayIcon(file.buffer));
     await this.imageService.writeProcessedImage(join(this.exportService.packDirectory(packId), 'tray_icon.webp'), tray);
 
     const updated = await this.prisma.pack.update({
@@ -607,7 +609,7 @@ export class PacksService {
       throw new NotFoundException('Sticker not found');
     }
 
-    const processed = await this.imageService.processSticker(file.buffer, { animated: pack.isAnimated });
+    const processed = await this.mediaQueue.enqueue(() => this.imageService.processSticker(file.buffer, { animated: pack.isAnimated }));
     await this.rejectDuplicateSticker(packId, processed.perceptualHash, stickerId);
     const existingSize = typeof sticker.sizeBytes === 'number' ? sticker.sizeBytes : 0;
     await this.enforceStorageQuota(pack.ownerId, Math.max(0, processed.sizeBytes - existingSize));

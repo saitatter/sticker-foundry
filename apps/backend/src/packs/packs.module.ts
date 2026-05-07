@@ -5,6 +5,7 @@ import { PrismaService } from '../prisma.service';
 import { PackExportService } from './pack-export.service';
 import { PacksController } from './packs.controller';
 import { PacksService } from './packs.service';
+import { MediaQueueService } from './media-queue.service';
 import { PublicPacksController } from './public-packs.controller';
 import { StickerImageService } from './sticker-image.service';
 
@@ -18,6 +19,6 @@ import { StickerImageService } from './sticker-image.service';
     }),
   ],
   controllers: [PacksController, PublicPacksController],
-  providers: [PacksService, PackExportService, StickerImageService, PrismaService],
+  providers: [PacksService, PackExportService, MediaQueueService, StickerImageService, PrismaService],
 })
 export class PacksModule {}

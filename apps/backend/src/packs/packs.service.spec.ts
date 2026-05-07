@@ -77,7 +77,18 @@ function createService() {
     record: jest.fn().mockResolvedValue({ id: 'audit-1' }),
   };
 
-  const service = new PacksService(prisma as never, exportService as never, imageService as never, config as never, audit as never);
+  const mediaQueue = {
+    enqueue: jest.fn((task: () => Promise<unknown>) => task()),
+  };
+
+  const service = new PacksService(
+    prisma as never,
+    exportService as never,
+    imageService as never,
+    config as never,
+    audit as never,
+    mediaQueue as never,
+  );
   return { service, prisma, exportService, imageService, audit };
 }
 

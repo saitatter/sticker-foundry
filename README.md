@@ -151,6 +151,8 @@ Audit log retention is configurable with `AUDIT_RETENTION_DAYS` or from the web 
 
 Upload safety limits reject oversized image bombs before processing. Tune `UPLOAD_MAX_PIXELS`, `UPLOAD_MAX_TOTAL_PIXELS`, and `UPLOAD_MAX_ANIMATED_FRAMES` if your deployment needs stricter or looser media intake.
 
+Media processing runs through a backend queue to keep Sharp transforms bounded under load. Tune `MEDIA_QUEUE_CONCURRENCY` and `MEDIA_QUEUE_MAX_WAITING` for your CPU and expected upload volume.
+
 CORS is open by default for local development. For production, set `CORS_ORIGIN` to a comma-separated allowlist, for example:
 
 ```bash
