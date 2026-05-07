@@ -47,6 +47,12 @@ test('covers core web sticker workflows with mocked API', async ({ page }) => {
   await expect(page.getByRole('heading', { name: 'Packs' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Smoke Ready' })).toBeVisible();
   await expect(page.locator('.stats-grid')).toContainText('Owner');
+  await page.keyboard.press('j');
+  await expect(page.locator('.sticker-tile').first()).toHaveClass(/selected/);
+  await page.keyboard.press('n');
+  await expect(page.locator('.sticker-tile').first()).toContainText('Needs work');
+  await page.keyboard.press('Shift+ArrowDown');
+  await expect.poll(() => state.packs[0].stickers?.[1]?.id).toBe('sticker-1');
 
   await page.getByRole('button', { name: 'Preview JSON' }).click();
   await expect(page.locator('.contents-preview')).toContainText('sticker_packs');
@@ -192,6 +198,34 @@ async function mockApi(page: Page, state: ReturnType<typeof createMockState>) {
       pack.stickers = [...(pack.stickers ?? []), sticker];
       pack.stickerCount = pack.stickers.length;
       return json(route, sticker, 201);
+    }
+
+    const reorderMatch = path.match(/^\/packs\/([^/]+)\/stickers$/);
+    if (method === 'PATCH' && reorderMatch) {
+      const pack = packById(state, reorderMatch[1]);
+      const body = request.postDataJSON() as { stickerIds: string[] };
+      pack.stickers = body.stickerIds
+        .map((id, index) => {
+          const sticker = pack.stickers?.find((item) => item.id === id);
+          return sticker ? { ...sticker, position: index } : null;
+        })
+        .filter((sticker): sticker is Sticker => Boolean(sticker));
+      return json(route, pack);
+    }
+
+    const updateStickerMatch = path.match(/^\/packs\/([^/]+)\/stickers\/([^/]+)$/);
+    if (method === 'PATCH' && updateStickerMatch) {
+      const pack = packById(state, updateStickerMatch[1]);
+      const sticker = pack.stickers?.find((item) => item.id === updateStickerMatch[2]);
+      if (!sticker) return json(route, { message: 'Sticker not found' }, 404);
+      const body = request.postDataJSON() as Partial<Sticker>;
+      Object.assign(sticker, {
+        emojis: body.emojis ?? sticker.emojis,
+        accessibilityText: body.accessibilityText ?? sticker.accessibilityText,
+        reviewStatus: body.reviewStatus ?? sticker.reviewStatus,
+      });
+      pack.imageDataVersion = String(Number(pack.imageDataVersion) + 1);
+      return json(route, sticker);
     }
 
     const copyMatch = path.match(/^\/packs\/([^/]+)\/stickers\/copy$/);

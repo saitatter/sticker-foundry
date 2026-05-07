@@ -1583,8 +1583,45 @@ function PackDetail({
     });
   }
 
+  function selectRelativeSticker(direction: -1 | 1) {
+    if (stickers.length === 0) return;
+    setSelectedStickerIds((current) => {
+      const activeId = current[current.length - 1];
+      const activeIndex = activeId ? stickers.findIndex((sticker) => sticker.id === activeId) : -1;
+      const nextIndex =
+        activeIndex < 0
+          ? direction > 0
+            ? 0
+            : stickers.length - 1
+          : Math.max(0, Math.min(stickers.length - 1, activeIndex + direction));
+      return [stickers[nextIndex].id];
+    });
+  }
+
   function selectAllStickers() {
     setSelectedStickerIds(stickers.map((sticker) => sticker.id));
+  }
+
+  async function reviewSelectedStickers(reviewStatus: Sticker['reviewStatus']) {
+    if (selectedStickerIds.length === 0 || bulkSaving) return;
+    const selectedStickers = stickers.filter((sticker) => selectedStickerIds.includes(sticker.id));
+    if (selectedStickers.length === 0) return;
+
+    setBulkSaving(true);
+    setOptimisticStickers(
+      stickers.map((sticker) => (selectedStickerIds.includes(sticker.id) ? { ...sticker, reviewStatus } : sticker)),
+    );
+    try {
+      for (const sticker of selectedStickers) {
+        await api.updateSticker(pack.id, sticker.id, sticker.emojis, sticker.accessibilityText ?? '', reviewStatus);
+      }
+      await onChanged('Review status updated');
+    } catch (error) {
+      setOptimisticStickers(null);
+      onError(error);
+    } finally {
+      setBulkSaving(false);
+    }
   }
 
   async function bulkDeleteStickers() {
@@ -1668,6 +1705,59 @@ function PackDetail({
       setBulkSaving(false);
     }
   }
+
+  useEffect(() => {
+    if (!canEdit) return;
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (isTypingTarget(event.target)) return;
+      const key = event.key.toLowerCase();
+      if (event.repeat && key !== 'j' && key !== 'k') return;
+
+      if (key === 'escape') {
+        setSelectedStickerIds([]);
+        return;
+      }
+      if (key === 'j') {
+        event.preventDefault();
+        selectRelativeSticker(1);
+        return;
+      }
+      if (key === 'k') {
+        event.preventDefault();
+        selectRelativeSticker(-1);
+        return;
+      }
+      if (selectedStickerIds.length === 0) return;
+      if (key === 'a') {
+        event.preventDefault();
+        void reviewSelectedStickers('APPROVED');
+        return;
+      }
+      if (key === 'p') {
+        event.preventDefault();
+        void reviewSelectedStickers('PENDING');
+        return;
+      }
+      if (key === 'n') {
+        event.preventDefault();
+        void reviewSelectedStickers('NEEDS_WORK');
+        return;
+      }
+      if (event.shiftKey && selectedStickerIds.length === 1 && event.key === 'ArrowUp') {
+        event.preventDefault();
+        void moveSticker(selectedStickerIds[0], -1);
+        return;
+      }
+      if (event.shiftKey && selectedStickerIds.length === 1 && event.key === 'ArrowDown') {
+        event.preventDefault();
+        void moveSticker(selectedStickerIds[0], 1);
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  });
 
   return (
     <section className="detail">
@@ -2651,7 +2741,7 @@ function StickerTile({
 
   return (
     <article
-      className={`sticker-tile ${isDragging ? 'dragging' : ''}`}
+      className={`sticker-tile ${isDragging ? 'dragging' : ''} ${isSelected ? 'selected' : ''}`}
       draggable={canEdit}
       onDragEnd={onDragEnd}
       onDragOver={(event) => event.preventDefault()}
@@ -3077,6 +3167,12 @@ function reviewStatusClass(status: Sticker['reviewStatus']) {
   if (status === 'APPROVED') return 'ready';
   if (status === 'NEEDS_WORK') return 'needs-work';
   return 'pending';
+}
+
+function isTypingTarget(target: EventTarget | null) {
+  const element = target as HTMLElement | null;
+  if (!element) return false;
+  return element.isContentEditable || ['INPUT', 'SELECT', 'TEXTAREA'].includes(element.tagName);
 }
 
 function auditActionLabel(action: string) {

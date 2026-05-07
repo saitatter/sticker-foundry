@@ -12,7 +12,6 @@ This is the live feature backlog. It should only contain work that still needs t
 
 ## Web App
 
-- Keyboard shortcuts for review and ordering workflows.
 - Better responsive layout for dense sticker grids on small screens.
 
 ## Sync And Reliability

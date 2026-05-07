@@ -892,6 +892,11 @@ select:focus {
   opacity: 0.68;
 }
 
+.sticker-tile.selected {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px rgba(11, 127, 117, 0.15);
+}
+
 .sticker-drag-handle {
   position: absolute;
   top: 48px;
