@@ -1,5 +1,5 @@
 import { BadRequestException, ForbiddenException } from '@nestjs/common';
-import { PackRole } from '@prisma/client';
+import { PackRole, StickerReviewStatus } from '@prisma/client';
 import { PacksService } from './packs.service';
 
 jest.mock('uuid', () => ({ v4: () => 'generated-sticker-id' }));
@@ -178,6 +178,44 @@ describe(PacksService, () => {
     });
     expect(prisma.pack.create).toHaveBeenCalledWith({
       data: expect.objectContaining({ teamId: 'team-1' }),
+    });
+  });
+
+  it('lists public packs without exposing sticker rows', async () => {
+    const { service, prisma } = createService();
+    prisma.pack.findMany.mockResolvedValue([
+      {
+        id: 'public-pack',
+        ownerId: 'owner-1',
+        name: 'Public Pack',
+        publisher: 'Foundry',
+        description: null,
+        isPublic: true,
+        requiresApproval: true,
+        isAnimated: false,
+        imageDataVersion: '3',
+        updatedAt: new Date('2026-05-07T10:00:00Z'),
+        stickers: [{ id: 'approved-1' }],
+        _count: { stickers: 4 },
+      },
+    ]);
+
+    await expect(service.publicPacks()).resolves.toEqual([
+      expect.objectContaining({
+        id: 'public-pack',
+        stickerCount: 4,
+        exportStickerCount: 1,
+        canExport: false,
+        stickers: undefined,
+      }),
+    ]);
+    expect(prisma.pack.findMany).toHaveBeenCalledWith({
+      where: { isPublic: true },
+      orderBy: { updatedAt: 'desc' },
+      include: {
+        _count: { select: { stickers: true } },
+        stickers: { where: { reviewStatus: StickerReviewStatus.APPROVED }, select: { id: true } },
+      },
     });
   });
 

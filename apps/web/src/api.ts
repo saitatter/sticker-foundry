@@ -306,6 +306,10 @@ export class StickerFoundryApi {
     return this.request<Pack[]>('/packs', { auth: true });
   }
 
+  async publicPacks() {
+    return this.request<Pack[]>('/public/packs');
+  }
+
   async publicPack(id: string) {
     return this.request<Pack>(`/public/packs/${id}`);
   }

@@ -126,11 +126,35 @@ export class PacksService {
       throw new NotFoundException('Public pack not found');
     }
 
+    return this.publicPackSummary(pack);
+  }
+
+  async publicPacks() {
+    const packs = await this.prisma.pack.findMany({
+      where: { isPublic: true },
+      orderBy: { updatedAt: 'desc' },
+      include: {
+        _count: { select: { stickers: true } },
+        stickers: { where: { reviewStatus: StickerReviewStatus.APPROVED }, select: { id: true } },
+      },
+    });
+
+    return packs.map((pack) => this.publicPackSummary(pack));
+  }
+
+  private publicPackSummary<
+    T extends {
+      requiresApproval: boolean;
+      stickers: Array<{ id?: string; reviewStatus?: StickerReviewStatus }>;
+      _count: { stickers: number };
+    },
+  >(pack: T) {
     const { _count, ...rest } = pack;
-    const approvedCount = rest.stickers.filter((sticker) => sticker.reviewStatus === StickerReviewStatus.APPROVED).length;
-    const exportStickerCount = rest.requiresApproval ? approvedCount : rest.stickers.length;
+    const approvedCount = pack.stickers.filter((sticker) => sticker.reviewStatus === StickerReviewStatus.APPROVED || !sticker.reviewStatus).length;
+    const exportStickerCount = rest.requiresApproval ? approvedCount : _count.stickers;
     return {
       ...rest,
+      stickers: rest.stickers?.[0]?.reviewStatus ? rest.stickers : undefined,
       stickerCount: _count.stickers,
       exportStickerCount,
       canExport:

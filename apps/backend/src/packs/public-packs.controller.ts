@@ -10,6 +10,11 @@ export class PublicPacksController {
     private readonly exportService: PackExportService,
   ) {}
 
+  @Get()
+  packs() {
+    return this.packsService.publicPacks();
+  }
+
   @Get(':id')
   pack(@Param('id') id: string) {
     return this.packsService.publicPack(id);

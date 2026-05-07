@@ -1212,6 +1212,51 @@ select:focus {
   margin-bottom: 14px;
 }
 
+.public-pack-browser {
+  display: grid;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.public-pack-browser > button {
+  width: 100%;
+}
+
+.public-pack-list {
+  display: grid;
+  gap: 8px;
+}
+
+.public-pack-link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 11px 12px;
+  color: var(--text);
+  text-decoration: none;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-muted);
+}
+
+.public-pack-link span {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.public-pack-link strong,
+.public-pack-link small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.public-pack-link small {
+  color: var(--muted);
+}
+
 .password-field {
   display: grid;
   grid-template-columns: 1fr 40px;

@@ -736,6 +736,9 @@ function AuthScreen({
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [requestingReset, setRequestingReset] = useState(false);
+  const [publicPacks, setPublicPacks] = useState<Pack[]>([]);
+  const [loadingPublicPacks, setLoadingPublicPacks] = useState(false);
+  const [showPublicPacks, setShowPublicPacks] = useState(false);
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -774,6 +777,18 @@ function AuthScreen({
       onError(error);
     } finally {
       setRequestingReset(false);
+    }
+  }
+
+  async function browsePublicPacks() {
+    setShowPublicPacks(true);
+    setLoadingPublicPacks(true);
+    try {
+      setPublicPacks(await api.publicPacks());
+    } catch (error) {
+      onError(error);
+    } finally {
+      setLoadingPublicPacks(false);
     }
   }
 
@@ -847,6 +862,32 @@ function AuthScreen({
             </button>
           ) : null}
         </form>
+        <div className="public-pack-browser">
+          <button className="secondary-button" disabled={loadingPublicPacks} onClick={() => void browsePublicPacks()} type="button">
+            <Globe2 size={17} />
+            {loadingPublicPacks ? 'Loading public packs' : 'Browse public packs'}
+          </button>
+          {showPublicPacks ? (
+            <div className="public-pack-list">
+              {publicPacks.length > 0 ? (
+                publicPacks.map((pack) => (
+                  <a className="public-pack-link" href={`/share/${pack.id}`} key={pack.id}>
+                    <span>
+                      <strong>{pack.name}</strong>
+                      <small>{pack.publisher}</small>
+                    </span>
+                    <small>{pack.exportStickerCount ?? pack.stickerCount}/30</small>
+                  </a>
+                ))
+              ) : (
+                <div className="empty-inline">
+                  <Archive size={20} />
+                  <span>{loadingPublicPacks ? 'Loading public packs' : 'No public packs yet'}</span>
+                </div>
+              )}
+            </div>
+          ) : null}
+        </div>
       </section>
     </main>
   );
