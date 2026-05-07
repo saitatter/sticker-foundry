@@ -94,13 +94,15 @@ class StickerRepository private constructor(context: Context) {
     }
 
     suspend fun uploadSticker(packId: String, uri: Uri, options: ImageEditOptions) = withContext(Dispatchers.IO) {
-        withAuthRetry { bearer -> api().uploadSticker(bearer, packId, multipartFromUri(uri, options)).close() }
-        sync()
+        mutatePackWithConflictSync(packId) { bearer, version ->
+            api().uploadSticker(bearer, packId, version, multipartFromUri(uri, options)).close()
+        }
     }
 
     suspend fun replaceTrayIcon(packId: String, uri: Uri, options: ImageEditOptions) = withContext(Dispatchers.IO) {
-        withAuthRetry { bearer -> api().replaceTrayIcon(bearer, packId, multipartFromUri(uri, options)).close() }
-        sync()
+        mutatePackWithConflictSync(packId) { bearer, version ->
+            api().replaceTrayIcon(bearer, packId, version, multipartFromUri(uri, options)).close()
+        }
     }
 
     suspend fun logout() = withContext(Dispatchers.IO) {
@@ -207,6 +209,20 @@ class StickerRepository private constructor(context: Context) {
             throw HttpException(response)
         }
         return ManifestLookup(notModified = false, manifest = response.body() ?: error("Manifest response was empty"))
+    }
+
+    private suspend fun mutatePackWithConflictSync(packId: String, block: suspend (String, String) -> Unit) {
+        val localVersion = db.stickerDao().getPack(packId)?.imageDataVersion ?: error("Sync this pack before editing")
+        try {
+            withAuthRetry { bearer -> block(bearer, localVersion) }
+            sync()
+        } catch (error: HttpException) {
+            if (error.code() == 409) {
+                runCatching { syncPack(packId) }
+                error("Pack changed on the server. Synced the latest version; retry your edit.")
+            }
+            throw error
+        }
     }
 
     private suspend fun downloadZipToTemp(packId: String): File {

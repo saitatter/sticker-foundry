@@ -33,6 +33,7 @@ interface StickerApi {
     suspend fun uploadSticker(
         @Header("Authorization") bearerToken: String,
         @Path("id") packId: String,
+        @Header("If-Match") ifMatch: String,
         @Part file: MultipartBody.Part,
     ): ResponseBody
 
@@ -41,6 +42,7 @@ interface StickerApi {
     suspend fun replaceTrayIcon(
         @Header("Authorization") bearerToken: String,
         @Path("id") packId: String,
+        @Header("If-Match") ifMatch: String,
         @Part file: MultipartBody.Part,
     ): ResponseBody
 

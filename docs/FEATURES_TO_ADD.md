@@ -10,10 +10,6 @@ This is the live feature backlog. It should only contain work that still needs t
 - Document tested Android/WhatsApp versions.
 - Add fixes for any provider compatibility issues discovered during real-device testing.
 
-## Sync And Reliability
-
-- Better conflict handling when the same pack is edited from web and Android.
-
 ## Deployment And Ops
 
 - Validate `docker compose up -d --build` on a host with Docker installed.

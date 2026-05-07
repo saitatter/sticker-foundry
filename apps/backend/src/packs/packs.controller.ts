@@ -126,11 +126,13 @@ export class PacksController {
 
   @Post(':id/tray-icon')
   @UseInterceptors(FileInterceptor('file', trayIconUploadOptions))
-  uploadTrayIcon(
+  async uploadTrayIcon(
     @CurrentUser() user: RequestUser,
     @Param('id') id: string,
+    @Headers('if-match') ifMatch: string | undefined,
     @UploadedFile() file: Express.Multer.File,
   ) {
+    await this.packsService.assertPackVersion(user.sub, id, ifMatch);
     return this.packsService.uploadTrayIcon(user.sub, id, file);
   }
 
@@ -160,12 +162,14 @@ export class PacksController {
 
   @Post(':id/stickers')
   @UseInterceptors(FileInterceptor('file', stickerUploadOptions))
-  uploadSticker(
+  async uploadSticker(
     @CurrentUser() user: RequestUser,
     @Param('id') id: string,
+    @Headers('if-match') ifMatch: string | undefined,
     @UploadedFile() file: Express.Multer.File,
     @Body() dto: UploadStickerDto,
   ) {
+    await this.packsService.assertPackVersion(user.sub, id, ifMatch);
     return this.packsService.uploadSticker(user.sub, id, file, dto);
   }
 

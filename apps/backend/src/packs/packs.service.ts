@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PackRole, StickerReviewStatus } from '@prisma/client';
 import { randomBytes } from 'crypto';
@@ -920,6 +920,22 @@ export class PacksService {
     await this.get(userId, packId);
   }
 
+  async assertPackVersion(userId: string, packId: string, ifMatch: string | undefined) {
+    const expectedVersion = this.versionFromIfMatch(ifMatch);
+    if (!expectedVersion) return;
+
+    const pack = await this.loadPackForAccess(userId, packId);
+    if (!pack) {
+      throw new NotFoundException('Pack not found');
+    }
+    if (!this.canEdit(userId, pack)) {
+      throw new ForbiddenException('Only editors can modify this pack');
+    }
+    if (pack.imageDataVersion !== expectedVersion) {
+      throw new ConflictException('Pack changed on the server. Sync the latest version before editing.');
+    }
+  }
+
   private async compactStickerPositions(packId: string) {
     const stickers = await this.prisma.sticker.findMany({
       where: { packId },
@@ -943,6 +959,12 @@ export class PacksService {
       return String(numeric + 1);
     }
     return String(Date.now());
+  }
+
+  private versionFromIfMatch(ifMatch: string | undefined) {
+    const value = ifMatch?.trim();
+    if (!value) return null;
+    return value.replace(/^W\//, '').replace(/^"|"$/g, '');
   }
 
   private async loadPackForAccess(userId: string, packId: string) {

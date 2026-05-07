@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException } from '@nestjs/common';
 import { PackRole, StickerReviewStatus } from '@prisma/client';
 import { PacksService } from './packs.service';
 
@@ -295,6 +295,19 @@ describe(PacksService, () => {
       data: { imageDataVersion: '12' },
     });
     expect(result.stickerCount).toBe(3);
+  });
+
+  it('rejects stale If-Match pack versions before edits', async () => {
+    const { service, prisma } = createService();
+    prisma.pack.findUnique.mockResolvedValue({
+      id: 'pack-1',
+      ownerId: 'owner-1',
+      imageDataVersion: '12',
+      members: [],
+    });
+
+    await expect(service.assertPackVersion('owner-1', 'pack-1', '"11"')).rejects.toBeInstanceOf(ConflictException);
+    await expect(service.assertPackVersion('owner-1', 'pack-1', '"12"')).resolves.toBeUndefined();
   });
 
   it('rejects reorder requests with missing or foreign sticker ids', async () => {
