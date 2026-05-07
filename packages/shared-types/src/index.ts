@@ -39,6 +39,7 @@ export type PackDto = {
   imageDataVersion: string;
   stickerCount: number;
   exportStickerCount?: number;
+  canExport?: boolean;
   role?: PackRole;
   canEdit?: boolean;
   canManage?: boolean;

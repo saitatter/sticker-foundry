@@ -112,6 +112,31 @@ export class PacksService {
     };
   }
 
+  async publicPack(id: string) {
+    const pack = await this.prisma.pack.findUnique({
+      where: { id },
+      include: {
+        stickers: { orderBy: [{ position: 'asc' }, { createdAt: 'asc' }] },
+        _count: { select: { stickers: true } },
+      },
+    });
+    if (!pack || !pack.isPublic) {
+      throw new NotFoundException('Public pack not found');
+    }
+
+    const { _count, ...rest } = pack;
+    const approvedCount = rest.stickers.filter((sticker) => sticker.reviewStatus === StickerReviewStatus.APPROVED).length;
+    const exportStickerCount = rest.requiresApproval ? approvedCount : rest.stickers.length;
+    return {
+      ...rest,
+      stickerCount: _count.stickers,
+      exportStickerCount,
+      canExport:
+        exportStickerCount >= WHATSAPP_LIMITS.minStickersPerPack &&
+        exportStickerCount <= WHATSAPP_LIMITS.maxStickersPerPack,
+    };
+  }
+
   async delete(ownerId: string, id: string) {
     const pack = await this.prisma.pack.findUnique({
       where: { id },

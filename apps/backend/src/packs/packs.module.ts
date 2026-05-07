@@ -5,6 +5,7 @@ import { PrismaService } from '../prisma.service';
 import { PackExportService } from './pack-export.service';
 import { PacksController } from './packs.controller';
 import { PacksService } from './packs.service';
+import { PublicPacksController } from './public-packs.controller';
 import { StickerImageService } from './sticker-image.service';
 
 @Module({
@@ -16,7 +17,7 @@ import { StickerImageService } from './sticker-image.service';
       },
     }),
   ],
-  controllers: [PacksController],
+  controllers: [PacksController, PublicPacksController],
   providers: [PacksService, PackExportService, StickerImageService, PrismaService],
 })
 export class PacksModule {}

@@ -156,6 +156,11 @@ export function App() {
     void refreshSelectedPack();
   }, [refreshSelectedPack]);
 
+  const sharePackId = sharePackIdFromPath();
+  if (sharePackId) {
+    return <SharePage api={api} instanceSettings={instanceSettings} packId={sharePackId} onError={reportError} notice={notice} />;
+  }
+
   const saveSession = (auth: AuthResponse) => {
     saveAuth(auth);
     setNotice({ tone: 'success', text: 'Signed in' });
@@ -296,6 +301,84 @@ export function App() {
         />
       ) : null}
     </div>
+  );
+}
+
+function SharePage({
+  api,
+  instanceSettings,
+  packId,
+  onError,
+  notice,
+}: {
+  api: StickerFoundryApi;
+  instanceSettings: InstanceSettings;
+  packId: string;
+  onError: (error: unknown) => void;
+  notice: Notice | null;
+}) {
+  const [pack, setPack] = useState<Pack | null>(null);
+  const [downloading, setDownloading] = useState(false);
+
+  useEffect(() => {
+    api.publicPack(packId).then(setPack).catch(onError);
+  }, [api, onError, packId]);
+
+  async function download() {
+    if (!pack) return;
+    setDownloading(true);
+    try {
+      const blob = await api.publicExportPack(pack.id);
+      downloadBlob(blob, exportFileName(pack));
+    } catch (error) {
+      onError(error);
+    } finally {
+      setDownloading(false);
+    }
+  }
+
+  return (
+    <main className="share-layout">
+      <section className="share-panel">
+        <div className="brand share-brand">
+          <span className="brand-mark">SF</span>
+          <div>
+            <h1>{instanceSettings.instanceName}</h1>
+            <p>{instanceSettings.instanceDescription}</p>
+          </div>
+        </div>
+        {notice ? <NoticeBar notice={notice} /> : null}
+        {pack ? (
+          <>
+            <div className="share-heading">
+              <p className="eyebrow">Public sticker pack</p>
+              <h2>{pack.name}</h2>
+              <p>{pack.publisher}</p>
+            </div>
+            <div className="stats-grid">
+              <Metric label="Stickers" value={`${pack.exportStickerCount ?? pack.stickerCount}/30`} />
+              <Metric label="Visibility" value="Public" />
+              <Metric label="Version" value={pack.imageDataVersion} />
+              <Metric label="Updated" value={new Date(pack.updatedAt).toLocaleDateString()} />
+            </div>
+            <div className="share-steps">
+              <span>Download the ZIP from this page.</span>
+              <span>Import through the StickerFoundry Android app for WhatsApp.</span>
+              <span>WhatsApp will ask for confirmation before adding the pack.</span>
+            </div>
+            <button className="primary-button" disabled={!pack.canExport || downloading} onClick={() => void download()} type="button">
+              <Download size={17} />
+              {downloading ? 'Downloading' : 'Download ZIP'}
+            </button>
+          </>
+        ) : (
+          <div className="empty-inline">
+            <Archive size={22} />
+            <span>Loading public pack</span>
+          </div>
+        )}
+      </section>
+    </main>
   );
 }
 
@@ -2710,6 +2793,11 @@ function downloadBlob(blob: Blob, fileName: string) {
   link.click();
   link.remove();
   URL.revokeObjectURL(url);
+}
+
+function sharePackIdFromPath() {
+  const match = window.location.pathname.match(/^\/share\/([^/?#]+)/);
+  return match ? decodeURIComponent(match[1]) : null;
 }
 
 function roleLabel(role?: PackRole) {

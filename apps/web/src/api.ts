@@ -91,6 +91,7 @@ export type Pack = {
   imageDataVersion: string;
   stickerCount: number;
   exportStickerCount?: number;
+  canExport?: boolean;
   updatedAt: string;
   role?: PackRole;
   canEdit?: boolean;
@@ -277,6 +278,18 @@ export class StickerFoundryApi {
 
   async packs() {
     return this.request<Pack[]>('/packs', { auth: true });
+  }
+
+  async publicPack(id: string) {
+    return this.request<Pack>(`/public/packs/${id}`);
+  }
+
+  async publicExportPack(packId: string) {
+    const response = await fetch(`${API_BASE_URL}/public/packs/${packId}/export`);
+    if (!response.ok) {
+      throw new ApiError(await readError(response), response.status);
+    }
+    return response.blob();
   }
 
   async teams() {

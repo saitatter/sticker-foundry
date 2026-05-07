@@ -1122,13 +1122,56 @@ select:focus {
   padding: 20px;
 }
 
-.auth-panel {
+.share-layout {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: var(--background);
+}
+
+.auth-panel,
+.share-panel {
   width: min(440px, 100%);
   padding: 22px;
 }
 
-.auth-brand {
+.auth-brand,
+.share-brand {
   margin-bottom: 18px;
+}
+
+.share-panel {
+  display: grid;
+  gap: 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+}
+
+.share-heading h2 {
+  margin: 0;
+  font-size: 28px;
+}
+
+.share-heading p {
+  margin: 4px 0 0;
+  color: var(--muted);
+}
+
+.share-steps {
+  display: grid;
+  gap: 8px;
+  color: var(--text);
+  font-size: 14px;
+}
+
+.share-steps span {
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-muted);
 }
 
 .segmented {
