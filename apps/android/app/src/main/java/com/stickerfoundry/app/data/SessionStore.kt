@@ -1,7 +1,7 @@
-package com.example.stickerplatform.data
+package com.stickerfoundry.app.data
 
 import android.content.Context
-import com.example.stickerplatform.BuildConfig
+import com.stickerfoundry.app.BuildConfig
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 
 class SessionStore(context: Context) {

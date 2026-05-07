@@ -1,4 +1,4 @@
-package com.example.stickerplatform.data
+package com.stickerfoundry.app.data
 
 data class ImageEditOptions(
     val rotationDegrees: Int = 0,

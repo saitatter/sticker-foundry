@@ -1,4 +1,4 @@
-package com.example.stickerplatform.whatsapp
+package com.stickerfoundry.app.whatsapp
 
 import android.content.ContentProvider
 import android.content.ContentResolver
@@ -9,8 +9,8 @@ import android.database.Cursor
 import android.database.MatrixCursor
 import android.net.Uri
 import android.os.ParcelFileDescriptor
-import com.example.stickerplatform.BuildConfig
-import com.example.stickerplatform.data.LocalDatabase
+import com.stickerfoundry.app.BuildConfig
+import com.stickerfoundry.app.data.LocalDatabase
 import java.io.File
 
 class StickerContentProvider : ContentProvider() {

@@ -1,4 +1,4 @@
-package com.example.stickerplatform.data
+package com.stickerfoundry.app.data
 
 import okhttp3.ResponseBody
 import okhttp3.MultipartBody

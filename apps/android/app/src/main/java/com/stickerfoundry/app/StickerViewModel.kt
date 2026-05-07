@@ -1,14 +1,14 @@
-package com.example.stickerplatform
+package com.stickerfoundry.app
 
 import android.content.Context
 import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
-import com.example.stickerplatform.data.ImageEditOptions
-import com.example.stickerplatform.data.PackEntity
-import com.example.stickerplatform.data.StickerRepository
-import com.example.stickerplatform.data.StickerEntity
+import com.stickerfoundry.app.data.ImageEditOptions
+import com.stickerfoundry.app.data.PackEntity
+import com.stickerfoundry.app.data.StickerRepository
+import com.stickerfoundry.app.data.StickerEntity
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow

@@ -6,11 +6,11 @@ plugins {
 }
 
 android {
-    namespace = "com.example.stickerplatform"
+    namespace = "com.stickerfoundry.app"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.example.stickerplatform"
+        applicationId = "com.stickerfoundry.app"
         minSdk = 26
         targetSdk = 35
         versionCode = 10000

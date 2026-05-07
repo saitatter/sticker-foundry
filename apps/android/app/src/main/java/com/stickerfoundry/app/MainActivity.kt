@@ -1,4 +1,4 @@
-package com.example.stickerplatform
+package com.stickerfoundry.app
 
 import android.content.Context
 import android.graphics.BitmapFactory
@@ -47,13 +47,13 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.example.stickerplatform.data.EXTRACTION_FAILED
-import com.example.stickerplatform.data.EXTRACTION_READY
-import com.example.stickerplatform.data.EXTRACTION_SYNCING
-import com.example.stickerplatform.data.ImageEditOptions
-import com.example.stickerplatform.data.PackEntity
-import com.example.stickerplatform.data.StickerEntity
-import com.example.stickerplatform.whatsapp.WhatsAppStickerLauncher
+import com.stickerfoundry.app.data.EXTRACTION_FAILED
+import com.stickerfoundry.app.data.EXTRACTION_READY
+import com.stickerfoundry.app.data.EXTRACTION_SYNCING
+import com.stickerfoundry.app.data.ImageEditOptions
+import com.stickerfoundry.app.data.PackEntity
+import com.stickerfoundry.app.data.StickerEntity
+import com.stickerfoundry.app.whatsapp.WhatsAppStickerLauncher
 import java.io.File
 
 class MainActivity : ComponentActivity() {

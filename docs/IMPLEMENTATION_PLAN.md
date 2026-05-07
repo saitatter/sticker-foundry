@@ -46,14 +46,14 @@ Acceptance criteria:
 - Default Compose stack works from a clean checkout.
 - Any missing env, permission, migration, or volume issue is documented or fixed.
 
-## Milestone 3: Android Release Identity
+## Milestone 3: Android Release Signing
 
 Goal: prepare Android releases for real distribution.
 
 Tasks:
 
-- Replace the starter `applicationId`.
-- Confirm ContentProvider authority after the package rename.
+- Use the finalized `com.stickerfoundry.app` application ID.
+- Confirm ContentProvider authority on a real WhatsApp import after signing.
 - Configure signing secrets for CI once identity is final.
 - Build and test a signed release APK.
 

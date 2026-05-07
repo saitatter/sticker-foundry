@@ -2,11 +2,13 @@
 
 StickerFoundry can build a signed release APK when signing environment variables are provided.
 
-Do not publish a signed release until the Android package identity is finalized. The current starter app still uses:
+The Android package identity is:
 
 ```kotlin
-applicationId = "com.example.stickerplatform"
+applicationId = "com.stickerfoundry.app"
 ```
+
+The WhatsApp `ContentProvider` authority is generated from that ID as `com.stickerfoundry.app.stickercontentprovider`.
 
 ## Create A Keystore
 
