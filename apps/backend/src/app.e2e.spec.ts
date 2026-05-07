@@ -296,7 +296,12 @@ class InMemoryPrisma {
     }),
   };
 
-  $transaction = jest.fn(async (operations: unknown[]) => Promise.all(operations));
+  $transaction = jest.fn(async (operation: unknown) => {
+    if (typeof operation === 'function') {
+      return (operation as (tx: InMemoryPrisma) => Promise<unknown>)(this);
+    }
+    return Promise.all(operation as Promise<unknown>[]);
+  });
   $queryRaw = jest.fn(async () => [{ '?column?': 1 }]);
 
   private decoratePack(pack: PackRecord, include: unknown) {
