@@ -13,7 +13,7 @@ Already implemented:
 - Export API with `contents.json`, `tray_icon.webp`, sticker files, `GET /packs/:id/contents`, `GET /packs/:id/manifest`, `ETag`, and OpenAPI docs.
 - Sync API with `contentHash`, `syncHash`, ownership flags, export readiness, and relative export/tray paths.
 - Pack collaboration with owner/viewer/editor roles, invite creation/acceptance/revocation, member listing, member removal, member role editing, role-aware mutation checks, and sync capability flags.
-- Web UI with auth, demo login, pack dashboard search/filter/sort/status badges, pack detail, create/edit/delete/clone, collaboration invites/member management, sticker upload, drag-and-drop uploads, image rotate/square crop, sticker replacement, tray replacement, ordering, ZIP download, contents preview, and account password change.
+- Web UI with auth, demo login, pack dashboard search/filter/sort/status badges, pack detail, create/edit/delete/clone, collaboration invites/member management, sticker upload, bulk delete/bulk emoji apply, drag-and-drop uploads, image rotate/square crop, sticker replacement, tray replacement, ordering, ZIP download, contents preview, and account password change.
 - Android app with MVVM, Retrofit, Room cache, local ZIP extraction, WhatsApp `ContentProvider`, import intents for WhatsApp and WhatsApp Business, role-aware image upload/tray replacement, image rotate/square crop, server URL settings, logout, cache size/clear cache, import readiness, content-hash sync, and stale cache pruning.
 - Docker Compose with backend, web, PostgreSQL, `.env.example`, backend healthcheck, backup/restore docs, Unraid notes, and reverse proxy examples.
 - Semantic-release with emoji release sections, release APK artifact, Dependabot, PR title validation, and issue templates.
@@ -86,8 +86,7 @@ Goal: make daily sticker management faster.
 
 Tasks:
 
-- Add sticker multi-select in web.
-- Add bulk delete, copy/move to another pack, and bulk emoji apply.
+- Add copy/move to another pack.
 - Add a sticker detail panel with richer metadata editing.
 - Add local sticker grid preview in Android before import.
 - Add optimistic UI updates for common web mutations.
@@ -153,7 +152,7 @@ Acceptance criteria:
 ## Near-Term Recommended Order
 
 1. Real-device WhatsApp import validation.
-2. Web bulk sticker actions.
+2. Web copy/move sticker actions.
 3. Android local sticker grid preview.
 4. Refresh-token/session revocation.
 5. Playwright web smoke tests.

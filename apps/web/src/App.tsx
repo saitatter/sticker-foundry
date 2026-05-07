@@ -630,6 +630,15 @@ function PackDetail({
   const [contentsPreview, setContentsPreview] = useState<string | null>(null);
   const [loadingContents, setLoadingContents] = useState(false);
   const [draggingStickerId, setDraggingStickerId] = useState<string | null>(null);
+  const [selectedStickerIds, setSelectedStickerIds] = useState<string[]>([]);
+  const [bulkEmojis, setBulkEmojis] = useState('');
+  const [bulkSaving, setBulkSaving] = useState(false);
+  const selectedStickerSet = useMemo(() => new Set(selectedStickerIds), [selectedStickerIds]);
+
+  useEffect(() => {
+    setSelectedStickerIds([]);
+    setBulkEmojis('');
+  }, [pack.id]);
 
   async function exportPack() {
     setExporting(true);
@@ -724,6 +733,56 @@ function PackDetail({
     }
   }
 
+  function toggleStickerSelection(stickerId: string, selected: boolean) {
+    setSelectedStickerIds((current) => {
+      if (selected) return current.includes(stickerId) ? current : [...current, stickerId];
+      return current.filter((id) => id !== stickerId);
+    });
+  }
+
+  function selectAllStickers() {
+    setSelectedStickerIds(stickers.map((sticker) => sticker.id));
+  }
+
+  async function bulkDeleteStickers() {
+    if (selectedStickerIds.length === 0 || !confirm(`Delete ${selectedStickerIds.length} selected sticker(s)?`)) return;
+    setBulkSaving(true);
+    try {
+      for (const stickerId of selectedStickerIds) {
+        await api.deleteSticker(pack.id, stickerId);
+      }
+      setSelectedStickerIds([]);
+      await onChanged('Selected stickers deleted');
+    } catch (error) {
+      onError(error);
+    } finally {
+      setBulkSaving(false);
+    }
+  }
+
+  async function bulkApplyEmojis() {
+    const emojis = bulkEmojis
+      .split(',')
+      .map((emoji) => emoji.trim())
+      .filter(Boolean)
+      .slice(0, 3);
+    if (selectedStickerIds.length === 0 || emojis.length === 0) return;
+
+    setBulkSaving(true);
+    try {
+      for (const sticker of stickers.filter((item) => selectedStickerIds.includes(item.id))) {
+        await api.updateSticker(pack.id, sticker.id, emojis, sticker.accessibilityText ?? '');
+      }
+      setSelectedStickerIds([]);
+      setBulkEmojis('');
+      await onChanged('Emoji updated on selected stickers');
+    } catch (error) {
+      onError(error);
+    } finally {
+      setBulkSaving(false);
+    }
+  }
+
   return (
     <section className="detail">
       <div className="detail-header">
@@ -785,6 +844,42 @@ function PackDetail({
           <h3>Stickers</h3>
           <Archive size={18} />
         </div>
+        {canEdit && stickers.length > 0 ? (
+          <div className="bulk-toolbar">
+            <span className="counter">{selectedStickerIds.length}</span>
+            <button className="secondary-button" disabled={bulkSaving} onClick={selectAllStickers} type="button">
+              Select all
+            </button>
+            <button
+              className="secondary-button"
+              disabled={selectedStickerIds.length === 0 || bulkSaving}
+              onClick={() => setSelectedStickerIds([])}
+              type="button"
+            >
+              Clear
+            </button>
+            <label>
+              Emojis
+              <input value={bulkEmojis} onChange={(event) => setBulkEmojis(event.target.value)} placeholder="smile,laugh" />
+            </label>
+            <button
+              className="secondary-button"
+              disabled={selectedStickerIds.length === 0 || !bulkEmojis.trim() || bulkSaving}
+              onClick={() => void bulkApplyEmojis()}
+              type="button"
+            >
+              Apply emoji
+            </button>
+            <button
+              className="secondary-button danger-button"
+              disabled={selectedStickerIds.length === 0 || bulkSaving}
+              onClick={() => void bulkDeleteStickers()}
+              type="button"
+            >
+              Delete selected
+            </button>
+          </div>
+        ) : null}
         {stickers.length > 0 ? (
           <div className="sticker-grid">
             {stickers.map((sticker, index) => (
@@ -798,6 +893,7 @@ function PackDetail({
                 canMoveDown={index < stickers.length - 1}
                 canMoveUp={index > 0}
                 isDragging={draggingStickerId === sticker.id}
+                isSelected={selectedStickerSet.has(sticker.id)}
                 onChanged={() => onChanged('Sticker updated')}
                 onDeleted={() => onChanged('Sticker deleted')}
                 onDragEnd={() => setDraggingStickerId(null)}
@@ -806,6 +902,7 @@ function PackDetail({
                 onError={onError}
                 onMoveDown={() => moveSticker(sticker.id, 1)}
                 onMoveUp={() => moveSticker(sticker.id, -1)}
+                onSelectedChange={(selected) => toggleStickerSelection(sticker.id, selected)}
               />
             ))}
           </div>
@@ -1298,6 +1395,7 @@ function StickerTile({
   canMoveDown,
   canMoveUp,
   isDragging,
+  isSelected,
   onChanged,
   onDeleted,
   onDragEnd,
@@ -1306,6 +1404,7 @@ function StickerTile({
   onError,
   onMoveDown,
   onMoveUp,
+  onSelectedChange,
 }: {
   api: StickerFoundryApi;
   packId: string;
@@ -1315,6 +1414,7 @@ function StickerTile({
   canMoveDown: boolean;
   canMoveUp: boolean;
   isDragging: boolean;
+  isSelected: boolean;
   onChanged: () => Promise<void>;
   onDeleted: () => Promise<void>;
   onDragEnd: () => void;
@@ -1323,6 +1423,7 @@ function StickerTile({
   onError: (error: unknown) => void;
   onMoveDown: () => void;
   onMoveUp: () => void;
+  onSelectedChange: (selected: boolean) => void;
 }) {
   const [url, setUrl] = useState<string | null>(null);
   const [emojis, setEmojis] = useState(sticker.emojis.join(','));
@@ -1428,6 +1529,12 @@ function StickerTile({
             </IconButton>
           </div>
         </>
+      ) : null}
+      {canEdit ? (
+        <label className="sticker-select">
+          <input checked={isSelected} onChange={(event) => onSelectedChange(event.target.checked)} type="checkbox" />
+          Select
+        </label>
       ) : null}
       <div className="sticker-preview">{url ? <img alt={sticker.accessibilityText ?? sticker.fileName} src={url} /> : null}</div>
       <div className="sticker-meta">

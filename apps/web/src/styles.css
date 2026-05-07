@@ -255,6 +255,10 @@ select:focus {
   font-weight: 700;
 }
 
+.danger-button {
+  color: var(--danger);
+}
+
 .icon-button {
   width: 40px;
   color: var(--text);
@@ -772,6 +776,14 @@ select:focus {
   gap: 12px;
 }
 
+.bulk-toolbar {
+  display: grid;
+  grid-template-columns: auto auto auto minmax(160px, 1fr) auto auto;
+  align-items: end;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
 .sticker-tile {
   position: relative;
   display: grid;
@@ -824,6 +836,20 @@ select:focus {
   width: 34px;
   min-height: 34px;
   background: rgba(255, 255, 255, 0.92);
+}
+
+.sticker-select {
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.sticker-select input {
+  width: 16px;
+  height: 16px;
 }
 
 .sticker-preview {
@@ -1014,6 +1040,7 @@ select:focus {
 
   .stats-grid,
   .collaboration-grid,
+  .bulk-toolbar,
   .invite-form {
     grid-template-columns: 1fr 1fr;
   }
@@ -1049,6 +1076,7 @@ select:focus {
   .edit-form,
   .tray-form,
   .collaboration-grid,
+  .bulk-toolbar,
   .invite-form,
   .image-edit-controls {
     grid-template-columns: 1fr;

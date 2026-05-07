@@ -22,6 +22,7 @@ This is the live feature backlog. Items already shipped are kept briefly at the 
 - Stronger upload content validation.
 - Pack collaboration roles, invite creation/acceptance/revocation, member listing/removal, role editing, and role-aware web controls.
 - Android shared-pack role display and role-aware editor controls.
+- Web sticker multi-select with bulk delete and bulk emoji apply.
 - Compose `.env.example` and reverse proxy examples.
 - Dependabot and GitHub issue templates.
 - Metrics endpoint for basic monitoring.
@@ -54,7 +55,8 @@ This is the live feature backlog. Items already shipped are kept briefly at the 
 ## Sticker Workflow UX
 
 - Sticker detail panel with larger preview and full metadata editing.
-- Bulk actions for selected stickers: delete, copy, move, emoji apply, and accessibility text generation.
+- Bulk copy/move for selected stickers.
+- Bulk accessibility text generation for selected stickers.
 - Copy or move individual stickers to another pack.
 - Better mobile web layout for quick edits from a phone browser.
 - Activity feed showing who changed pack metadata or images.
