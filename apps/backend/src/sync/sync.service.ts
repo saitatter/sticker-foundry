@@ -11,7 +11,7 @@ export class SyncService {
   async packs(userId: string) {
     const packs = await this.prisma.pack.findMany({
       where: {
-        OR: [{ ownerId: userId }, { isPublic: true }, { members: { some: { userId } } }],
+        OR: [{ ownerId: userId }, { isPublic: true }, { members: { some: { userId } } }, { team: { members: { some: { userId } } } }],
       },
       orderBy: [{ updatedAt: 'desc' }, { name: 'asc' }],
       include: {
@@ -21,12 +21,13 @@ export class SyncService {
           select: { fileName: true, sha256: true },
         },
         members: { where: { userId }, select: { userId: true, role: true } },
+        team: { include: { members: { where: { userId }, select: { userId: true, role: true } } } },
       },
     });
 
     return {
       serverTime: new Date().toISOString(),
-      packs: packs.map(({ _count, stickers, members, ...pack }) => {
+      packs: packs.map(({ _count, stickers, members, team, ...pack }) => {
         const stickerCount = _count.stickers;
         const updatedAt = pack.updatedAt.toISOString();
         const canExport =
@@ -34,7 +35,9 @@ export class SyncService {
         const contentHash = this.contentHash(pack.id, pack.imageDataVersion, stickers);
 
         const role =
-          pack.ownerId === userId ? PackRole.OWNER : (members?.[0]?.role ?? (pack.isPublic ? PackRole.VIEWER : undefined));
+          pack.ownerId === userId
+            ? PackRole.OWNER
+            : (members?.[0]?.role ?? team?.members?.[0]?.role ?? (pack.isPublic ? PackRole.VIEWER : undefined));
 
         return {
           id: pack.id,
@@ -44,6 +47,8 @@ export class SyncService {
           isPublic: pack.isPublic,
           isOwner: pack.ownerId === userId,
           role,
+          teamId: pack.teamId,
+          teamName: team?.name,
           canEdit: role === PackRole.OWNER || role === PackRole.EDITOR,
           canManage: role === PackRole.OWNER,
           imageDataVersion: pack.imageDataVersion,

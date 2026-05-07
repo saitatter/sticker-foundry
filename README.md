@@ -19,11 +19,11 @@ StickerFoundry is a self-hosted collaborative WhatsApp sticker pack manager, sha
 - First-user admin bootstrap plus web admin settings for branding, registration mode, invite code, and per-owner storage quota.
 - Admin audit log for auth, admin setting, pack, collaboration, and sticker mutation events, enriched with request IP/user-agent and exportable as CSV.
 - Authenticated password change endpoint and web account dialog.
-- Pack CRUD with ownership, public visibility, viewer/editor collaboration roles, invite codes, member management, and invite revocation.
+- Pack CRUD with ownership, public visibility, team workspaces, viewer/editor collaboration roles, invite codes, member management, and invite revocation.
 - Sticker upload with WebP conversion, 512x512 resize, and WhatsApp size validation.
 - Upload validation checks actual image content in addition to MIME headers.
 - WhatsApp-compatible ZIP export with `contents.json`, `tray_icon.webp`, and sticker files.
-- Web collaboration panel for owner-managed invite creation, invite revocation, member visibility, member removal, and role changes.
+- Web collaboration panel for owner-managed invite creation, invite revocation, team member management, member visibility, member removal, and role changes.
 - Collaboration invite expiration controls and accepted/pending/expired invite filters.
 - Web sticker multi-select with bulk delete, bulk emoji apply, and copy/move to another pack.
 - Playwright web smoke test for login, pack creation, upload, contents preview, collaboration visibility, and bulk copy.
@@ -95,6 +95,7 @@ Key files:
 - `apps/backend/src/auth/*`: JWT register/login.
 - `apps/backend/src/admin/*`: admin-only instance settings API.
 - `apps/backend/src/audit/*`: append-only audit logging service.
+- `apps/backend/src/teams/*`: shared team/workspace API for family or community packs.
 - `apps/backend/src/packs/packs.controller.ts`: pack CRUD, sticker upload, ZIP export.
 - `apps/backend/src/packs/sticker-image.service.ts`: WebP conversion, resize, compression.
 - `apps/backend/src/packs/pack-export.service.ts`: `contents.json`, `tray_icon.webp`, sticker ZIP generation.
@@ -261,6 +262,22 @@ curl -X POST http://localhost:3000/api/packs/invites/INVITE_CODE/accept \
 
 Editors can mutate sticker content and tray images, viewers can sync/export, and only owners can edit pack metadata, delete packs, or create invites.
 
+Teams are shared workspaces that can own packs through `teamId`. Team owners can add users as `EDITOR` or `VIEWER`, and team members automatically see packs assigned to that team:
+
+```bash
+curl -X POST http://localhost:3000/api/teams \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Family Stickers","description":"Shared home packs"}'
+```
+
+```bash
+curl -X POST http://localhost:3000/api/teams/TEAM_ID/members \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"email":"friend@example.com","role":"EDITOR"}'
+```
+
 Owners can also list members/invites, change a member between `EDITOR` and `VIEWER`, remove a member, or revoke a pending invite:
 
 ```bash
@@ -343,6 +360,7 @@ The web app lives in `apps/web` and provides:
 - Pack dashboard search, filters, sorting, and quick status badges.
 - Pack list and pack detail view.
 - Create/edit/delete pack UI.
+- Team workspace creation, pack assignment, and team member management.
 - Clone pack action for remixing an existing pack into a private copy.
 - Sticker upload with validation feedback.
 - Processed WebP preview.

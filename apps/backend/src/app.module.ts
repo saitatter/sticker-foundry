@@ -10,6 +10,7 @@ import { HealthModule } from './health/health.module';
 import { PacksModule } from './packs/packs.module';
 import { PrismaService } from './prisma.service';
 import { SyncModule } from './sync/sync.module';
+import { TeamsModule } from './teams/teams.module';
 
 @Module({
   imports: [
@@ -31,6 +32,7 @@ import { SyncModule } from './sync/sync.module';
     HealthModule,
     PacksModule,
     SyncModule,
+    TeamsModule,
   ],
   providers: [
     PrismaService,

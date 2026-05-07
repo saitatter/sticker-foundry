@@ -73,6 +73,8 @@ export type Pack = {
   publisher: string;
   description?: string | null;
   isPublic: boolean;
+  teamId?: string | null;
+  teamName?: string | null;
   imageDataVersion: string;
   stickerCount: number;
   updatedAt: string;
@@ -102,6 +104,26 @@ export type PackInvite = {
   acceptedBy?: User | null;
 };
 
+export type Team = {
+  id: string;
+  name: string;
+  description?: string | null;
+  role?: PackRole;
+  memberCount: number;
+  packCount: number;
+  canManage: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type TeamMember = {
+  id: string;
+  teamId: string;
+  userId: string;
+  role: PackRole;
+  user: User;
+};
+
 export type ExportContents = {
   sticker_packs: Array<{
     identifier: string;
@@ -123,6 +145,7 @@ export type CreatePackInput = {
   publisher: string;
   description?: string;
   isPublic: boolean;
+  teamId?: string;
 };
 
 export type UpdatePackInput = Partial<CreatePackInput>;
@@ -239,6 +262,45 @@ export class StickerFoundryApi {
 
   async packs() {
     return this.request<Pack[]>('/packs', { auth: true });
+  }
+
+  async teams() {
+    return this.request<Team[]>('/teams', { auth: true });
+  }
+
+  async createTeam(name: string, description?: string) {
+    return this.request<Team>('/teams', {
+      method: 'POST',
+      auth: true,
+      body: JSON.stringify({ name, description }),
+    });
+  }
+
+  async teamMembers(id: string) {
+    return this.request<TeamMember[]>(`/teams/${id}/members`, { auth: true });
+  }
+
+  async addTeamMember(id: string, email: string, role: Exclude<PackRole, 'OWNER'>) {
+    return this.request<TeamMember>(`/teams/${id}/members`, {
+      method: 'POST',
+      auth: true,
+      body: JSON.stringify({ email, role }),
+    });
+  }
+
+  async updateTeamMember(teamId: string, memberId: string, role: Exclude<PackRole, 'OWNER'>) {
+    return this.request<TeamMember>(`/teams/${teamId}/members/${memberId}`, {
+      method: 'PATCH',
+      auth: true,
+      body: JSON.stringify({ role }),
+    });
+  }
+
+  async removeTeamMember(teamId: string, memberId: string) {
+    return this.request<{ deleted: boolean }>(`/teams/${teamId}/members/${memberId}`, {
+      method: 'DELETE',
+      auth: true,
+    });
   }
 
   async pack(id: string) {

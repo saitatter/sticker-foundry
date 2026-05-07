@@ -47,6 +47,8 @@ data class SyncPackDto(
     val description: String?,
     val isPublic: Boolean,
     val isOwner: Boolean,
+    val teamId: String?,
+    val teamName: String?,
     val role: String?,
     val canEdit: Boolean?,
     val canManage: Boolean?,

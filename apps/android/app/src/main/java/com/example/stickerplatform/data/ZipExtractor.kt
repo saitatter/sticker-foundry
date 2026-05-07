@@ -46,6 +46,8 @@ class ZipExtractor(
                 localPath = packDir.absolutePath,
                 isPublic = true,
                 isOwner = false,
+                teamId = null,
+                teamName = null,
                 role = "VIEWER",
                 canEdit = false,
                 canManage = false,

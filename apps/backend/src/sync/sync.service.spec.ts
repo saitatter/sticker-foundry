@@ -54,7 +54,12 @@ describe(SyncService, () => {
 
     expect(prisma.pack.findMany).toHaveBeenCalledWith({
       where: {
-        OR: [{ ownerId: 'user-1' }, { isPublic: true }, { members: { some: { userId: 'user-1' } } }],
+        OR: [
+          { ownerId: 'user-1' },
+          { isPublic: true },
+          { members: { some: { userId: 'user-1' } } },
+          { team: { members: { some: { userId: 'user-1' } } } },
+        ],
       },
       orderBy: [{ updatedAt: 'desc' }, { name: 'asc' }],
       include: {
@@ -64,6 +69,7 @@ describe(SyncService, () => {
           select: { fileName: true, sha256: true },
         },
         members: { where: { userId: 'user-1' }, select: { userId: true, role: true } },
+        team: { include: { members: { where: { userId: 'user-1' }, select: { userId: true, role: true } } } },
       },
     });
     expect(result.serverTime).toEqual(expect.any(String));

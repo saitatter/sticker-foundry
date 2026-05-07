@@ -570,7 +570,8 @@ select:focus {
 .session-list,
 .admin-settings,
 .audit-list,
-.invite-form {
+.invite-form,
+.team-list {
   display: grid;
   gap: 10px;
   align-content: start;
@@ -587,6 +588,7 @@ select:focus {
 }
 
 .member-row,
+.team-row,
 .invite-row,
 .session-row,
 .audit-row {
@@ -599,6 +601,33 @@ select:focus {
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--surface-muted);
+}
+
+.team-panel {
+  display: grid;
+  gap: 12px;
+}
+
+.team-row {
+  width: 100%;
+  cursor: pointer;
+  text-align: left;
+}
+
+.team-row.selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(40, 153, 123, 0.14);
+}
+
+.team-row span:first-child {
+  display: grid;
+  gap: 3px;
+}
+
+.team-member-form,
+.compact-member-list {
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
 }
 
 .member-row span:first-child,

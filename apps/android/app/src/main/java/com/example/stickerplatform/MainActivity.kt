@@ -262,6 +262,9 @@ private fun PackRow(
         ) {
             Text(pack.name, style = MaterialTheme.typography.titleMedium)
             Text(pack.publisher, style = MaterialTheme.typography.bodyMedium)
+            pack.teamName?.let { teamName ->
+                Text("Team: $teamName", style = MaterialTheme.typography.bodySmall)
+            }
             Text(
                 "${pack.stickerCount} stickers · Version ${pack.imageDataVersion}",
                 style = MaterialTheme.typography.bodySmall,

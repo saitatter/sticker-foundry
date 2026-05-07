@@ -17,6 +17,8 @@ export type PackDto = {
   publisher: string;
   description?: string | null;
   isPublic: boolean;
+  teamId?: string | null;
+  teamName?: string | null;
   imageDataVersion: string;
   stickerCount: number;
   role?: PackRole;
@@ -33,6 +35,8 @@ export type SyncPackDto = {
   description?: string | null;
   isPublic: boolean;
   isOwner: boolean;
+  teamId?: string | null;
+  teamName?: string | null;
   role?: PackRole;
   canEdit?: boolean;
   canManage?: boolean;
@@ -103,6 +107,30 @@ export type PackInviteDto = {
     email: string;
     displayName: string;
   } | null;
+};
+
+export type TeamDto = {
+  id: string;
+  name: string;
+  description?: string | null;
+  role?: PackRole;
+  memberCount: number;
+  packCount: number;
+  canManage: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type TeamMemberDto = {
+  id: string;
+  teamId: string;
+  userId: string;
+  role: PackRole;
+  user: {
+    id: string;
+    email: string;
+    displayName: string;
+  };
 };
 
 export type AuthResponseDto = {

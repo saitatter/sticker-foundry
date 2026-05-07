@@ -12,7 +12,6 @@ This is the live feature backlog. It should only contain work that still needs t
 
 ## Collaboration
 
-- Shared team/workspace model for family or community packs.
 - Comments or review status per sticker.
 - Optional approval flow before a sticker becomes part of an exported pack.
 

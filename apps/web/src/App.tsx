@@ -41,6 +41,8 @@ import {
   RegistrationMode,
   Sticker,
   StickerFoundryApi,
+  Team,
+  TeamMember,
   User,
   UserSession,
 } from './api';
@@ -68,6 +70,7 @@ export function App() {
   const [user, setUser] = useState<User | null>(null);
   const [instanceSettings, setInstanceSettings] = useState<InstanceSettings>(DEFAULT_INSTANCE_SETTINGS);
   const [packs, setPacks] = useState<Pack[]>([]);
+  const [teams, setTeams] = useState<Team[]>([]);
   const [selectedPackId, setSelectedPackId] = useState<string | null>(null);
   const [selectedPack, setSelectedPack] = useState<Pack | null>(null);
   const [notice, setNotice] = useState<Notice | null>(null);
@@ -102,8 +105,9 @@ export function App() {
     if (!token) return;
     setLoading(true);
     try {
-      const nextPacks = await api.packs();
+      const [nextPacks, nextTeams] = await Promise.all([api.packs(), api.teams()]);
       setPacks(nextPacks);
+      setTeams(nextTeams);
       setSelectedPackId((current) => current ?? nextPacks[0]?.id ?? null);
     } catch (error) {
       reportError(error);
@@ -200,12 +204,30 @@ export function App() {
         <aside className="sidebar">
           <PackCreateForm
             api={api}
+            teams={teams}
             onCreated={(pack) => {
               setPacks((current) => [pack, ...current]);
               setSelectedPackId(pack.id);
               setNotice({ tone: 'success', text: 'Pack created' });
             }}
             onError={reportError}
+          />
+
+          <TeamCreateForm
+            api={api}
+            onCreated={async (team) => {
+              setTeams((current) => [team, ...current].sort((left, right) => left.name.localeCompare(right.name)));
+              setNotice({ tone: 'success', text: 'Team created' });
+            }}
+            onError={reportError}
+          />
+
+          <TeamWorkspacePanel
+            api={api}
+            teams={teams}
+            onChanged={refreshPacks}
+            onError={reportError}
+            onNotice={(message) => setNotice({ tone: 'success', text: message })}
           />
 
           <AcceptInviteForm
@@ -657,26 +679,30 @@ function AuthScreen({
 
 function PackCreateForm({
   api,
+  teams,
   onCreated,
   onError,
 }: {
   api: StickerFoundryApi;
+  teams: Team[];
   onCreated: (pack: Pack) => void;
   onError: (error: unknown) => void;
 }) {
   const [name, setName] = useState('');
   const [publisher, setPublisher] = useState('');
   const [isPublic, setIsPublic] = useState(false);
+  const [teamId, setTeamId] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
   async function submit(event: FormEvent) {
     event.preventDefault();
     setSubmitting(true);
     try {
-      const pack = await api.createPack({ name, publisher, isPublic });
+      const pack = await api.createPack({ name, publisher, isPublic, teamId: teamId || undefined });
       setName('');
       setPublisher('');
       setIsPublic(false);
+      setTeamId('');
       onCreated(pack);
     } catch (error) {
       onError(error);
@@ -704,11 +730,249 @@ function PackCreateForm({
           <input checked={isPublic} onChange={(event) => setIsPublic(event.target.checked)} type="checkbox" />
           Public
         </label>
+        {teams.length > 0 ? (
+          <label>
+            Team
+            <select value={teamId} onChange={(event) => setTeamId(event.target.value)}>
+              <option value="">Personal</option>
+              {teams.map((team) => (
+                <option key={team.id} value={team.id}>
+                  {team.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null}
         <button className="primary-button" disabled={submitting} type="submit">
           <Plus size={17} />
           Create
         </button>
       </form>
+    </section>
+  );
+}
+
+function TeamCreateForm({
+  api,
+  onCreated,
+  onError,
+}: {
+  api: StickerFoundryApi;
+  onCreated: (team: Team) => Promise<void>;
+  onError: (error: unknown) => void;
+}) {
+  const [name, setName] = useState('');
+  const [description, setDescription] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    setSubmitting(true);
+    try {
+      const team = await api.createTeam(name, description.trim() || undefined);
+      setName('');
+      setDescription('');
+      await onCreated(team);
+    } catch (error) {
+      onError(error);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <section className="tool-panel">
+      <div className="section-heading">
+        <h2>New team</h2>
+        <Users size={18} />
+      </div>
+      <form className="form-grid compact" onSubmit={submit}>
+        <label>
+          Name
+          <input value={name} onChange={(event) => setName(event.target.value)} maxLength={128} required />
+        </label>
+        <label>
+          Description
+          <input value={description} onChange={(event) => setDescription(event.target.value)} maxLength={500} />
+        </label>
+        <button className="secondary-button" disabled={submitting} type="submit">
+          <Users size={17} />
+          Create team
+        </button>
+      </form>
+    </section>
+  );
+}
+
+function TeamWorkspacePanel({
+  api,
+  teams,
+  onChanged,
+  onError,
+  onNotice,
+}: {
+  api: StickerFoundryApi;
+  teams: Team[];
+  onChanged: () => Promise<void>;
+  onError: (error: unknown) => void;
+  onNotice: (message: string) => void;
+}) {
+  const [selectedTeamId, setSelectedTeamId] = useState('');
+  const [members, setMembers] = useState<TeamMember[]>([]);
+  const [email, setEmail] = useState('');
+  const [role, setRole] = useState<Exclude<PackRole, 'OWNER'>>('EDITOR');
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const selectedTeam = teams.find((team) => team.id === selectedTeamId) ?? teams[0];
+
+  useEffect(() => {
+    if (!teams.some((team) => team.id === selectedTeamId)) {
+      setSelectedTeamId(teams[0]?.id ?? '');
+    }
+  }, [selectedTeamId, teams]);
+
+  useEffect(() => {
+    if (!selectedTeam?.canManage) {
+      setMembers([]);
+      return;
+    }
+
+    let alive = true;
+    setLoading(true);
+    api
+      .teamMembers(selectedTeam.id)
+      .then((nextMembers) => {
+        if (alive) setMembers(nextMembers);
+      })
+      .catch(onError)
+      .finally(() => {
+        if (alive) setLoading(false);
+      });
+
+    return () => {
+      alive = false;
+    };
+  }, [api, onError, selectedTeam]);
+
+  async function addMember(event: FormEvent) {
+    event.preventDefault();
+    if (!selectedTeam) return;
+    const trimmedEmail = email.trim();
+    if (!trimmedEmail) return;
+
+    setSaving(true);
+    try {
+      const member = await api.addTeamMember(selectedTeam.id, trimmedEmail, role);
+      setMembers((current) => [member, ...current.filter((item) => item.id !== member.id)]);
+      setEmail('');
+      await onChanged();
+      onNotice('Team member added');
+    } catch (error) {
+      onError(error);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function changeMemberRole(memberId: string, nextRole: Exclude<PackRole, 'OWNER'>) {
+    if (!selectedTeam) return;
+    try {
+      const member = await api.updateTeamMember(selectedTeam.id, memberId, nextRole);
+      setMembers((current) => current.map((item) => (item.id === member.id ? member : item)));
+      await onChanged();
+      onNotice('Team role updated');
+    } catch (error) {
+      onError(error);
+    }
+  }
+
+  async function removeMember(memberId: string) {
+    if (!selectedTeam || !confirm('Remove this member from the team?')) return;
+    try {
+      await api.removeTeamMember(selectedTeam.id, memberId);
+      setMembers((current) => current.filter((member) => member.id !== memberId));
+      await onChanged();
+      onNotice('Team member removed');
+    } catch (error) {
+      onError(error);
+    }
+  }
+
+  if (teams.length === 0) return null;
+
+  return (
+    <section className="tool-panel team-panel">
+      <div className="section-heading">
+        <h2>Teams</h2>
+        <Users size={18} />
+      </div>
+      <div className="team-list">
+        {teams.map((team) => (
+          <button
+            className={`team-row ${team.id === selectedTeam?.id ? 'selected' : ''}`}
+            key={team.id}
+            onClick={() => setSelectedTeamId(team.id)}
+            type="button"
+          >
+            <span>
+              <strong>{team.name}</strong>
+              <small>{team.memberCount} members · {team.packCount} packs</small>
+            </span>
+            <span className="status-pill">{roleLabel(team.role)}</span>
+          </button>
+        ))}
+      </div>
+      {selectedTeam?.canManage ? (
+        <>
+          <form className="form-grid compact team-member-form" onSubmit={addMember}>
+            <label>
+              Member email
+              <input value={email} onChange={(event) => setEmail(event.target.value)} type="email" />
+            </label>
+            <label>
+              Role
+              <select value={role} onChange={(event) => setRole(event.target.value as Exclude<PackRole, 'OWNER'>)}>
+                <option value="EDITOR">Editor</option>
+                <option value="VIEWER">Viewer</option>
+              </select>
+            </label>
+            <button className="secondary-button" disabled={saving || !email.trim()} type="submit">
+              <UserPlus size={17} />
+              Add member
+            </button>
+          </form>
+          <div className="member-list compact-member-list">
+            {loading ? <span className="muted-row">Loading team members</span> : null}
+            {members.map((member) => (
+              <div className="member-row" key={member.id}>
+                <span>
+                  <strong>{member.user.displayName}</strong>
+                  <small>{member.user.email}</small>
+                </span>
+                {member.role === 'OWNER' ? (
+                  <span className="status-pill">{roleLabel(member.role)}</span>
+                ) : (
+                  <span className="member-actions">
+                    <select
+                      aria-label={`Role for ${member.user.email}`}
+                      value={member.role}
+                      onChange={(event) => void changeMemberRole(member.id, event.target.value as Exclude<PackRole, 'OWNER'>)}
+                    >
+                      <option value="EDITOR">Editor</option>
+                      <option value="VIEWER">Viewer</option>
+                    </select>
+                    <IconButton label="Remove team member" onClick={() => void removeMember(member.id)} danger>
+                      <Trash2 size={16} />
+                    </IconButton>
+                  </span>
+                )}
+              </div>
+            ))}
+          </div>
+        </>
+      ) : selectedTeam ? (
+        <span className="muted-row">You can use this team for shared packs.</span>
+      ) : null}
     </section>
   );
 }
@@ -845,6 +1109,7 @@ function PackList({
             <span className="pack-row-main">
               <strong>{pack.name}</strong>
               <span>{pack.publisher}</span>
+              {pack.teamName ? <span>{pack.teamName}</span> : null}
             </span>
             <span className="pack-row-meta">
               <span className={`status-pill ${pack.isPublic ? 'public' : 'private'}`}>

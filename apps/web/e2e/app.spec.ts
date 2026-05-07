@@ -119,6 +119,9 @@ async function mockApi(page: Page, state: ReturnType<typeof createMockState>) {
     if (method === 'GET' && path === '/packs') {
       return json(route, state.packs.map(({ stickers, ...pack }) => pack));
     }
+    if (method === 'GET' && path === '/teams') {
+      return json(route, []);
+    }
     if (method === 'POST' && path === '/packs') {
       const body = request.postDataJSON() as { name: string; publisher: string; isPublic?: boolean };
       const pack: Pack = {

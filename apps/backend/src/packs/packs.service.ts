@@ -22,10 +22,12 @@ import { DEFAULT_STICKER_EMOJIS, WHATSAPP_LIMITS } from './whatsapp-constraints'
 type AccessPack = {
   id?: string;
   ownerId: string;
+  teamId?: string | null;
   imageDataVersion?: string;
   isPublic?: boolean;
   _count?: { stickers: number };
   members?: Array<{ userId: string; role: PackRole }>;
+  team?: { members?: Array<{ userId?: string; role: PackRole }> } | null;
 };
 
 @Injectable()
@@ -39,9 +41,13 @@ export class PacksService {
   ) {}
 
   async create(ownerId: string, dto: CreatePackDto) {
+    if (dto.teamId) {
+      await this.requireTeamEdit(ownerId, dto.teamId);
+    }
     const pack = await this.prisma.pack.create({
       data: {
         ownerId,
+        teamId: dto.teamId,
         name: dto.name,
         publisher: dto.publisher,
         description: dto.description,
@@ -49,23 +55,25 @@ export class PacksService {
       },
     });
     await this.audit.record({ actorId: ownerId, action: 'pack.create', entityType: 'pack', entityId: pack.id });
-    return pack;
+    return this.get(ownerId, pack.id);
   }
 
   async list(userId: string) {
     const packs = await this.prisma.pack.findMany({
       where: {
-        OR: [{ ownerId: userId }, { isPublic: true }, { members: { some: { userId } } }],
+        OR: [{ ownerId: userId }, { isPublic: true }, { members: { some: { userId } } }, { team: { members: { some: { userId } } } }],
       },
       orderBy: { updatedAt: 'desc' },
       include: {
         _count: { select: { stickers: true } },
         members: { where: { userId }, select: { userId: true, role: true } },
+        team: { include: { members: { where: { userId }, select: { userId: true, role: true } } } },
       },
     });
 
     return packs.map(({ _count, ...pack }) => ({
       ...pack,
+      teamName: pack.team?.name,
       stickerCount: _count.stickers,
       ...this.accessSummary(userId, pack),
     }));
@@ -78,6 +86,7 @@ export class PacksService {
         stickers: { orderBy: [{ position: 'asc' }, { createdAt: 'asc' }] },
         _count: { select: { stickers: true } },
         members: { where: { userId }, select: { userId: true, role: true } },
+        team: { include: { members: { where: { userId }, select: { userId: true, role: true } } } },
       },
     });
     if (!pack) {
@@ -90,6 +99,7 @@ export class PacksService {
     const { _count, ...rest } = pack;
     return {
       ...rest,
+      teamName: pack.team?.name,
       stickerCount: _count.stickers,
       ...this.accessSummary(userId, pack),
     };
@@ -98,7 +108,10 @@ export class PacksService {
   async delete(ownerId: string, id: string) {
     const pack = await this.prisma.pack.findUnique({
       where: { id },
-      include: { members: { where: { userId: ownerId }, select: { userId: true, role: true } } },
+      include: {
+        members: { where: { userId: ownerId }, select: { userId: true, role: true } },
+        team: { include: { members: { where: { userId: ownerId }, select: { userId: true, role: true } } } },
+      },
     });
     if (!pack) {
       throw new NotFoundException('Pack not found');
@@ -272,6 +285,7 @@ export class PacksService {
       include: {
         stickers: { orderBy: [{ position: 'asc' }, { createdAt: 'asc' }] },
         members: { where: { userId }, select: { userId: true, role: true } },
+        team: { include: { members: { where: { userId }, select: { userId: true, role: true } } } },
       },
     });
     if (!source) {
@@ -326,7 +340,10 @@ export class PacksService {
   async update(ownerId: string, id: string, dto: UpdatePackDto) {
     const pack = await this.prisma.pack.findUnique({
       where: { id },
-      include: { members: { where: { userId: ownerId }, select: { userId: true, role: true } } },
+      include: {
+        members: { where: { userId: ownerId }, select: { userId: true, role: true } },
+        team: { include: { members: { where: { userId: ownerId }, select: { userId: true, role: true } } } },
+      },
     });
     if (!pack) {
       throw new NotFoundException('Pack not found');
@@ -602,6 +619,7 @@ export class PacksService {
       include: {
         stickers: { select: { id: true } },
         members: { where: { userId: ownerId }, select: { userId: true, role: true } },
+        team: { include: { members: { where: { userId: ownerId }, select: { userId: true, role: true } } } },
       },
     });
     if (!pack) {
@@ -801,7 +819,10 @@ export class PacksService {
   private async loadPackForAccess(userId: string, packId: string) {
     return this.prisma.pack.findUnique({
       where: { id: packId },
-      include: { members: { where: { userId }, select: { userId: true, role: true } } },
+      include: {
+        members: { where: { userId }, select: { userId: true, role: true } },
+        team: { include: { members: { where: { userId }, select: { userId: true, role: true } } } },
+      },
     });
   }
 
@@ -816,6 +837,7 @@ export class PacksService {
         where: { id: sourcePackId },
         include: {
           members: { where: { userId }, select: { userId: true, role: true } },
+          team: { include: { members: { where: { userId }, select: { userId: true, role: true } } } },
           _count: { select: { stickers: true } },
         },
       }),
@@ -823,6 +845,7 @@ export class PacksService {
         where: { id: dto.targetPackId },
         include: {
           members: { where: { userId }, select: { userId: true, role: true } },
+          team: { include: { members: { where: { userId }, select: { userId: true, role: true } } } },
           _count: { select: { stickers: true } },
         },
       }),
@@ -891,6 +914,21 @@ export class PacksService {
     return pack;
   }
 
+  private async requireTeamEdit(userId: string, teamId: string) {
+    const team = await this.prisma.team.findUnique({
+      where: { id: teamId },
+      include: { members: { where: { userId }, select: { role: true } } },
+    });
+    if (!team) {
+      throw new NotFoundException('Team not found');
+    }
+    const role = team.ownerId === userId ? PackRole.OWNER : team.members[0]?.role;
+    if (role !== PackRole.OWNER && role !== PackRole.EDITOR) {
+      throw new ForbiddenException('Only team owners and editors can create packs in this team');
+    }
+    return team;
+  }
+
   private accessSummary(userId: string, pack: AccessPack) {
     const role = this.roleFor(userId, pack) ?? (pack.isPublic ? PackRole.VIEWER : undefined);
     return {
@@ -917,7 +955,7 @@ export class PacksService {
     if (pack.ownerId === userId) {
       return PackRole.OWNER;
     }
-    return pack.members?.find((member) => member.userId === userId)?.role;
+    return pack.members?.find((member) => member.userId === userId)?.role ?? pack.team?.members?.[0]?.role;
   }
 
   private newInviteCode() {

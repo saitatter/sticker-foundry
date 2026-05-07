@@ -47,6 +47,9 @@ function createService() {
     user: {
       findUnique: jest.fn(),
     },
+    team: {
+      findUnique: jest.fn(),
+    },
     $transaction: jest.fn(async (operations: unknown[]) => operations),
   };
 
@@ -118,6 +121,51 @@ describe(PacksService, () => {
     expect(prisma.pack.update).toHaveBeenCalledWith({
       where: { id: 'pack-1' },
       data: { imageDataVersion: '5' },
+    });
+  });
+
+  it('creates packs inside editable teams', async () => {
+    const { service, prisma } = createService();
+    prisma.team.findUnique.mockResolvedValue({
+      id: 'team-1',
+      ownerId: 'other-user',
+      members: [{ role: PackRole.EDITOR }],
+    });
+    prisma.pack.create.mockResolvedValue({
+      id: 'pack-1',
+      ownerId: 'editor-1',
+      teamId: 'team-1',
+      name: 'Team Pack',
+      publisher: 'Team',
+      isPublic: false,
+    });
+    prisma.pack.findUnique.mockResolvedValue({
+      id: 'pack-1',
+      ownerId: 'editor-1',
+      teamId: 'team-1',
+      name: 'Team Pack',
+      publisher: 'Team',
+      isPublic: false,
+      team: { name: 'Team', members: [{ userId: 'editor-1', role: PackRole.EDITOR }] },
+      members: [],
+      stickers: [],
+      _count: { stickers: 0 },
+    });
+
+    await expect(
+      service.create('editor-1', {
+        name: 'Team Pack',
+        publisher: 'Team',
+        isPublic: false,
+        teamId: 'team-1',
+      }),
+    ).resolves.toEqual(expect.objectContaining({ teamId: 'team-1', teamName: 'Team' }));
+    expect(prisma.team.findUnique).toHaveBeenCalledWith({
+      where: { id: 'team-1' },
+      include: { members: { where: { userId: 'editor-1' }, select: { role: true } } },
+    });
+    expect(prisma.pack.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ teamId: 'team-1' }),
     });
   });
 

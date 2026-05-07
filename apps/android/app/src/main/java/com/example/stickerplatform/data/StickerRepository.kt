@@ -75,6 +75,8 @@ class StickerRepository private constructor(context: Context) {
                         imageDataVersion = remote.imageDataVersion,
                         isPublic = remote.isPublic,
                         isOwner = remote.isOwner,
+                        teamId = remote.teamId,
+                        teamName = remote.teamName,
                         role = remote.role ?: if (remote.isOwner) "OWNER" else "VIEWER",
                         canEdit = remote.canEdit ?: remote.isOwner,
                         canManage = remote.canManage ?: remote.isOwner,
@@ -91,6 +93,8 @@ class StickerRepository private constructor(context: Context) {
                 extracted.entity.copy(
                     isPublic = remote.isPublic,
                     isOwner = remote.isOwner,
+                    teamId = remote.teamId,
+                    teamName = remote.teamName,
                     role = remote.role ?: if (remote.isOwner) "OWNER" else "VIEWER",
                     canEdit = remote.canEdit ?: remote.isOwner,
                     canManage = remote.canManage ?: remote.isOwner,
