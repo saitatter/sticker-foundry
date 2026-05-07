@@ -2935,6 +2935,15 @@ type ImageEditOptions = {
   brushMode: BrushMode;
   brushSize: number;
   brushStrokes: BrushStroke[];
+  textEnabled: boolean;
+  textContent: string;
+  textSize: number;
+  textColor: string;
+  textStrokeColor: string;
+  textStrokeWidth: number;
+  textRotation: number;
+  textX: number;
+  textY: number;
 };
 
 type BrushMode = 'erase' | 'restore';
@@ -2968,6 +2977,15 @@ const defaultImageEditOptions: ImageEditOptions = {
   brushMode: 'erase',
   brushSize: 28,
   brushStrokes: [],
+  textEnabled: false,
+  textContent: '',
+  textSize: 64,
+  textColor: '#ffffff',
+  textStrokeColor: '#111827',
+  textStrokeWidth: 6,
+  textRotation: 0,
+  textX: 50,
+  textY: 82,
 };
 
 function ImageEditControls({
@@ -3175,6 +3193,20 @@ function ImageEditControls({
           <input checked={options.shadow} onChange={(event) => onChange({ ...options, shadow: event.target.checked })} type="checkbox" />
           Shadow
         </label>
+        <label className="checkbox-row image-edit-toggle">
+          <input
+            checked={options.textEnabled}
+            onChange={(event) => onChange((current) => ({ ...current, textEnabled: event.target.checked }))}
+            type="checkbox"
+          />
+          Text
+        </label>
+      </div>
+      <div className="layer-strip" aria-label="Canvas layers">
+        <span>Transparent bg</span>
+        <span>Sticker</span>
+        <span className={options.outline || options.shadow ? 'active' : ''}>Effects</span>
+        <span className={options.textEnabled ? 'active' : ''}>Text</span>
       </div>
       <div className="image-edit-sliders brush-sliders">
         <label>
@@ -3185,11 +3217,95 @@ function ImageEditControls({
             onChange={(event) => onChange((current) => ({ ...current, brushSize: Number(event.target.value) }))}
             step="1"
             type="range"
-            value={options.brushSize}
+          value={options.brushSize}
           />
         </label>
         <span className="brush-status">{options.brushMode === 'erase' ? 'Erasing pixels' : 'Restoring pixels'}</span>
       </div>
+      {options.textEnabled ? (
+        <div className="image-edit-sliders text-sliders">
+          <label>
+            Text
+            <input
+              maxLength={40}
+              onChange={(event) => onChange((current) => ({ ...current, textContent: event.target.value }))}
+              placeholder="meme text"
+              value={options.textContent}
+            />
+          </label>
+          <label>
+            Size
+            <input
+              max="140"
+              min="18"
+              onChange={(event) => onChange((current) => ({ ...current, textSize: Number(event.target.value) }))}
+              step="1"
+              type="range"
+              value={options.textSize}
+            />
+          </label>
+          <label>
+            Fill
+            <input
+              onChange={(event) => onChange((current) => ({ ...current, textColor: event.target.value }))}
+              type="color"
+              value={options.textColor}
+            />
+          </label>
+          <label>
+            Stroke
+            <input
+              onChange={(event) => onChange((current) => ({ ...current, textStrokeColor: event.target.value }))}
+              type="color"
+              value={options.textStrokeColor}
+            />
+          </label>
+          <label>
+            Stroke width
+            <input
+              max="20"
+              min="0"
+              onChange={(event) => onChange((current) => ({ ...current, textStrokeWidth: Number(event.target.value) }))}
+              step="1"
+              type="range"
+              value={options.textStrokeWidth}
+            />
+          </label>
+          <label>
+            Rotate
+            <input
+              max="45"
+              min="-45"
+              onChange={(event) => onChange((current) => ({ ...current, textRotation: Number(event.target.value) }))}
+              step="1"
+              type="range"
+              value={options.textRotation}
+            />
+          </label>
+          <label>
+            X
+            <input
+              max="100"
+              min="0"
+              onChange={(event) => onChange((current) => ({ ...current, textX: Number(event.target.value) }))}
+              step="1"
+              type="range"
+              value={options.textX}
+            />
+          </label>
+          <label>
+            Y
+            <input
+              max="100"
+              min="0"
+              onChange={(event) => onChange((current) => ({ ...current, textY: Number(event.target.value) }))}
+              step="1"
+              type="range"
+              value={options.textY}
+            />
+          </label>
+        </div>
+      ) : null}
       {options.removeLightBackground ? (
         <div className="image-edit-sliders background-sliders">
           <label>
@@ -3409,7 +3525,8 @@ async function editImageFile(file: File, options: ImageEditOptions) {
     !options.removeLightBackground &&
     !options.outline &&
     !options.shadow &&
-    options.brushStrokes.length === 0
+    options.brushStrokes.length === 0 &&
+    (!options.textEnabled || options.textContent.trim().length === 0)
   ) {
     return file;
   }
@@ -3465,6 +3582,9 @@ async function editImageFile(file: File, options: ImageEditOptions) {
   }
   if (options.shadow) {
     applyShadow(context, canvas.width, canvas.height);
+  }
+  if (options.textEnabled && options.textContent.trim()) {
+    applyTextLayer(context, canvas.width, canvas.height, options);
   }
 
   const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'));
@@ -3612,6 +3732,34 @@ function drawBrushStroke(context: CanvasRenderingContext2D, stroke: BrushStroke,
     context.lineTo(point.x * width, point.y * height);
   }
   context.stroke();
+  context.restore();
+}
+
+function applyTextLayer(context: CanvasRenderingContext2D, width: number, height: number, options: ImageEditOptions) {
+  const text = options.textContent.trim();
+  if (!text) return;
+  const scale = Math.max(width, height) / 512;
+  const fontSize = Math.max(8, options.textSize * scale);
+  const strokeWidth = Math.max(0, options.textStrokeWidth * scale);
+  const maxTextWidth = width * 0.92;
+  const x = (options.textX / 100) * width;
+  const y = (options.textY / 100) * height;
+
+  context.save();
+  context.translate(x, y);
+  context.rotate((options.textRotation * Math.PI) / 180);
+  context.font = `900 ${fontSize}px Arial, Helvetica, sans-serif`;
+  context.textAlign = 'center';
+  context.textBaseline = 'middle';
+  context.lineJoin = 'round';
+  context.miterLimit = 2;
+  if (strokeWidth > 0) {
+    context.lineWidth = strokeWidth;
+    context.strokeStyle = options.textStrokeColor;
+    context.strokeText(text, 0, 0, maxTextWidth);
+  }
+  context.fillStyle = options.textColor;
+  context.fillText(text, 0, 0, maxTextWidth);
   context.restore();
 }
 
