@@ -24,6 +24,7 @@ export type AdminSettings = {
   registrationMode: RegistrationMode;
   registrationInviteCode: string;
   storageQuotaBytes: number | null;
+  auditRetentionDays: number | null;
   instanceName: string;
   instanceDescription: string;
 };
@@ -50,6 +51,7 @@ export type UpdateAdminSettingsInput = {
   registrationMode?: RegistrationMode;
   registrationInviteCode?: string | null;
   storageQuotaBytes?: number | null;
+  auditRetentionDays?: number | null;
   instanceName?: string;
   instanceDescription?: string;
 };
@@ -291,6 +293,13 @@ export class StickerFoundryApi {
       throw new ApiError(await readError(response), response.status);
     }
     return response.blob();
+  }
+
+  async cleanupAuditLog() {
+    return this.request<{ deleted: number; cutoff: string | null }>('/admin/audit-log/cleanup', {
+      method: 'POST',
+      auth: true,
+    });
   }
 
   async packs() {

@@ -436,6 +436,7 @@ function AccountDialog({
   const [registrationMode, setRegistrationMode] = useState<RegistrationMode>('open');
   const [registrationInviteCode, setRegistrationInviteCode] = useState('');
   const [storageQuotaMb, setStorageQuotaMb] = useState('');
+  const [auditRetentionDays, setAuditRetentionDays] = useState('');
   const [instanceName, setInstanceName] = useState(instanceSettings.instanceName);
   const [instanceDescription, setInstanceDescription] = useState(instanceSettings.instanceDescription);
   const [savingAdmin, setSavingAdmin] = useState(false);
@@ -454,6 +455,7 @@ function AccountDialog({
         setRegistrationMode(settings.registrationMode);
         setRegistrationInviteCode(settings.registrationInviteCode ?? '');
         setStorageQuotaMb(settings.storageQuotaBytes ? String(Math.round(settings.storageQuotaBytes / 1024 / 1024)) : '');
+        setAuditRetentionDays(settings.auditRetentionDays ? String(settings.auditRetentionDays) : '');
         setInstanceName(settings.instanceName);
         setInstanceDescription(settings.instanceDescription);
       })
@@ -498,8 +500,14 @@ function AccountDialog({
     event.preventDefault();
     const trimmedQuota = storageQuotaMb.trim();
     const quotaNumber = trimmedQuota ? Number(trimmedQuota) : null;
+    const trimmedAuditRetention = auditRetentionDays.trim();
+    const auditRetentionNumber = trimmedAuditRetention ? Number(trimmedAuditRetention) : null;
     if (quotaNumber !== null && (!Number.isFinite(quotaNumber) || quotaNumber <= 0)) {
       onError(new Error('Storage quota must be a positive number of MB'));
+      return;
+    }
+    if (auditRetentionNumber !== null && (!Number.isFinite(auditRetentionNumber) || auditRetentionNumber <= 0)) {
+      onError(new Error('Audit retention must be a positive number of days'));
       return;
     }
 
@@ -509,6 +517,7 @@ function AccountDialog({
         registrationMode,
         registrationInviteCode: registrationInviteCode.trim() || null,
         storageQuotaBytes: quotaNumber === null ? null : Math.round(quotaNumber * 1024 * 1024),
+        auditRetentionDays: auditRetentionNumber === null ? null : Math.round(auditRetentionNumber),
         instanceName: instanceName.trim() || DEFAULT_INSTANCE_SETTINGS.instanceName,
         instanceDescription: instanceDescription.trim() || DEFAULT_INSTANCE_SETTINGS.instanceDescription,
       });
@@ -516,6 +525,7 @@ function AccountDialog({
       setRegistrationMode(settings.registrationMode);
       setRegistrationInviteCode(settings.registrationInviteCode ?? '');
       setStorageQuotaMb(settings.storageQuotaBytes ? String(Math.round(settings.storageQuotaBytes / 1024 / 1024)) : '');
+      setAuditRetentionDays(settings.auditRetentionDays ? String(settings.auditRetentionDays) : '');
       setInstanceName(settings.instanceName);
       setInstanceDescription(settings.instanceDescription);
       setAuditLog(await api.adminAuditLog());
@@ -539,6 +549,16 @@ function AccountDialog({
       onError(error);
     } finally {
       setExportingAudit(false);
+    }
+  }
+
+  async function cleanupAuditLog() {
+    try {
+      const result = await api.cleanupAuditLog();
+      setAuditLog(await api.adminAuditLog());
+      onChanged(`Audit cleanup deleted ${result.deleted} entr${result.deleted === 1 ? 'y' : 'ies'}`);
+    } catch (error) {
+      onError(error);
     }
   }
 
@@ -648,6 +668,16 @@ function AccountDialog({
                 onChange={(event) => setStorageQuotaMb(event.target.value)}
               />
             </label>
+            <label>
+              Audit retention (days)
+              <input
+                min="1"
+                placeholder="Keep forever"
+                type="number"
+                value={auditRetentionDays}
+                onChange={(event) => setAuditRetentionDays(event.target.value)}
+              />
+            </label>
             <button className="secondary-button" disabled={savingAdmin || !adminSettings} type="submit">
               <ShieldCheck size={17} />
               {savingAdmin ? 'Saving' : 'Save admin settings'}
@@ -661,6 +691,10 @@ function AccountDialog({
               <button className="secondary-button" disabled={exportingAudit} onClick={() => void exportAuditLog()} type="button">
                 <Download size={17} />
                 {exportingAudit ? 'Exporting' : 'Export CSV'}
+              </button>
+              <button className="secondary-button" onClick={() => void cleanupAuditLog()} type="button">
+                <Trash2 size={17} />
+                Cleanup
               </button>
             </div>
             {auditLog.map((entry) => (

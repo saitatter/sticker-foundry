@@ -8,6 +8,7 @@ const SETTING_KEYS = {
   registrationMode: 'registrationMode',
   registrationInviteCode: 'registrationInviteCode',
   storageQuotaBytes: 'storageQuotaBytes',
+  auditRetentionDays: 'auditRetentionDays',
   instanceName: 'instanceName',
   instanceDescription: 'instanceDescription',
 } as const;
@@ -30,6 +31,9 @@ export class AdminService {
         settings.get(SETTING_KEYS.registrationInviteCode) ?? this.config.get<string>('REGISTRATION_INVITE_CODE', ''),
       storageQuotaBytes: this.parseQuota(
         settings.get(SETTING_KEYS.storageQuotaBytes) ?? this.config.get<string>('STORAGE_QUOTA_BYTES', ''),
+      ),
+      auditRetentionDays: this.parsePositiveInt(
+        settings.get(SETTING_KEYS.auditRetentionDays) ?? this.config.get<string>('AUDIT_RETENTION_DAYS', ''),
       ),
       ...(await this.publicSettings(settings)),
     };
@@ -58,6 +62,9 @@ export class AdminService {
     if (dto.storageQuotaBytes !== undefined) {
       writes.push(this.upsert(SETTING_KEYS.storageQuotaBytes, dto.storageQuotaBytes?.toString() ?? ''));
     }
+    if (dto.auditRetentionDays !== undefined) {
+      writes.push(this.upsert(SETTING_KEYS.auditRetentionDays, dto.auditRetentionDays?.toString() ?? ''));
+    }
     if (dto.instanceName !== undefined) {
       writes.push(this.upsert(SETTING_KEYS.instanceName, dto.instanceName));
     }
@@ -75,6 +82,7 @@ export class AdminService {
         registrationMode: dto.registrationMode ?? null,
         registrationInviteCodeChanged: dto.registrationInviteCode !== undefined,
         storageQuotaBytes: dto.storageQuotaBytes ?? null,
+        auditRetentionDays: dto.auditRetentionDays ?? null,
         instanceName: dto.instanceName ?? null,
       },
     });
@@ -89,6 +97,22 @@ export class AdminService {
   async auditLogCsv(userId: string, limit: number | undefined) {
     await this.assertAdmin(userId);
     return this.audit.csv(limit);
+  }
+
+  async cleanupAuditLog(userId: string) {
+    await this.assertAdmin(userId);
+    const settings = await this.settingMap();
+    const retentionDays = this.parsePositiveInt(
+      settings.get(SETTING_KEYS.auditRetentionDays) ?? this.config.get<string>('AUDIT_RETENTION_DAYS', ''),
+    );
+    const result = await this.audit.cleanup(retentionDays);
+    await this.audit.record({
+      actorId: userId,
+      action: 'admin.audit.cleanup',
+      entityType: 'auditLog',
+      metadata: { retentionDays, deleted: result.deleted, cutoff: result.cutoff },
+    });
+    return result;
   }
 
   private async assertAdmin(userId: string) {
@@ -112,6 +136,10 @@ export class AdminService {
   }
 
   private parseQuota(value: string | undefined) {
+    return this.parsePositiveInt(value);
+  }
+
+  private parsePositiveInt(value: string | undefined) {
     if (!value) return null;
     const parsed = Number.parseInt(value, 10);
     return Number.isFinite(parsed) && parsed > 0 ? parsed : null;

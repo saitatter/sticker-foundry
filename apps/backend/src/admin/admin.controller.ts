@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Patch, Query, Res, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Patch, Post, Query, Res, UseGuards } from '@nestjs/common';
 import { Response } from 'express';
 import { CurrentUser, RequestUser } from '../common/current-user.decorator';
 import { JwtAuthGuard } from '../common/jwt-auth.guard';
@@ -31,5 +31,10 @@ export class AdminController {
     response.setHeader('Content-Type', 'text/csv; charset=utf-8');
     response.setHeader('Content-Disposition', 'attachment; filename="stickerfoundry-audit-log.csv"');
     return response.send(csv);
+  }
+
+  @Post('audit-log/cleanup')
+  cleanupAuditLog(@CurrentUser() user: RequestUser) {
+    return this.adminService.cleanupAuditLog(user.sub);
   }
 }

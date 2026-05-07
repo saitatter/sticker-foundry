@@ -16,6 +16,12 @@ export class UpdateAdminSettingsDto {
   storageQuotaBytes?: number | null;
 
   @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(3650)
+  auditRetentionDays?: number | null;
+
+  @IsOptional()
   @IsString()
   instanceName?: string;
 

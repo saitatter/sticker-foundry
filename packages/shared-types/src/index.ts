@@ -182,6 +182,7 @@ export type AdminSettingsDto = {
   registrationMode: RegistrationMode;
   registrationInviteCode: string;
   storageQuotaBytes: number | null;
+  auditRetentionDays: number | null;
   instanceName: string;
   instanceDescription: string;
 };

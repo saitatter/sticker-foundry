@@ -14,7 +14,6 @@ This is the live feature backlog. It should only contain work that still needs t
 
 ## Backend
 
-- Configurable audit retention cleanup.
 - Upload pixel-count limits and image bomb safeguards.
 - Background media processing queue for heavier transforms.
 - Optional S3-compatible storage backend.

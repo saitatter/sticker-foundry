@@ -147,6 +147,8 @@ Access tokens default to `ACCESS_TOKEN_TTL=15m`; refresh sessions default to `RE
 
 Password reset is available when SMTP is configured. Set `SMTP_HOST`, `SMTP_FROM`, and optional `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASSWORD`, `PASSWORD_RESET_TTL_MINUTES`, and `PASSWORD_RESET_PUBLIC_URL`. Reset requests intentionally return the same accepted response for known and unknown emails.
 
+Audit log retention is configurable with `AUDIT_RETENTION_DAYS` or from the web admin settings. Admins can run audit cleanup manually from the account dialog; empty retention keeps audit entries indefinitely.
+
 CORS is open by default for local development. For production, set `CORS_ORIGIN` to a comma-separated allowlist, for example:
 
 ```bash

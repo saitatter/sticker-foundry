@@ -369,6 +369,7 @@ describe('StickerFoundry API e2e', () => {
         registrationMode: 'invite-only',
         registrationInviteCode: 'team-code',
         storageQuotaBytes: 10_485_760,
+        auditRetentionDays: 90,
         instanceName: 'Team Stickers',
         instanceDescription: 'Private sticker ops',
       })
@@ -379,6 +380,7 @@ describe('StickerFoundry API e2e', () => {
             registrationMode: 'invite-only',
             registrationInviteCode: 'team-code',
             storageQuotaBytes: 10_485_760,
+            auditRetentionDays: 90,
             instanceName: 'Team Stickers',
             instanceDescription: 'Private sticker ops',
           }),
@@ -400,8 +402,16 @@ describe('StickerFoundry API e2e', () => {
     await request(server)
       .patch('/api/admin/settings')
       .set('Authorization', `Bearer ${token}`)
-      .send({ registrationMode: 'open', registrationInviteCode: null, storageQuotaBytes: null })
+      .send({ registrationMode: 'open', registrationInviteCode: null, storageQuotaBytes: null, auditRetentionDays: null })
       .expect(200);
+
+    await request(server)
+      .post('/api/admin/audit-log/cleanup')
+      .set('Authorization', `Bearer ${token}`)
+      .expect(201)
+      .expect((response) => {
+        expect(response.body).toEqual({ deleted: 0, cutoff: null });
+      });
 
     await request(server)
       .get('/api/admin/audit-log?limit=5')

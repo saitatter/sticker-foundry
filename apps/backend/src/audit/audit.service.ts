@@ -63,6 +63,17 @@ export class AuditService {
     return rows.map((row) => row.map((value) => this.csvCell(value)).join(',')).join('\n');
   }
 
+  cleanup(retentionDays: number | null) {
+    if (!retentionDays) {
+      return Promise.resolve({ deleted: 0, cutoff: null });
+    }
+
+    const cutoff = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000);
+    return this.prisma.auditLog.deleteMany({
+      where: { createdAt: { lt: cutoff } },
+    }).then((result) => ({ deleted: result.count, cutoff: cutoff.toISOString() }));
+  }
+
   private csvCell(value: string) {
     return `"${value.replace(/"/g, '""')}"`;
   }
