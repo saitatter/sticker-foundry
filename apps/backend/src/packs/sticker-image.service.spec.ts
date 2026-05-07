@@ -108,6 +108,25 @@ describe(StickerImageService, () => {
 
     await expect(guardedService.processSticker(source)).rejects.toBeInstanceOf(BadRequestException);
   });
+
+  it('rejects animated frame edits that exceed the editable pixel budget', async () => {
+    const guardedService = new StickerImageService({
+      get: jest.fn((key: string, fallback: string) => (key === 'UPLOAD_MAX_ANIMATED_EDIT_PIXELS' ? '1000' : fallback)),
+    } as never);
+    const frames = await Promise.all([
+      frameBuffer({ r: 255, g: 0, b: 0, alpha: 1 }),
+      frameBuffer({ r: 0, g: 0, b: 255, alpha: 1 }),
+    ]);
+    const animated = await sharp(frames, { join: { animated: true } }).webp({ delay: [100, 100] }).toBuffer();
+
+    await expect(
+      guardedService.processSticker(animated, {
+        animated: true,
+        animatedTrimStart: 0,
+        animatedTrimEnd: 0.2,
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
 });
 
 function frameBuffer(background: sharp.Color) {

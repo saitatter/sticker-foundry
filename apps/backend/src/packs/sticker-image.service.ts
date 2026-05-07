@@ -178,6 +178,14 @@ export class StickerImageService {
     const pages = metadata.pages ?? 1;
     const width = metadata.width ?? 0;
     const pageHeight = metadata.pageHeight ?? Math.floor((metadata.height ?? 0) / pages);
+    const totalPixels = width * pageHeight * pages;
+    const maxEditableAnimatedPixels = this.configInt('UPLOAD_MAX_ANIMATED_EDIT_PIXELS', 20_000_000);
+    if (totalPixels > maxEditableAnimatedPixels) {
+      throw new BadRequestException(
+        `Animated frame editing is limited to ${maxEditableAnimatedPixels} total pixels to avoid excessive memory usage`,
+      );
+    }
+
     const delays = this.normalizedDelays(metadata);
     const totalDuration = delays.reduce((total, delay) => total + delay, 0);
     const startMs = clampMs((options.animatedTrimStart ?? 0) * 1000, 0, Math.max(0, totalDuration - 1));
@@ -200,13 +208,12 @@ export class StickerImageService {
     const decoded = await sharp(input, { animated: true }).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
     const channels = decoded.info.channels;
     const frameByteLength = width * pageHeight * channels;
-    const frames = await Promise.all(
-      frameIndexes.map((frameIndex) => {
-        const start = frameIndex * frameByteLength;
-        const frame = decoded.data.subarray(start, start + frameByteLength);
-        return sharp(Buffer.from(frame), { raw: { width, height: pageHeight, channels } }).png().toBuffer();
-      }),
-    );
+    const frames: Buffer[] = [];
+    for (const frameIndex of frameIndexes) {
+      const start = frameIndex * frameByteLength;
+      const frame = decoded.data.subarray(start, start + frameByteLength);
+      frames.push(await sharp(Buffer.from(frame), { raw: { width, height: pageHeight, channels } }).png().toBuffer());
+    }
 
     return sharp(frames, { join: { animated: true } })
       .webp({
