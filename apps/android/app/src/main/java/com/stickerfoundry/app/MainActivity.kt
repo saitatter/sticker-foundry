@@ -587,6 +587,67 @@ private fun ImageEditDialog(
                         }
                     }
                 }
+                Text("Presets", style = MaterialTheme.typography.bodySmall)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TextButton(
+                        onClick = {
+                            cropSquare = true
+                            zoom = 1.15f
+                            brightness = 2f
+                            contrast = 10f
+                            saturation = 6f
+                            backgroundRemovalMode = BackgroundRemovalMode.Threshold
+                            backgroundRemovalThreshold = 240f
+                            backgroundRemovalFeather = 8f
+                            backgroundRemovalCleanupSpeckles = true
+                            backgroundRemovalSpeckleSize = 48f
+                        },
+                    ) {
+                        Text("Clean")
+                    }
+                    TextButton(
+                        onClick = {
+                            cropSquare = true
+                            zoom = 1.2f
+                            brightness = 0f
+                            contrast = 18f
+                            saturation = 16f
+                            textEnabled = true
+                            textSize = 72f
+                            backgroundRemovalMode = BackgroundRemovalMode.Ai
+                            backgroundRemovalThreshold = 236f
+                            backgroundRemovalFeather = 10f
+                            backgroundRemovalCleanupSpeckles = true
+                            backgroundRemovalSpeckleSize = 56f
+                        },
+                    ) {
+                        Text("Meme")
+                    }
+                    TextButton(
+                        onClick = {
+                            rotation = 0
+                            cropSquare = false
+                            zoom = 1f
+                            offsetX = 0f
+                            offsetY = 0f
+                            brightness = 0f
+                            contrast = 0f
+                            saturation = 0f
+                            grayscale = false
+                            textEnabled = false
+                            textContent = ""
+                            textSize = 64f
+                            brushEnabled = false
+                            brushStrokes = emptyList()
+                            undoneBrushStrokes = emptyList()
+                            activeBrushPoints = emptyList()
+                            backgroundRemovalMode = BackgroundRemovalMode.None
+                            animatedOptionsEnabled = false
+                        },
+                    ) {
+                        Text("Reset")
+                    }
+                }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     TextButton(onClick = { rotation = (rotation + 270) % 360 }) {
                         Text("Rotate left")

@@ -14,7 +14,6 @@ This backlog intentionally contains only work that is not implemented yet or can
 ## Sticker Editing / AI
 
 - Validate the bundled `docker-compose.ai.yml` background-removal image on a Docker host and compare quality/resource usage.
-- Add Android batch edit presets for repeated uploads.
 
 ## Deployment And Ops
 
