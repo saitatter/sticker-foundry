@@ -1,6 +1,7 @@
 package com.stickerfoundry.app
 
 import android.content.Context
+import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
 import android.os.Bundle
@@ -43,7 +44,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -53,6 +53,7 @@ import com.stickerfoundry.app.data.EXTRACTION_FAILED
 import com.stickerfoundry.app.data.EXTRACTION_READY
 import com.stickerfoundry.app.data.EXTRACTION_SYNCING
 import com.stickerfoundry.app.data.ImageEditOptions
+import com.stickerfoundry.app.data.ImageEditRenderer
 import com.stickerfoundry.app.data.PackEntity
 import com.stickerfoundry.app.data.StickerEntity
 import com.stickerfoundry.app.data.hasEdits
@@ -430,7 +431,7 @@ private fun ImageEditDialog(
     onSubmit: (ImageEditOptions) -> Unit,
 ) {
     val context = LocalContext.current
-    val preview = remember(edit.uri) { loadImageBitmap(context, edit.uri) }
+    val previewSource = remember(edit.uri) { loadBitmap(context, edit.uri) }
     val sourceInfo = remember(edit.uri) { imageSourceInfo(context, edit.uri) }
     var rotation by remember(edit.uri) { mutableStateOf(0) }
     var cropSquare by remember(edit.uri) { mutableStateOf(false) }
@@ -465,6 +466,9 @@ private fun ImageEditDialog(
     val estimatedBytes = sourceInfo?.let {
         estimateEditedBytes(it, currentOptions)
     }
+    val preview = remember(previewSource, currentOptions) {
+        previewSource?.let { ImageEditRenderer.render(it, currentOptions).asImageBitmap() }
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -481,15 +485,8 @@ private fun ImageEditDialog(
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(220.dp)
-                            .clipToBounds()
-                            .graphicsLayer(
-                                rotationZ = rotation.toFloat(),
-                                scaleX = if (cropSquare) zoom else 1f,
-                                scaleY = if (cropSquare) zoom else 1f,
-                                translationX = if (cropSquare) offsetX else 0f,
-                                translationY = if (cropSquare) offsetY else 0f,
-                            ),
-                        contentScale = if (cropSquare) ContentScale.Crop else ContentScale.Fit,
+                            .clipToBounds(),
+                        contentScale = ContentScale.Fit,
                     )
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -601,9 +598,9 @@ private data class ImageSourceInfo(
     val bytes: Long,
 )
 
-private fun loadImageBitmap(context: Context, uri: Uri): ImageBitmap? =
+private fun loadBitmap(context: Context, uri: Uri): Bitmap? =
     context.contentResolver.openInputStream(uri)?.use { input ->
-        BitmapFactory.decodeStream(input)?.asImageBitmap()
+        BitmapFactory.decodeStream(input)
     }
 
 private fun loadImageBitmap(path: String): ImageBitmap? =
