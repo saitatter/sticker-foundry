@@ -258,6 +258,10 @@ private fun PackRow(
                 "${pack.stickerCount} stickers · Version ${pack.imageDataVersion}",
                 style = MaterialTheme.typography.bodySmall,
             )
+            Text(
+                "${roleLabel(pack)} · ${if (pack.canEdit) "Editable" else "Read-only"}",
+                style = MaterialTheme.typography.bodySmall,
+            )
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(
                     onClick = onAdd,
@@ -275,7 +279,7 @@ private fun PackRow(
             if (pack.stickerCount < 3) {
                 Text("Needs at least 3 stickers before WhatsApp import", style = MaterialTheme.typography.bodySmall)
             }
-            if (pack.isOwner) {
+            if (pack.canEdit) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Button(onClick = onUploadSticker) {
                         Text("Upload sticker")
@@ -287,6 +291,13 @@ private fun PackRow(
             }
         }
     }
+}
+
+private fun roleLabel(pack: PackEntity): String = when (pack.role) {
+    "OWNER" -> "Owner"
+    "EDITOR" -> "Editor"
+    "VIEWER" -> "Viewer"
+    else -> if (pack.isOwner) "Owner" else "Viewer"
 }
 
 @Composable

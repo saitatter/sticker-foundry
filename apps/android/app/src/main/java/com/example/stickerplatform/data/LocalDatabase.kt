@@ -27,6 +27,9 @@ data class PackEntity(
     val localPath: String,
     val isPublic: Boolean,
     val isOwner: Boolean,
+    val role: String?,
+    val canEdit: Boolean,
+    val canManage: Boolean,
     val stickerCount: Int,
     val updatedAt: String,
 )
@@ -84,7 +87,7 @@ interface StickerDao {
     suspend fun deleteAllPacks()
 }
 
-@Database(entities = [PackEntity::class, StickerEntity::class], version = 4, exportSchema = true)
+@Database(entities = [PackEntity::class, StickerEntity::class], version = 5, exportSchema = true)
 abstract class LocalDatabase : RoomDatabase() {
     abstract fun stickerDao(): StickerDao
 
@@ -109,10 +112,21 @@ abstract class LocalDatabase : RoomDatabase() {
             }
         }
 
+        private val migration4To5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE packs ADD COLUMN role TEXT")
+                db.execSQL("ALTER TABLE packs ADD COLUMN canEdit INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE packs ADD COLUMN canManage INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("UPDATE packs SET role = CASE WHEN isOwner = 1 THEN 'OWNER' ELSE 'VIEWER' END")
+                db.execSQL("UPDATE packs SET canEdit = CASE WHEN isOwner = 1 THEN 1 ELSE 0 END")
+                db.execSQL("UPDATE packs SET canManage = CASE WHEN isOwner = 1 THEN 1 ELSE 0 END")
+            }
+        }
+
         fun get(context: Context): LocalDatabase =
             instance ?: synchronized(this) {
                 instance ?: Room.databaseBuilder(context.applicationContext, LocalDatabase::class.java, "stickers.db")
-                    .addMigrations(migration1To2, migration2To3, migration3To4)
+                    .addMigrations(migration1To2, migration2To3, migration3To4, migration4To5)
                     .build()
                     .also { instance = it }
             }
@@ -120,7 +134,7 @@ abstract class LocalDatabase : RoomDatabase() {
         fun providerGet(context: Context): LocalDatabase =
             instance ?: synchronized(this) {
                 instance ?: Room.databaseBuilder(context.applicationContext, LocalDatabase::class.java, "stickers.db")
-                    .addMigrations(migration1To2, migration2To3, migration3To4)
+                    .addMigrations(migration1To2, migration2To3, migration3To4, migration4To5)
                     .allowMainThreadQueries()
                     .build()
                     .also { instance = it }
