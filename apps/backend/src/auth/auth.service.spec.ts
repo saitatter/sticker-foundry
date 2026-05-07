@@ -4,18 +4,24 @@ import { AuthService } from './auth.service';
 
 function createService(mode = 'open', inviteCode = 'let-me-in') {
   const prisma = {
+    appSetting: {
+      findUnique: jest.fn().mockResolvedValue(null),
+    },
     user: {
+      count: jest.fn().mockResolvedValue(0),
       findUnique: jest.fn().mockResolvedValue(null),
       findUniqueOrThrow: jest.fn().mockResolvedValue({
         id: 'user-1',
         email: 'demo@example.com',
         displayName: 'Demo',
+        isAdmin: true,
         passwordHash: '$2b$04$HPxcewj7nFQhvtDcYzW0leCizplvFkhBA4I9vUT91ciNpAqgjwFg2',
       }),
       create: jest.fn().mockResolvedValue({
         id: 'user-1',
         email: 'demo@example.com',
         displayName: 'Demo',
+        isAdmin: true,
       }),
       update: jest.fn().mockResolvedValue({ id: 'user-1' }),
     },
@@ -61,11 +67,12 @@ describe(AuthService, () => {
         id: 'user-1',
         email: 'demo@example.com',
         displayName: 'Demo',
+        isAdmin: true,
       },
     });
     expect(prisma.user.create).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({ email: 'demo@example.com' }),
+        data: expect.objectContaining({ email: 'demo@example.com', isAdmin: true }),
       }),
     );
   });
@@ -128,7 +135,7 @@ describe(AuthService, () => {
       id: 'session-1',
       revokedAt: null,
       expiresAt: new Date(Date.now() + 60_000),
-      user: { id: 'user-1', email: 'demo@example.com', displayName: 'Demo' },
+      user: { id: 'user-1', email: 'demo@example.com', displayName: 'Demo', isAdmin: true },
     });
 
     await expect(service.refresh({ refreshToken: 'refresh-token-that-is-long-enough' })).resolves.toEqual({
@@ -138,12 +145,31 @@ describe(AuthService, () => {
         id: 'user-1',
         email: 'demo@example.com',
         displayName: 'Demo',
+        isAdmin: true,
       },
     });
     expect(prisma.userSession.update).toHaveBeenCalledWith({
       where: { id: 'session-1' },
       data: { refreshTokenHash: expect.any(String), expiresAt: expect.any(Date), revokedAt: null },
     });
+  });
+
+  it('prefers database registration settings over environment defaults', async () => {
+    const { service, prisma } = createService('open');
+    prisma.appSetting.findUnique.mockImplementation(async ({ where }: { where: { key: string } }) => {
+      if (where.key === 'registrationMode') return { key: where.key, value: 'invite-only' };
+      if (where.key === 'registrationInviteCode') return { key: where.key, value: 'db-secret' };
+      return null;
+    });
+
+    await expect(
+      service.register({
+        email: 'demo@example.com',
+        displayName: 'Demo',
+        password: 'password123',
+        inviteCode: 'db-secret',
+      }),
+    ).resolves.toMatchObject({ accessToken: 'jwt-token' });
   });
 
   it('revokes sessions', async () => {

@@ -1,4 +1,5 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { PackRole } from '@prisma/client';
 import { randomBytes } from 'crypto';
 import { cp, mkdir, rm } from 'fs/promises';
@@ -32,6 +33,7 @@ export class PacksService {
     private readonly prisma: PrismaService,
     private readonly exportService: PackExportService,
     private readonly imageService: StickerImageService,
+    private readonly config: ConfigService,
   ) {}
 
   async create(ownerId: string, dto: CreatePackDto) {
@@ -231,6 +233,7 @@ export class PacksService {
       throw new ForbiddenException('You do not have access to this pack');
     }
 
+    await this.enforceStorageQuota(userId, source.stickers.reduce((total, sticker) => total + sticker.sizeBytes, 0));
     const cloned = await this.prisma.pack.create({
       data: {
         ownerId: userId,
@@ -318,6 +321,7 @@ export class PacksService {
     }
 
     const processed = await this.imageService.processSticker(file.buffer);
+    await this.enforceStorageQuota(pack.ownerId, processed.sizeBytes);
     const fileName = `${uuidv4()}.webp`;
     const packDir = this.exportService.packDirectory(packId);
     await this.imageService.writeProcessedImage(join(packDir, fileName), processed);
@@ -451,6 +455,8 @@ export class PacksService {
     }
 
     const processed = await this.imageService.processSticker(file.buffer);
+    const existingSize = typeof sticker.sizeBytes === 'number' ? sticker.sizeBytes : 0;
+    await this.enforceStorageQuota(pack.ownerId, Math.max(0, processed.sizeBytes - existingSize));
     await this.imageService.writeProcessedImage(
       join(this.exportService.packDirectory(packId), sticker.fileName),
       processed,
@@ -544,6 +550,7 @@ export class PacksService {
   async copyStickers(userId: string, sourcePackId: string, dto: TransferStickersDto) {
     const { source, target, stickers } = await this.loadTransfer(userId, sourcePackId, dto);
     this.assertTargetCapacity(target, stickers.length);
+    await this.enforceStorageQuota(target.ownerId, stickers.reduce((total, sticker) => total + sticker.sizeBytes, 0));
 
     const copies = stickers.map((sticker, index) => ({
       fileName: `${uuidv4()}.webp`,
@@ -599,6 +606,9 @@ export class PacksService {
 
     const { source, target, stickers } = await this.loadTransfer(userId, sourcePackId, dto);
     this.assertTargetCapacity(target, stickers.length);
+    if (source.ownerId !== target.ownerId) {
+      await this.enforceStorageQuota(target.ownerId, stickers.reduce((total, sticker) => total + sticker.sizeBytes, 0));
+    }
 
     const moves = stickers.map((sticker, index) => ({
       fileName: `${uuidv4()}.webp`,
@@ -739,6 +749,28 @@ export class PacksService {
     if (currentCount + incomingCount > WHATSAPP_LIMITS.maxStickersPerPack) {
       throw new BadRequestException(`A pack can contain at most ${WHATSAPP_LIMITS.maxStickersPerPack} stickers`);
     }
+  }
+
+  private async enforceStorageQuota(ownerId: string, incomingBytes: number) {
+    if (incomingBytes <= 0) return;
+    const quota = await this.storageQuotaBytes();
+    if (!quota) return;
+
+    const usage = await this.prisma.sticker.aggregate({
+      where: { pack: { ownerId } },
+      _sum: { sizeBytes: true },
+    });
+    const usedBytes = usage._sum.sizeBytes ?? 0;
+    if (usedBytes + incomingBytes > quota) {
+      throw new BadRequestException('Storage quota exceeded for this pack owner');
+    }
+  }
+
+  private async storageQuotaBytes() {
+    const setting = await this.prisma.appSetting.findUnique({ where: { key: 'storageQuotaBytes' } });
+    const raw = setting?.value || this.config.get<string>('STORAGE_QUOTA_BYTES', '');
+    const parsed = Number.parseInt(raw, 10);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
   }
 
   private async requireManage(userId: string, packId: string) {

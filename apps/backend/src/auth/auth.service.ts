@@ -18,18 +18,20 @@ export class AuthService {
   ) {}
 
   async register(dto: RegisterDto) {
-    this.assertRegistrationAllowed(dto.inviteCode);
+    await this.assertRegistrationAllowed(dto.inviteCode);
     const existing = await this.prisma.user.findUnique({ where: { email: dto.email.toLowerCase() } });
     if (existing) {
       throw new ConflictException('Email is already registered');
     }
 
     const passwordHash = await bcrypt.hash(dto.password, 12);
+    const isFirstUser = (await this.prisma.user.count()) === 0;
     const user = await this.prisma.user.create({
       data: {
         email: dto.email.toLowerCase(),
         displayName: dto.displayName,
         passwordHash,
+        isAdmin: isFirstUser,
       },
     });
 
@@ -53,7 +55,7 @@ export class AuthService {
   async refresh(dto: RefreshTokenDto) {
     const session = await this.prisma.userSession.findUnique({
       where: { refreshTokenHash: this.refreshTokenHash(dto.refreshToken) },
-      include: { user: { select: { id: true, email: true, displayName: true } } },
+      include: { user: { select: { id: true, email: true, displayName: true, isAdmin: true } } },
     });
     if (!session || session.revokedAt || session.expiresAt.getTime() <= Date.now()) {
       throw new UnauthorizedException('Refresh token is invalid or expired');
@@ -65,7 +67,7 @@ export class AuthService {
   async me(userId: string) {
     const user = await this.prisma.user.findUniqueOrThrow({
       where: { id: userId },
-      select: { id: true, email: true, displayName: true, createdAt: true },
+      select: { id: true, email: true, displayName: true, isAdmin: true, createdAt: true },
     });
     return user;
   }
@@ -125,7 +127,10 @@ export class AuthService {
     return { revoked: true };
   }
 
-  private async authResponse(user: { id: string; email: string; displayName: string }, existingSessionId?: string) {
+  private async authResponse(
+    user: { id: string; email: string; displayName: string; isAdmin?: boolean },
+    existingSessionId?: string,
+  ) {
     const refreshToken = this.newRefreshToken();
     const expiresAt = this.refreshTokenExpiry();
     const refreshTokenHash = this.refreshTokenHash(refreshToken);
@@ -150,6 +155,7 @@ export class AuthService {
         id: user.id,
         email: user.email,
         displayName: user.displayName,
+        isAdmin: Boolean(user.isAdmin),
       },
     };
   }
@@ -171,8 +177,9 @@ export class AuthService {
     return this.config.get<string>('ACCESS_TOKEN_TTL', '15m') as NonNullable<JwtSignOptions['expiresIn']>;
   }
 
-  private assertRegistrationAllowed(inviteCode: string | undefined) {
-    const mode = this.config.get<string>('REGISTRATION_MODE', 'open').toLowerCase();
+  private async assertRegistrationAllowed(inviteCode: string | undefined) {
+    const setting = await this.prisma.appSetting.findUnique({ where: { key: 'registrationMode' } });
+    const mode = (setting?.value ?? this.config.get<string>('REGISTRATION_MODE', 'open')).toLowerCase();
     if (mode === 'disabled') {
       throw new ForbiddenException('Registration is disabled on this instance');
     }
@@ -180,7 +187,8 @@ export class AuthService {
       return;
     }
 
-    const expectedInviteCode = this.config.get<string>('REGISTRATION_INVITE_CODE');
+    const inviteSetting = await this.prisma.appSetting.findUnique({ where: { key: 'registrationInviteCode' } });
+    const expectedInviteCode = inviteSetting?.value || this.config.get<string>('REGISTRATION_INVITE_CODE');
     if (!expectedInviteCode || inviteCode !== expectedInviteCode) {
       throw new ForbiddenException('A valid invite code is required');
     }

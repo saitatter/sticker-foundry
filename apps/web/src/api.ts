@@ -2,6 +2,7 @@ export type User = {
   id: string;
   email: string;
   displayName: string;
+  isAdmin: boolean;
 };
 
 export type AuthResponse = {
@@ -15,6 +16,20 @@ export type UserSession = {
   createdAt: string;
   expiresAt: string;
   revokedAt?: string | null;
+};
+
+export type RegistrationMode = 'open' | 'invite-only' | 'disabled';
+
+export type AdminSettings = {
+  registrationMode: RegistrationMode;
+  registrationInviteCode: string;
+  storageQuotaBytes: number | null;
+};
+
+export type UpdateAdminSettingsInput = {
+  registrationMode?: RegistrationMode;
+  registrationInviteCode?: string | null;
+  storageQuotaBytes?: number | null;
 };
 
 export type Sticker = {
@@ -167,6 +182,18 @@ export class StickerFoundryApi {
     return this.request<{ revoked: boolean }>('/auth/sessions', {
       method: 'DELETE',
       auth: true,
+    });
+  }
+
+  async adminSettings() {
+    return this.request<AdminSettings>('/admin/settings', { auth: true });
+  }
+
+  async updateAdminSettings(input: UpdateAdminSettingsInput) {
+    return this.request<AdminSettings>('/admin/settings', {
+      method: 'PATCH',
+      auth: true,
+      body: JSON.stringify(input),
     });
   }
 

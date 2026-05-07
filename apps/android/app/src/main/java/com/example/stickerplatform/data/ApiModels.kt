@@ -21,6 +21,7 @@ data class UserDto(
     val id: String,
     val email: String,
     val displayName: String,
+    val isAdmin: Boolean = false,
 )
 
 data class PackDto(

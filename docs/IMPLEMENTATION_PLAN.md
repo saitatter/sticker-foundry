@@ -14,6 +14,7 @@ Already implemented:
 - Sync API with `contentHash`, `syncHash`, ownership flags, export readiness, and relative export/tray paths.
 - Backend HTTP e2e coverage for register, pack creation, sticker upload, manifest `ETag`, ZIP export, and `contents.json` parsing.
 - Pack collaboration with owner/viewer/editor roles, invite creation/acceptance/revocation, member listing, member removal, member role editing, role-aware mutation checks, and sync capability flags.
+- First-user admin bootstrap with admin-only settings for registration mode, invite code, and per-owner sticker storage quota.
 - Web UI with auth, demo login, pack dashboard search/filter/sort/status badges, pack detail, create/edit/delete/clone, collaboration invites/member management, invite expiration/history filters, sticker upload, bulk delete/bulk emoji apply, bulk copy/move to another pack, drag-and-drop uploads, image rotate/square crop, sticker replacement, tray replacement, ordering, ZIP download, contents preview, account password change, and session management.
 - Playwright smoke test coverage for login, pack creation, upload, contents preview, collaboration panel visibility, and bulk copy workflow.
 - Android app with MVVM, Retrofit, Room cache, refresh-token auth, local ZIP extraction, local sticker preview, WhatsApp `ContentProvider`, import intents for WhatsApp and WhatsApp Business, role-aware image upload/tray replacement, image rotate/square crop, server URL settings, logout, cache size/clear cache, import readiness, content-hash sync, and stale cache pruning.
@@ -24,7 +25,7 @@ Already implemented:
 Known gaps:
 
 - Real-device WhatsApp and WhatsApp Business import still need hands-on validation.
-- No background media queue, audit log, quotas, or advanced upload abuse protection beyond current validation/rate limits.
+- No background media queue, audit log, instance branding controls, or advanced upload abuse protection beyond current validation/rate limits.
 
 ## Milestone 1: Real Import Validation
 
@@ -70,8 +71,7 @@ Goal: make internet-facing deployments safer.
 
 Tasks:
 
-- Add admin settings for registration mode and instance branding.
-- Add per-user or per-instance storage quotas.
+- Add instance branding controls.
 - Add audit logging for auth, pack, and sticker changes.
 - Add stricter image bomb safeguards and upload pixel limits.
 - Add HTTPS-first deployment checklist.
@@ -101,8 +101,8 @@ Acceptance criteria:
 ## Near-Term Recommended Order
 
 1. Real-device WhatsApp import validation.
-2. Admin settings and quotas.
-3. Audit log and storage limits.
+2. Audit log and admin activity visibility.
+3. Instance branding controls.
 4. Advanced media editing.
 
 ## Design Notes

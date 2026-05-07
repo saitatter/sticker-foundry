@@ -21,13 +21,27 @@ import {
   RotateCcw,
   RotateCw,
   Search,
+  ShieldCheck,
   Trash2,
   Upload,
   UserPlus,
   Users,
 } from 'lucide-react';
 import { DragEvent, FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
-import { ApiError, AuthResponse, Pack, PackInvite, PackMember, PackRole, Sticker, StickerFoundryApi, User, UserSession } from './api';
+import {
+  AdminSettings,
+  ApiError,
+  AuthResponse,
+  Pack,
+  PackInvite,
+  PackMember,
+  PackRole,
+  RegistrationMode,
+  Sticker,
+  StickerFoundryApi,
+  User,
+  UserSession,
+} from './api';
 
 const TOKEN_KEY = 'stickerfoundry.token';
 const REFRESH_TOKEN_KEY = 'stickerfoundry.refreshToken';
@@ -235,8 +249,9 @@ export function App() {
       {showAccountDialog ? (
         <AccountDialog
           api={api}
+          isAdmin={Boolean(user?.isAdmin)}
           onClose={() => setShowAccountDialog(false)}
-          onChanged={() => setNotice({ tone: 'success', text: 'Password changed' })}
+          onChanged={(message) => setNotice({ tone: 'success', text: message })}
           onError={reportError}
         />
       ) : null}
@@ -246,30 +261,50 @@ export function App() {
 
 function AccountDialog({
   api,
+  isAdmin,
   onClose,
   onChanged,
   onError,
 }: {
   api: StickerFoundryApi;
+  isAdmin: boolean;
   onClose: () => void;
-  onChanged: () => void;
+  onChanged: (message: string) => void;
   onError: (error: unknown) => void;
 }) {
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [sessions, setSessions] = useState<UserSession[]>([]);
   const [saving, setSaving] = useState(false);
+  const [adminSettings, setAdminSettings] = useState<AdminSettings | null>(null);
+  const [registrationMode, setRegistrationMode] = useState<RegistrationMode>('open');
+  const [registrationInviteCode, setRegistrationInviteCode] = useState('');
+  const [storageQuotaMb, setStorageQuotaMb] = useState('');
+  const [savingAdmin, setSavingAdmin] = useState(false);
 
   useEffect(() => {
     api.sessions().then(setSessions).catch(onError);
   }, [api, onError]);
+
+  useEffect(() => {
+    if (!isAdmin) return;
+    api
+      .adminSettings()
+      .then((settings) => {
+        setAdminSettings(settings);
+        setRegistrationMode(settings.registrationMode);
+        setRegistrationInviteCode(settings.registrationInviteCode ?? '');
+        setStorageQuotaMb(settings.storageQuotaBytes ? String(Math.round(settings.storageQuotaBytes / 1024 / 1024)) : '');
+      })
+      .catch(onError);
+  }, [api, isAdmin, onError]);
 
   async function submit(event: FormEvent) {
     event.preventDefault();
     setSaving(true);
     try {
       await api.changePassword(currentPassword, newPassword);
-      onChanged();
+      onChanged('Password changed');
       onClose();
     } catch (error) {
       onError(error);
@@ -297,38 +332,68 @@ function AccountDialog({
     }
   }
 
+  async function saveAdminSettings(event: FormEvent) {
+    event.preventDefault();
+    const trimmedQuota = storageQuotaMb.trim();
+    const quotaNumber = trimmedQuota ? Number(trimmedQuota) : null;
+    if (quotaNumber !== null && (!Number.isFinite(quotaNumber) || quotaNumber <= 0)) {
+      onError(new Error('Storage quota must be a positive number of MB'));
+      return;
+    }
+
+    setSavingAdmin(true);
+    try {
+      const settings = await api.updateAdminSettings({
+        registrationMode,
+        registrationInviteCode: registrationInviteCode.trim() || null,
+        storageQuotaBytes: quotaNumber === null ? null : Math.round(quotaNumber * 1024 * 1024),
+      });
+      setAdminSettings(settings);
+      setRegistrationMode(settings.registrationMode);
+      setRegistrationInviteCode(settings.registrationInviteCode ?? '');
+      setStorageQuotaMb(settings.storageQuotaBytes ? String(Math.round(settings.storageQuotaBytes / 1024 / 1024)) : '');
+      onChanged('Admin settings saved');
+    } catch (error) {
+      onError(error);
+    } finally {
+      setSavingAdmin(false);
+    }
+  }
+
   return (
     <div className="modal-backdrop" role="presentation">
-      <form className="modal-panel form-grid" onSubmit={submit}>
+      <div className="modal-panel form-grid">
         <div className="section-heading">
           <h2>Account</h2>
           <button className="secondary-button" onClick={onClose} type="button">
             Close
           </button>
         </div>
-        <label>
-          Current password
-          <input
-            value={currentPassword}
-            onChange={(event) => setCurrentPassword(event.target.value)}
-            type="password"
-            required
-          />
-        </label>
-        <label>
-          New password
-          <input
-            value={newPassword}
-            onChange={(event) => setNewPassword(event.target.value)}
-            type="password"
-            minLength={8}
-            required
-          />
-        </label>
-        <button className="primary-button" disabled={saving} type="submit">
-          <KeyRound size={17} />
-          {saving ? 'Saving' : 'Change password'}
-        </button>
+        <form className="form-grid" onSubmit={submit}>
+          <label>
+            Current password
+            <input
+              value={currentPassword}
+              onChange={(event) => setCurrentPassword(event.target.value)}
+              type="password"
+              required
+            />
+          </label>
+          <label>
+            New password
+            <input
+              value={newPassword}
+              onChange={(event) => setNewPassword(event.target.value)}
+              type="password"
+              minLength={8}
+              required
+            />
+          </label>
+          <button className="primary-button" disabled={saving} type="submit">
+            <KeyRound size={17} />
+            {saving ? 'Saving' : 'Change password'}
+          </button>
+        </form>
         <div className="session-list">
           <div className="section-heading">
             <h3>Sessions</h3>
@@ -353,7 +418,45 @@ function AccountDialog({
             </div>
           ))}
         </div>
-      </form>
+        {isAdmin ? (
+          <form className="admin-settings form-grid" onSubmit={saveAdminSettings}>
+            <div className="section-heading">
+              <h3>Admin settings</h3>
+              <ShieldCheck size={18} />
+            </div>
+            <label>
+              Registration
+              <select value={registrationMode} onChange={(event) => setRegistrationMode(event.target.value as RegistrationMode)}>
+                <option value="open">Open</option>
+                <option value="invite-only">Invite only</option>
+                <option value="disabled">Disabled</option>
+              </select>
+            </label>
+            <label>
+              Invite code
+              <input
+                disabled={registrationMode !== 'invite-only'}
+                value={registrationInviteCode}
+                onChange={(event) => setRegistrationInviteCode(event.target.value)}
+              />
+            </label>
+            <label>
+              Storage quota per owner (MB)
+              <input
+                min="1"
+                placeholder="Unlimited"
+                type="number"
+                value={storageQuotaMb}
+                onChange={(event) => setStorageQuotaMb(event.target.value)}
+              />
+            </label>
+            <button className="secondary-button" disabled={savingAdmin || !adminSettings} type="submit">
+              <ShieldCheck size={17} />
+              {savingAdmin ? 'Saving' : 'Save admin settings'}
+            </button>
+          </form>
+        ) : null}
+      </div>
     </div>
   );
 }

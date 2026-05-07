@@ -12,6 +12,9 @@ jest.mock('fs/promises', () => ({
 
 function createService() {
   const prisma = {
+    appSetting: {
+      findUnique: jest.fn().mockResolvedValue(null),
+    },
     pack: {
       create: jest.fn(),
       findMany: jest.fn(),
@@ -20,6 +23,7 @@ function createService() {
       delete: jest.fn(),
     },
     sticker: {
+      aggregate: jest.fn().mockResolvedValue({ _sum: { sizeBytes: 0 } }),
       create: jest.fn(),
       delete: jest.fn(),
       findFirst: jest.fn(),
@@ -53,7 +57,11 @@ function createService() {
     writeProcessedImage: jest.fn(),
   };
 
-  const service = new PacksService(prisma as never, exportService as never, imageService as never);
+  const config = {
+    get: jest.fn((_key: string, fallback?: string) => fallback),
+  };
+
+  const service = new PacksService(prisma as never, exportService as never, imageService as never, config as never);
   return { service, prisma, exportService, imageService };
 }
 
@@ -415,6 +423,39 @@ describe(PacksService, () => {
         position: 2,
       }),
     });
+  });
+
+  it('blocks sticker uploads when the owner storage quota would be exceeded', async () => {
+    const { service, prisma, imageService } = createService();
+
+    prisma.appSetting.findUnique.mockResolvedValue({ key: 'storageQuotaBytes', value: '100' });
+    prisma.sticker.aggregate.mockResolvedValue({ _sum: { sizeBytes: 80 } });
+    prisma.pack.findUnique
+      .mockResolvedValueOnce({
+        id: 'pack-1',
+        ownerId: 'owner-1',
+        imageDataVersion: '1',
+        _count: { stickers: 0 },
+      })
+      .mockResolvedValueOnce({
+        id: 'pack-1',
+        ownerId: 'owner-1',
+        imageDataVersion: '1',
+        members: [],
+      });
+    imageService.processSticker.mockResolvedValue({ buffer: Buffer.from('sticker'), sizeBytes: 50, sha256: 'sha' });
+
+    await expect(
+      service.uploadSticker(
+        'owner-1',
+        'pack-1',
+        { buffer: Buffer.from('source'), mimetype: 'image/png' } as Express.Multer.File,
+        {},
+      ),
+    ).rejects.toBeInstanceOf(BadRequestException);
+
+    expect(imageService.writeProcessedImage).not.toHaveBeenCalled();
+    expect(prisma.sticker.create).not.toHaveBeenCalled();
   });
 
   it('moves selected stickers into another editable pack and rejects full targets', async () => {

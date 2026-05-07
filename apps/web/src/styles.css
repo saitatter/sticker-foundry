@@ -286,6 +286,8 @@ select:focus {
 
 .modal-panel {
   width: min(440px, 100%);
+  max-height: calc(100vh - 36px);
+  overflow: auto;
   padding: 18px;
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -566,10 +568,16 @@ select:focus {
 .member-list,
 .invite-list,
 .session-list,
+.admin-settings,
 .invite-form {
   display: grid;
   gap: 10px;
   align-content: start;
+}
+
+.admin-settings {
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
 }
 
 .member-row,

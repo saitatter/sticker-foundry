@@ -70,12 +70,14 @@ async function main() {
     update: {
       displayName: demoUser.displayName,
       passwordHash,
+      isAdmin: true,
     },
     create: {
       id: demoUser.id,
       email: demoUser.email,
       displayName: demoUser.displayName,
       passwordHash,
+      isAdmin: true,
     },
   });
 

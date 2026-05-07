@@ -28,6 +28,7 @@ This is the live feature backlog. Items already shipped are kept briefly at the 
 - Web sticker multi-select with bulk delete, bulk emoji apply, and copy/move to another pack.
 - Playwright smoke tests for login, pack creation, upload, contents preview, collaboration panel visibility, and bulk copy workflow.
 - Android lint and debug APK assembly in CI.
+- Admin-only web settings for registration mode, invite code, and per-owner storage quotas.
 - Compose `.env.example` and reverse proxy examples.
 - Dependabot and GitHub issue templates.
 - Metrics endpoint for basic monitoring.
@@ -85,8 +86,7 @@ This is the live feature backlog. Items already shipped are kept briefly at the 
 ## Backend
 
 - Password reset flow if email is configured.
-- Admin settings page/API for registration mode, quotas, and instance branding.
-- Per-user storage quotas.
+- Admin settings page/API for instance branding.
 - Audit log for sensitive actions.
 - Upload pixel-count limits and image bomb safeguards.
 - Background media processing queue for heavier transforms.
@@ -95,7 +95,7 @@ This is the live feature backlog. Items already shipped are kept briefly at the 
 
 ## Web App
 
-- Admin settings page for registration mode, quotas, and instance branding.
+- Admin settings page for instance branding.
 - Public pack browser for visible packs.
 - Keyboard shortcuts for review and ordering workflows.
 - Better responsive layout for dense sticker grids on small screens.

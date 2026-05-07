@@ -112,6 +112,7 @@ export type AuthResponseDto = {
     id: string;
     email: string;
     displayName: string;
+    isAdmin: boolean;
   };
 };
 
@@ -120,4 +121,12 @@ export type UserSessionDto = {
   createdAt: string;
   expiresAt: string;
   revokedAt?: string | null;
+};
+
+export type RegistrationMode = 'open' | 'invite-only' | 'disabled';
+
+export type AdminSettingsDto = {
+  registrationMode: RegistrationMode;
+  registrationInviteCode: string;
+  storageQuotaBytes: number | null;
 };

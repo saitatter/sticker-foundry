@@ -16,6 +16,7 @@ StickerFoundry is a self-hosted collaborative WhatsApp sticker pack manager, sha
 - JWT register/login.
 - Short-lived access tokens with refresh-token sessions, logout revocation, and web session management.
 - Registration mode control with `REGISTRATION_MODE=open|invite-only|disabled` and optional `REGISTRATION_INVITE_CODE`.
+- First-user admin bootstrap plus web admin settings for registration mode, invite code, and per-owner storage quota.
 - Authenticated password change endpoint and web account dialog.
 - Pack CRUD with ownership, public visibility, viewer/editor collaboration roles, invite codes, member management, and invite revocation.
 - Sticker upload with WebP conversion, 512x512 resize, and WhatsApp size validation.
@@ -70,6 +71,9 @@ sticker-foundry/
       prisma/
       src/
       Dockerfile
+    web/
+      src/
+      Dockerfile
     android/
       app/
       build.gradle.kts
@@ -87,6 +91,7 @@ This keeps deployable apps in `apps`, reusable contracts in `packages`, and infr
 Key files:
 
 - `apps/backend/src/auth/*`: JWT register/login.
+- `apps/backend/src/admin/*`: admin-only instance settings API.
 - `apps/backend/src/packs/packs.controller.ts`: pack CRUD, sticker upload, ZIP export.
 - `apps/backend/src/packs/sticker-image.service.ts`: WebP conversion, resize, compression.
 - `apps/backend/src/packs/pack-export.service.ts`: `contents.json`, `tray_icon.webp`, sticker ZIP generation.
@@ -118,7 +123,7 @@ The seed command creates a local demo account and a WhatsApp-compatible demo pac
 
 The web login screen includes a **Use demo account** button that fills these seeded credentials.
 
-Registration is open by default. For public deployments, set `REGISTRATION_MODE=invite-only` with `REGISTRATION_INVITE_CODE`, or set `REGISTRATION_MODE=disabled` after creating your admin account.
+Registration is open by default. The first registered account becomes an admin. Admins can change registration mode, invite code, and per-owner storage quota from the web account dialog. For initial public deployments, you can also seed defaults with `REGISTRATION_MODE=invite-only`, `REGISTRATION_INVITE_CODE`, and optional `STORAGE_QUOTA_BYTES`.
 
 Access tokens default to `ACCESS_TOKEN_TTL=15m`; refresh sessions default to `REFRESH_TOKEN_TTL_DAYS=30`. Users can revoke sessions from the web account dialog, and Android refreshes tokens automatically during sync/upload flows.
 
@@ -489,7 +494,7 @@ Initial commit structure should include:
 
 ## 📝 Notes
 
-This project is a real starting point, not a complete production deployment. Before exposing it outside your LAN, add HTTPS, backups, stricter upload scanning, richer admin controls, storage quotas, and audit logs.
+This project is a real starting point, not a complete production deployment. Before exposing it outside your LAN, add HTTPS, backups, stricter upload scanning, audit logs, and tested operational runbooks.
 
 WhatsApp limitations to remember:
 

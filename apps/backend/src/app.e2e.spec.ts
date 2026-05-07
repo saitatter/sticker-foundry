@@ -14,6 +14,7 @@ type UserRecord = {
   email: string;
   displayName: string;
   passwordHash: string;
+  isAdmin: boolean;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -51,17 +52,25 @@ type UserSessionRecord = {
   revokedAt: Date | null;
 };
 
+type AppSettingRecord = {
+  key: string;
+  value: string;
+  updatedAt: Date;
+};
+
 class InMemoryPrisma {
   users: UserRecord[] = [];
   packs: PackRecord[] = [];
   stickers: StickerRecord[] = [];
   sessions: UserSessionRecord[] = [];
+  appSettings: AppSettingRecord[] = [];
   userSeq = 1;
   packSeq = 1;
   stickerSeq = 1;
   sessionSeq = 1;
 
   user = {
+    count: jest.fn(async () => this.users.length),
     findUnique: jest.fn(async ({ where }: { where: { email?: string; id?: string } }) =>
       this.users.find((user) => user.email === where.email || user.id === where.id) ?? null,
     ),
@@ -71,13 +80,14 @@ class InMemoryPrisma {
       if (!select) return user;
       return Object.fromEntries(Object.entries(select).filter(([, enabled]) => enabled).map(([key]) => [key, user[key as keyof UserRecord]]));
     }),
-    create: jest.fn(async ({ data }: { data: { email: string; displayName: string; passwordHash: string } }) => {
+    create: jest.fn(async ({ data }: { data: { email: string; displayName: string; passwordHash: string; isAdmin?: boolean } }) => {
       const now = new Date();
       const user: UserRecord = {
         id: `user-${this.userSeq++}`,
         email: data.email,
         displayName: data.displayName,
         passwordHash: data.passwordHash,
+        isAdmin: data.isAdmin ?? false,
         createdAt: now,
         updatedAt: now,
       };
@@ -89,6 +99,22 @@ class InMemoryPrisma {
       if (!user) throw new Error('User not found');
       Object.assign(user, data, { updatedAt: new Date() });
       return user;
+    }),
+  };
+
+  appSetting = {
+    findUnique: jest.fn(async ({ where }: { where: { key: string } }) => this.appSettings.find((setting) => setting.key === where.key) ?? null),
+    findMany: jest.fn(async () => this.appSettings),
+    upsert: jest.fn(async ({ where, create, update }: { where: { key: string }; create: { key: string; value: string }; update: { value: string } }) => {
+      const now = new Date();
+      const existing = this.appSettings.find((setting) => setting.key === where.key);
+      if (existing) {
+        Object.assign(existing, update, { updatedAt: now });
+        return existing;
+      }
+      const setting = { ...create, updatedAt: now };
+      this.appSettings.push(setting);
+      return setting;
     }),
   };
 
@@ -179,6 +205,14 @@ class InMemoryPrisma {
       this.stickers.push(sticker);
       return sticker;
     }),
+    aggregate: jest.fn(async ({ where }: { where?: { pack?: { ownerId?: string } } }) => {
+      const ownerId = where?.pack?.ownerId;
+      const packIds = ownerId ? this.packs.filter((pack) => pack.ownerId === ownerId).map((pack) => pack.id) : this.packs.map((pack) => pack.id);
+      const sizeBytes = this.stickers
+        .filter((sticker) => packIds.includes(sticker.packId))
+        .reduce((total, sticker) => total + sticker.sizeBytes, 0);
+      return { _sum: { sizeBytes } };
+    }),
     findFirst: jest.fn(async ({ where }: { where: { id?: string; packId?: string } }) =>
       this.stickers.find((sticker) => (!where.id || sticker.id === where.id) && (!where.packId || sticker.packId === where.packId)) ?? null,
     ),
@@ -259,6 +293,28 @@ describe('StickerFoundry API e2e', () => {
       .expect(201);
     const token = auth.body.accessToken as string;
     expect(auth.body.refreshToken).toEqual(expect.any(String));
+    expect(auth.body.user.isAdmin).toBe(true);
+
+    await request(server)
+      .patch('/api/admin/settings')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ registrationMode: 'invite-only', registrationInviteCode: 'team-code', storageQuotaBytes: 10_485_760 })
+      .expect(200)
+      .expect((response) => {
+        expect(response.body).toEqual(
+          expect.objectContaining({
+            registrationMode: 'invite-only',
+            registrationInviteCode: 'team-code',
+            storageQuotaBytes: 10_485_760,
+          }),
+        );
+      });
+
+    await request(server)
+      .patch('/api/admin/settings')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ registrationMode: 'open', registrationInviteCode: null, storageQuotaBytes: null })
+      .expect(200);
 
     const refreshed = await request(server)
       .post('/api/auth/refresh')
