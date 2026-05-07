@@ -43,4 +43,25 @@ describe(HealthService, () => {
       }),
     );
   });
+
+  it('formats metrics for Prometheus', () => {
+    const prisma = { $queryRaw: jest.fn() };
+    const service = new HealthService(prisma as never);
+
+    expect(
+      service.prometheusMetrics({
+        uptimeSeconds: 12,
+        memory: {
+          rssBytes: 100,
+          heapUsedBytes: 50,
+          heapTotalBytes: 80,
+          externalBytes: 10,
+        },
+        process: {
+          pid: 123,
+          nodeVersion: 'v20.0.0',
+        },
+      }),
+    ).toContain('stickerfoundry_uptime_seconds 12');
+  });
 });

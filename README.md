@@ -243,6 +243,7 @@ curl http://localhost:3000/api/health
 
 ```bash
 curl http://localhost:3000/api/metrics
+curl "http://localhost:3000/api/metrics?format=prometheus"
 ```
 
 ```bash
