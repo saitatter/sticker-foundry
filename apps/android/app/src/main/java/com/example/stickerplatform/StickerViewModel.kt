@@ -54,8 +54,23 @@ class StickerViewModel(
         viewModelScope.launch {
             setInfo("Syncing packs")
             runCatching { repository.sync() }
-                .onSuccess { setInfo("Sync complete") }
+                .onSuccess {
+                    refreshCacheUsage()
+                    setInfo("Sync complete")
+                }
                 .onFailure { setError(it, "Sync failed") }
+        }
+    }
+
+    fun syncPack(packId: String) {
+        viewModelScope.launch {
+            setInfo("Syncing pack")
+            runCatching { repository.syncPack(packId) }
+                .onSuccess {
+                    refreshCacheUsage()
+                    setInfo("Pack synced")
+                }
+                .onFailure { setError(it, "Pack sync failed") }
         }
     }
 

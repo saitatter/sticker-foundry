@@ -12,7 +12,6 @@ This is the live feature backlog. It should only contain work that still needs t
 
 ## Android
 
-- Manual per-pack resync control.
 - Per-pack local cache cleanup.
 - Account state display in settings.
 - Real-device compatibility notes inside README.

@@ -68,46 +68,26 @@ class StickerRepository private constructor(context: Context) {
             val remoteSyncKey = remote.contentHash ?: remote.syncHash
             val local = db.stickerDao().getPack(remote.id)
             if (local?.syncHash == remoteSyncKey) {
-                db.stickerDao().upsertPack(
-                    local.copy(
-                        name = remote.name,
-                        publisher = remote.publisher,
-                        imageDataVersion = remote.imageDataVersion,
-                        isPublic = remote.isPublic,
-                        isAnimated = remote.isAnimated,
-                        isOwner = remote.isOwner,
-                        teamId = remote.teamId,
-                        teamName = remote.teamName,
-                        role = remote.role ?: if (remote.isOwner) "OWNER" else "VIEWER",
-                        canEdit = remote.canEdit ?: remote.isOwner,
-                        canManage = remote.canManage ?: remote.isOwner,
-                        stickerCount = remote.stickerCount,
-                        updatedAt = remote.updatedAt,
-                    ),
-                )
+                updateCachedPackMetadata(local, remote)
                 continue
             }
 
-            val bytes = withAuthRetry { bearer -> api().exportPack(bearer, remote.id).bytes() }
-            val extracted = extractor.extract(remote.id, bytes)
-            db.stickerDao().upsertPack(
-                extracted.entity.copy(
-                    isPublic = remote.isPublic,
-                    isAnimated = remote.isAnimated,
-                    isOwner = remote.isOwner,
-                    teamId = remote.teamId,
-                    teamName = remote.teamName,
-                    role = remote.role ?: if (remote.isOwner) "OWNER" else "VIEWER",
-                    canEdit = remote.canEdit ?: remote.isOwner,
-                    canManage = remote.canManage ?: remote.isOwner,
-                    stickerCount = remote.stickerCount,
-                    syncHash = remoteSyncKey,
-                    updatedAt = remote.updatedAt,
-                ),
-            )
-            db.stickerDao().deleteStickers(extracted.entity.id)
-            db.stickerDao().upsertStickers(extracted.stickers)
+            downloadAndCache(remote)
         }
+    }
+
+    suspend fun syncPack(packId: String) = withContext(Dispatchers.IO) {
+        val remote = withAuthRetry { bearer -> api().syncPacks(bearer).packs }.firstOrNull { it.id == packId }
+            ?: run {
+                deleteLocalPack(packId)
+                error("Pack is no longer available on the server")
+            }
+        if (!remote.canExport) {
+            deleteLocalPack(packId)
+            error("Pack is not exportable yet")
+        }
+
+        downloadAndCache(remote)
     }
 
     suspend fun uploadSticker(packId: String, uri: Uri, options: ImageEditOptions) = withContext(Dispatchers.IO) {
@@ -135,6 +115,49 @@ class StickerRepository private constructor(context: Context) {
     private suspend fun deleteLocalPack(packId: String) {
         db.stickerDao().deletePack(packId)
         File(packsDirectory(), packId).deleteRecursively()
+    }
+
+    private suspend fun updateCachedPackMetadata(local: PackEntity, remote: SyncPackDto) {
+        db.stickerDao().upsertPack(
+            local.copy(
+                name = remote.name,
+                publisher = remote.publisher,
+                imageDataVersion = remote.imageDataVersion,
+                isPublic = remote.isPublic,
+                isAnimated = remote.isAnimated,
+                isOwner = remote.isOwner,
+                teamId = remote.teamId,
+                teamName = remote.teamName,
+                role = remote.role ?: if (remote.isOwner) "OWNER" else "VIEWER",
+                canEdit = remote.canEdit ?: remote.isOwner,
+                canManage = remote.canManage ?: remote.isOwner,
+                stickerCount = remote.stickerCount,
+                updatedAt = remote.updatedAt,
+            ),
+        )
+    }
+
+    private suspend fun downloadAndCache(remote: SyncPackDto) {
+        val remoteSyncKey = remote.contentHash ?: remote.syncHash
+        val bytes = withAuthRetry { bearer -> api().exportPack(bearer, remote.id).bytes() }
+        val extracted = extractor.extract(remote.id, bytes)
+        db.stickerDao().upsertPack(
+            extracted.entity.copy(
+                isPublic = remote.isPublic,
+                isAnimated = remote.isAnimated,
+                isOwner = remote.isOwner,
+                teamId = remote.teamId,
+                teamName = remote.teamName,
+                role = remote.role ?: if (remote.isOwner) "OWNER" else "VIEWER",
+                canEdit = remote.canEdit ?: remote.isOwner,
+                canManage = remote.canManage ?: remote.isOwner,
+                stickerCount = remote.stickerCount,
+                syncHash = remoteSyncKey,
+                updatedAt = remote.updatedAt,
+            ),
+        )
+        db.stickerDao().deleteStickers(extracted.entity.id)
+        db.stickerDao().upsertStickers(extracted.stickers)
     }
 
     private fun api(): StickerApi {
