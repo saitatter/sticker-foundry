@@ -2,6 +2,7 @@ package com.example.stickerplatform.data
 
 import android.content.Context
 import com.example.stickerplatform.BuildConfig
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 
 class SessionStore(context: Context) {
     private val prefs = context.getSharedPreferences("session", Context.MODE_PRIVATE)
@@ -33,6 +34,17 @@ class SessionStore(context: Context) {
 
     private fun normalizeServerUrl(url: String): String {
         val trimmed = url.trim()
-        return if (trimmed.endsWith("/")) trimmed else "$trimmed/"
+        if (trimmed.isBlank()) {
+            throw IllegalArgumentException("Enter a server URL, for example http://10.0.2.2:3000/api/")
+        }
+
+        val parsed = trimmed.toHttpUrlOrNull()
+            ?: throw IllegalArgumentException("Enter a valid HTTP or HTTPS server URL")
+        if (parsed.query != null || parsed.fragment != null) {
+            throw IllegalArgumentException("Server URL must not include query parameters or fragments")
+        }
+
+        val normalized = parsed.toString()
+        return if (normalized.endsWith("/")) normalized else "$normalized/"
     }
 }

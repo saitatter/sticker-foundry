@@ -164,7 +164,7 @@ private fun LoginBox(
     onLogin: (String, String) -> Unit,
     onSync: () -> Unit,
     onSettings: () -> Unit,
-    status: String,
+    status: AppStatus,
 ) {
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
@@ -194,8 +194,12 @@ private fun LoginBox(
                 Text("Settings")
             }
         }
-        if (status.isNotBlank()) {
-            Text(status, style = MaterialTheme.typography.bodySmall)
+        if (status.message.isNotBlank()) {
+            Text(
+                status.message,
+                color = if (status.isError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface,
+                style = MaterialTheme.typography.bodySmall,
+            )
         }
     }
 }

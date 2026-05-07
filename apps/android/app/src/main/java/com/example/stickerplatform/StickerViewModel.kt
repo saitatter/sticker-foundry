@@ -15,7 +15,18 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import retrofit2.HttpException
+import java.io.IOException
+import java.net.ConnectException
+import java.net.UnknownHostException
+import java.net.SocketTimeoutException
 import java.util.Locale
+import javax.net.ssl.SSLHandshakeException
+
+data class AppStatus(
+    val message: String = "",
+    val isError: Boolean = false,
+)
 
 class StickerViewModel(
     private val repository: StickerRepository,
@@ -27,24 +38,24 @@ class StickerViewModel(
         .map { stickers -> stickers.groupBy { it.packId } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
 
-    val status = MutableStateFlow("")
+    val status = MutableStateFlow(AppStatus())
     val serverUrl = MutableStateFlow(repository.serverUrl())
     val cacheUsage = MutableStateFlow(formatBytes(repository.cacheSizeBytes()))
 
     fun login(email: String, password: String) {
         viewModelScope.launch {
             runCatching { repository.login(email, password) }
-                .onSuccess { status.value = "Logged in" }
-                .onFailure { status.value = it.message ?: "Login failed" }
+                .onSuccess { setInfo("Logged in") }
+                .onFailure { setError(it, "Login failed") }
         }
     }
 
     fun sync() {
         viewModelScope.launch {
-            status.value = "Syncing packs"
+            setInfo("Syncing packs")
             runCatching { repository.sync() }
-                .onSuccess { status.value = "Sync complete" }
-                .onFailure { status.value = it.message ?: "Sync failed" }
+                .onSuccess { setInfo("Sync complete") }
+                .onFailure { setError(it, "Sync failed") }
         }
     }
 
@@ -53,17 +64,17 @@ class StickerViewModel(
             runCatching { repository.saveServerUrl(url) }
                 .onSuccess {
                     serverUrl.value = repository.serverUrl()
-                    status.value = "Server URL saved"
+                    setInfo("Server URL saved")
                 }
-                .onFailure { status.value = it.message ?: "Server URL update failed" }
+                .onFailure { setError(it, "Server URL update failed") }
         }
     }
 
     fun logout() {
         viewModelScope.launch {
             runCatching { repository.logout() }
-                .onSuccess { status.value = "Logged out" }
-                .onFailure { status.value = it.message ?: "Logout failed" }
+                .onSuccess { setInfo("Logged out") }
+                .onFailure { setError(it, "Logout failed") }
         }
     }
 
@@ -76,28 +87,56 @@ class StickerViewModel(
             runCatching { repository.clearCache() }
                 .onSuccess {
                     refreshCacheUsage()
-                    status.value = "Cache cleared"
+                    setInfo("Cache cleared")
                 }
-                .onFailure { status.value = it.message ?: "Cache cleanup failed" }
+                .onFailure { setError(it, "Cache cleanup failed") }
         }
     }
 
     fun uploadSticker(packId: String, uri: Uri, options: ImageEditOptions) {
         viewModelScope.launch {
-            status.value = "Uploading sticker"
+            setInfo("Uploading sticker")
             runCatching { repository.uploadSticker(packId, uri, options) }
-                .onSuccess { status.value = "Sticker uploaded" }
-                .onFailure { status.value = it.message ?: "Sticker upload failed" }
+                .onSuccess { setInfo("Sticker uploaded") }
+                .onFailure { setError(it, "Sticker upload failed") }
         }
     }
 
     fun replaceTrayIcon(packId: String, uri: Uri, options: ImageEditOptions) {
         viewModelScope.launch {
-            status.value = "Replacing tray icon"
+            setInfo("Replacing tray icon")
             runCatching { repository.replaceTrayIcon(packId, uri, options) }
-                .onSuccess { status.value = "Tray icon replaced" }
-                .onFailure { status.value = it.message ?: "Tray icon update failed" }
+                .onSuccess { setInfo("Tray icon replaced") }
+                .onFailure { setError(it, "Tray icon update failed") }
         }
+    }
+
+    private fun setInfo(message: String) {
+        status.value = AppStatus(message)
+    }
+
+    private fun setError(error: Throwable, fallback: String) {
+        status.value = AppStatus(friendlyError(error, fallback), isError = true)
+    }
+
+    private fun friendlyError(error: Throwable, fallback: String): String = when (error) {
+        is IllegalArgumentException -> error.message ?: fallback
+        is UnknownHostException -> "Could not find that server. Check the URL or DNS."
+        is ConnectException -> "Could not reach the server. Check that StickerFoundry is running and the URL is correct."
+        is SocketTimeoutException -> "The server took too long to respond. Try again or check your network."
+        is SSLHandshakeException -> "Secure connection failed. Check the HTTPS certificate or use HTTP for local testing."
+        is HttpException -> httpErrorMessage(error, fallback)
+        is IOException -> "Network error. Check Wi-Fi, VPN, firewall, and the server URL."
+        else -> error.message?.takeIf { it.isNotBlank() } ?: fallback
+    }
+
+    private fun httpErrorMessage(error: HttpException, fallback: String): String = when (error.code()) {
+        400 -> "The server rejected the request. Check the selected image or settings."
+        401 -> "Session expired. Log in again."
+        403 -> "This account does not have permission for that action."
+        404 -> "The server endpoint was not found. Check that the URL includes /api/."
+        in 500..599 -> "StickerFoundry server error (${error.code()}). Check the backend logs."
+        else -> "$fallback (${error.code()})"
     }
 
     companion object {

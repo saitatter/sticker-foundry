@@ -12,7 +12,6 @@ This is the live feature backlog. It should only contain work that still needs t
 
 ## Android
 
-- Better friendly error states for network failures and invalid server URLs.
 - Manual per-pack resync control.
 - Per-pack local cache cleanup.
 - Account state display in settings.
