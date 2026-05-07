@@ -4,6 +4,7 @@ const png1x1 = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=',
   'base64',
 );
+const gif1x1 = Buffer.from('R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==', 'base64');
 
 type Sticker = {
   id: string;
@@ -124,6 +125,36 @@ test('submits optimizer and server background removal options', async ({ page })
   expect(state.uploads[0].body).toContain('name="backgroundRemovalMode"');
   expect(state.uploads[0].body).toContain('ai');
   expect(state.uploads[0].body).toContain('name="backgroundRemovalThreshold"');
+});
+
+test('submits animated trim and frame rate upload options', async ({ page }) => {
+  const state = createMockState();
+  await mockApi(page, state);
+  await login(page);
+
+  const newPackPanel = page.locator('.tool-panel').filter({ hasText: 'New pack' });
+  await newPackPanel.getByLabel('Name').fill('Animated Smoke');
+  await newPackPanel.getByLabel('Publisher').fill('QA');
+  await newPackPanel.getByLabel('Animated pack').check();
+  await newPackPanel.getByRole('button', { name: 'Create' }).click();
+  await expect(page.locator('.stats-grid')).toContainText('Animated');
+
+  await chooseUploadImage(page, 'motion.gif', 'image/gif', gif1x1);
+  const editor = page.locator('.image-edit-controls').first();
+  await expect(editor.locator('.animated-panel')).toBeVisible();
+  await editor.getByLabel('Trim start').fill('1');
+  await editor.getByLabel('Trim end').fill('5');
+  await editor.getByLabel('Frame rate').fill('12');
+
+  await page.locator('.upload-panel').getByRole('button', { name: 'Upload' }).click();
+  await expect.poll(() => state.uploads.length).toBe(1);
+  expect(state.uploads[0].packId).toBe('pack-2');
+  expect(state.uploads[0].body).toContain('name="animatedTrimStart"');
+  expect(state.uploads[0].body).toContain('1');
+  expect(state.uploads[0].body).toContain('name="animatedTrimEnd"');
+  expect(state.uploads[0].body).toContain('5');
+  expect(state.uploads[0].body).toContain('name="animatedFrameRate"');
+  expect(state.uploads[0].body).toContain('12');
 });
 
 function createMockState() {
