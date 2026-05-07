@@ -51,6 +51,8 @@ model AuditLog {
   entityType String
   entityId   String?
   metadata   Json?
+  ipAddress  String?
+  userAgent  String?
   createdAt  DateTime @default(now())
 
   @@index([actorId])

@@ -29,7 +29,7 @@ This is the live feature backlog. Items already shipped are kept briefly at the 
 - Playwright smoke tests for login, pack creation, upload, contents preview, collaboration panel visibility, and bulk copy workflow.
 - Android lint and debug APK assembly in CI.
 - Admin-only web settings for instance branding, registration mode, invite code, and per-owner storage quotas.
-- Admin audit log for auth, settings, pack, collaboration, and sticker mutations.
+- Admin audit log for auth, settings, pack, collaboration, and sticker mutations, enriched with request IP and user-agent.
 - Compose `.env.example` and reverse proxy examples.
 - Dependabot and GitHub issue templates.
 - Metrics endpoint for basic monitoring.
@@ -87,7 +87,7 @@ This is the live feature backlog. Items already shipped are kept briefly at the 
 ## Backend
 
 - Password reset flow if email is configured.
-- Request IP/user-agent enrichment for audit entries.
+- Configurable audit retention/export.
 - Upload pixel-count limits and image bomb safeguards.
 - Background media processing queue for heavier transforms.
 - Optional S3-compatible storage backend.

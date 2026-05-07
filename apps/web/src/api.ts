@@ -40,6 +40,8 @@ export type AuditLogEntry = {
   entityType: string;
   entityId?: string | null;
   metadata?: unknown;
+  ipAddress?: string | null;
+  userAgent?: string | null;
   createdAt: string;
   actor?: User | null;
 };

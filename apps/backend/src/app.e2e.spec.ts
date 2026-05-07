@@ -65,6 +65,8 @@ type AuditLogRecord = {
   entityType: string;
   entityId: string | null;
   metadata: unknown;
+  ipAddress: string | null;
+  userAgent: string | null;
   createdAt: Date;
 };
 
@@ -139,6 +141,8 @@ class InMemoryPrisma {
         entityType: data.entityType,
         entityId: data.entityId ?? null,
         metadata: data.metadata ?? null,
+        ipAddress: data.ipAddress ?? null,
+        userAgent: data.userAgent ?? null,
         createdAt: new Date(),
       };
       this.auditLogs.push(log);
@@ -322,6 +326,7 @@ describe('StickerFoundry API e2e', () => {
     const server = app.getHttpServer();
     const auth = await request(server)
       .post('/api/auth/register')
+      .set('User-Agent', 'StickerFoundryE2E/1.0')
       .send({
         email: 'maker@example.com',
         displayName: 'Maker',
@@ -380,6 +385,9 @@ describe('StickerFoundry API e2e', () => {
       .expect((response) => {
         expect(response.body.map((entry: { action: string }) => entry.action)).toContain('admin.settings.update');
         expect(response.body.map((entry: { action: string }) => entry.action)).toContain('auth.register');
+        expect(response.body.find((entry: { action: string }) => entry.action === 'auth.register')).toEqual(
+          expect.objectContaining({ userAgent: 'StickerFoundryE2E/1.0' }),
+        );
       });
 
     const refreshed = await request(server)
