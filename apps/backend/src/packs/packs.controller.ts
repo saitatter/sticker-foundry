@@ -156,8 +156,9 @@ export class PacksController {
     @Param('id') id: string,
     @Param('stickerId') stickerId: string,
     @UploadedFile() file: Express.Multer.File,
+    @Body() dto: UploadStickerDto,
   ) {
-    return this.packsService.replaceStickerImage(user.sub, id, stickerId, file);
+    return this.packsService.replaceStickerImage(user.sub, id, stickerId, file, dto);
   }
 
   @Post(':id/stickers')

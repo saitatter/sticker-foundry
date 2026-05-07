@@ -476,7 +476,9 @@ export class PacksService {
       throw new BadRequestException(`A pack can contain at most ${WHATSAPP_LIMITS.maxStickersPerPack} stickers`);
     }
 
-    const processed = await this.mediaQueue.enqueue(() => this.imageService.processSticker(file.buffer, { animated: pack.isAnimated }));
+    const processed = await this.mediaQueue.enqueue(() =>
+      this.imageService.processSticker(file.buffer, this.stickerProcessingOptions(pack.isAnimated, dto)),
+    );
     await this.rejectDuplicateSticker(packId, processed.perceptualHash);
     await this.enforceStorageQuota(pack.ownerId, processed.sizeBytes);
     const fileName = `${uuidv4()}.webp`;
@@ -603,6 +605,7 @@ export class PacksService {
     packId: string,
     stickerId: string,
     file: Express.Multer.File | undefined,
+    dto: UploadStickerDto = {},
   ) {
     if (!file) {
       throw new BadRequestException('A multipart file field named "file" is required');
@@ -627,7 +630,9 @@ export class PacksService {
       throw new NotFoundException('Sticker not found');
     }
 
-    const processed = await this.mediaQueue.enqueue(() => this.imageService.processSticker(file.buffer, { animated: pack.isAnimated }));
+    const processed = await this.mediaQueue.enqueue(() =>
+      this.imageService.processSticker(file.buffer, this.stickerProcessingOptions(pack.isAnimated, dto)),
+    );
     await this.rejectDuplicateSticker(packId, processed.perceptualHash, stickerId);
     const existingSize = typeof sticker.sizeBytes === 'number' ? sticker.sizeBytes : 0;
     await this.enforceStorageQuota(pack.ownerId, Math.max(0, processed.sizeBytes - existingSize));
@@ -1130,6 +1135,16 @@ export class PacksService {
 
   private canManage(userId: string, pack: AccessPack) {
     return this.roleFor(userId, pack) === PackRole.OWNER;
+  }
+
+  private stickerProcessingOptions(animated: boolean, dto: UploadStickerDto) {
+    return {
+      animated,
+      animatedTrimStart: dto.animatedTrimStart,
+      animatedTrimEnd: dto.animatedTrimEnd,
+      animatedFrameRate: dto.animatedFrameRate,
+      animatedQuality: dto.animatedQuality,
+    };
   }
 
   private roleFor(userId: string, pack: AccessPack) {

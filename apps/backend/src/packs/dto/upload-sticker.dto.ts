@@ -1,5 +1,5 @@
 import { Transform } from 'class-transformer';
-import { IsArray, IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsArray, IsNumber, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
 
 export class UploadStickerDto {
   @IsOptional()
@@ -23,4 +23,37 @@ export class UploadStickerDto {
   @IsString()
   @MaxLength(125)
   accessibilityText?: string;
+
+  @IsOptional()
+  @Transform(({ value }) => numberFromMultipart(value))
+  @IsNumber()
+  @Min(0)
+  @Max(10)
+  animatedTrimStart?: number;
+
+  @IsOptional()
+  @Transform(({ value }) => numberFromMultipart(value))
+  @IsNumber()
+  @Min(0.1)
+  @Max(10)
+  animatedTrimEnd?: number;
+
+  @IsOptional()
+  @Transform(({ value }) => numberFromMultipart(value))
+  @IsNumber()
+  @Min(1)
+  @Max(30)
+  animatedFrameRate?: number;
+
+  @IsOptional()
+  @Transform(({ value }) => numberFromMultipart(value))
+  @IsNumber()
+  @Min(35)
+  @Max(95)
+  animatedQuality?: number;
+}
+
+function numberFromMultipart(value: unknown) {
+  if (value === '' || value === undefined || value === null) return undefined;
+  return Number(value);
 }
