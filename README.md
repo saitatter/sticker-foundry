@@ -470,6 +470,12 @@ Back up sticker media:
 docker run --rm -v sticker-foundry_foundry-data:/data -v "$PWD:/backup" alpine tar czf /backup/foundry-data.tgz -C /data .
 ```
 
+Verify backup artifacts before trusting them:
+
+```bash
+npm run verify:backup -- --postgres stickers.sql --data foundry-data.tgz
+```
+
 Restore PostgreSQL:
 
 ```bash

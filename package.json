@@ -21,6 +21,7 @@
     "test:backend": "npm --workspace apps/backend run test",
     "test:e2e:backend": "npm --workspace apps/backend run test:e2e",
     "test:web": "playwright test",
+    "verify:backup": "node scripts/verify-backup.mjs",
     "build:shared-types": "npm --workspace packages/shared-types run build",
     "release:dry-run": "semantic-release --dry-run"
   },
