@@ -2955,6 +2955,10 @@ type ImageEditOptions = {
   grayscale: boolean;
   optimizeOutput: boolean;
   outputQuality: number;
+  animatedTrimStart: number;
+  animatedTrimEnd: number;
+  animatedFrameRate: number;
+  animatedCompress: boolean;
 };
 
 type BrushMode = 'erase' | 'restore';
@@ -3008,6 +3012,10 @@ const defaultImageEditOptions: ImageEditOptions = {
   grayscale: false,
   optimizeOutput: false,
   outputQuality: 82,
+  animatedTrimStart: 0,
+  animatedTrimEnd: 10,
+  animatedFrameRate: 15,
+  animatedCompress: true,
 };
 
 function ImageEditControls({
@@ -3026,7 +3034,16 @@ function ImageEditControls({
   const activeStrokeIdRef = useRef<string | null>(null);
   const [redoStrokes, setRedoStrokes] = useState<BrushStroke[]>([]);
   const [outputSize, setOutputSize] = useState<number | null>(null);
+  const [sourcePreviewUrl, setSourcePreviewUrl] = useState<string | null>(null);
   const isPossiblyAnimated = /\.(gif|webp)$/i.test(file.name);
+  const animatedDuration = Math.max(0, options.animatedTrimEnd - options.animatedTrimStart);
+  const animatedFrameDuration = 1000 / Math.max(1, options.animatedFrameRate);
+
+  useEffect(() => {
+    const objectUrl = URL.createObjectURL(file);
+    setSourcePreviewUrl(objectUrl);
+    return () => URL.revokeObjectURL(objectUrl);
+  }, [file]);
 
   useEffect(() => {
     let alive = true;
@@ -3453,6 +3470,58 @@ function ImageEditControls({
           <span className="optimizer-warning">Animated WhatsApp stickers should be under 500KB.</span>
         ) : null}
       </div>
+      {isPossiblyAnimated ? (
+        <div className="animated-panel">
+          {sourcePreviewUrl ? <img alt="Animated source preview" src={sourcePreviewUrl} /> : null}
+          <label>
+            Trim start
+            <input
+              max="10"
+              min="0"
+              onChange={(event) => onChange((current) => ({ ...current, animatedTrimStart: Number(event.target.value) }))}
+              step="0.1"
+              type="range"
+              value={options.animatedTrimStart}
+            />
+          </label>
+          <label>
+            Trim end
+            <input
+              max="10"
+              min="0.1"
+              onChange={(event) => onChange((current) => ({ ...current, animatedTrimEnd: Number(event.target.value) }))}
+              step="0.1"
+              type="range"
+              value={options.animatedTrimEnd}
+            />
+          </label>
+          <label>
+            Frame rate
+            <input
+              max="30"
+              min="1"
+              onChange={(event) => onChange((current) => ({ ...current, animatedFrameRate: Number(event.target.value) }))}
+              step="1"
+              type="range"
+              value={options.animatedFrameRate}
+            />
+          </label>
+          <label className="checkbox-row image-edit-toggle">
+            <input
+              checked={options.animatedCompress}
+              onChange={(event) => onChange((current) => ({ ...current, animatedCompress: event.target.checked }))}
+              type="checkbox"
+            />
+            Server compress
+          </label>
+          <span className={animatedDuration > 10 || animatedDuration <= 0 ? 'optimizer-warning' : 'optimizer-ok'}>
+            Duration {animatedDuration.toFixed(1)}s / 10s max
+          </span>
+          <span className={animatedFrameDuration < 8 ? 'optimizer-warning' : 'optimizer-ok'}>
+            Frame {Math.round(animatedFrameDuration)}ms
+          </span>
+        </div>
+      ) : null}
       {options.autoFitSubject ? (
         <div className="image-edit-sliders subject-sliders">
           <label>

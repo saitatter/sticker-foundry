@@ -890,6 +890,42 @@ select:focus {
   color: #b45309;
 }
 
+.animated-panel {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: 76px repeat(4, minmax(120px, 1fr)) auto auto;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.animated-panel img {
+  width: 76px;
+  height: 76px;
+  object-fit: contain;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background:
+    linear-gradient(45deg, #d8e2df 25%, transparent 25%),
+    linear-gradient(-45deg, #d8e2df 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #d8e2df 75%),
+    linear-gradient(-45deg, transparent 75%, #d8e2df 75%);
+  background-color: #f7faf9;
+  background-position:
+    0 0,
+    0 8px,
+    8px -8px,
+    -8px 0;
+  background-size: 16px 16px;
+}
+
+.animated-panel input[type='range'] {
+  padding: 0;
+}
+
 .image-edit-sliders input {
   padding: 0;
 }
@@ -1479,6 +1515,10 @@ select:focus {
     grid-template-columns: 1fr 1fr;
   }
 
+  .animated-panel {
+    grid-template-columns: 76px 1fr 1fr;
+  }
+
   .tray-form .secondary-button {
     grid-column: 2;
   }
@@ -1571,7 +1611,8 @@ select:focus {
   .image-edit-sliders,
   .background-sliders,
   .brush-sliders,
-  .optimizer-panel {
+  .optimizer-panel,
+  .animated-panel {
     grid-template-columns: 1fr;
   }
 
