@@ -13,7 +13,6 @@ This is the live feature backlog. It should only contain work that still needs t
 ## Deployment And Ops
 
 - Validate `docker compose up -d --build` on a host with Docker installed.
-- Container healthcheck for web.
 - Backup verification script for PostgreSQL and `/data`.
 - Metrics format option for Prometheus.
 - HTTPS-first production checklist.
