@@ -361,6 +361,7 @@ private fun ImageEditDialog(
 ) {
     val context = LocalContext.current
     val preview = remember(edit.uri) { loadImageBitmap(context, edit.uri) }
+    val sourceInfo = remember(edit.uri) { imageSourceInfo(context, edit.uri) }
     var rotation by remember(edit.uri) { mutableStateOf(0) }
     var cropSquare by remember(edit.uri) { mutableStateOf(false) }
     var zoom by remember(edit.uri) { mutableStateOf(1f) }
@@ -369,6 +370,18 @@ private fun ImageEditDialog(
     val title = when (edit.target) {
         ImageEditTarget.Sticker -> "Edit sticker"
         ImageEditTarget.TrayIcon -> "Edit tray icon"
+    }
+    val estimatedBytes = sourceInfo?.let {
+        estimateEditedBytes(
+            it,
+            ImageEditOptions(
+                rotationDegrees = rotation,
+                cropSquare = cropSquare,
+                zoom = zoom,
+                offsetX = offsetX,
+                offsetY = offsetY,
+            ),
+        )
     }
 
     AlertDialog(
@@ -427,6 +440,10 @@ private fun ImageEditDialog(
                     Text("Vertical", style = MaterialTheme.typography.bodySmall)
                     Slider(value = offsetY, onValueChange = { offsetY = it }, valueRange = -100f..100f)
                 }
+                Text(
+                    text = estimatedBytes?.let { "Estimated upload: ~${formatBytes(it)}" } ?: "Estimated upload: unavailable",
+                    style = MaterialTheme.typography.bodySmall,
+                )
             }
         },
         confirmButton = {
@@ -465,6 +482,12 @@ private data class PendingImageEdit(
     val target: ImageEditTarget,
 )
 
+private data class ImageSourceInfo(
+    val width: Int,
+    val height: Int,
+    val bytes: Long,
+)
+
 private fun loadImageBitmap(context: Context, uri: Uri): ImageBitmap? =
     context.contentResolver.openInputStream(uri)?.use { input ->
         BitmapFactory.decodeStream(input)?.asImageBitmap()
@@ -472,3 +495,49 @@ private fun loadImageBitmap(context: Context, uri: Uri): ImageBitmap? =
 
 private fun loadImageBitmap(path: String): ImageBitmap? =
     BitmapFactory.decodeFile(path)?.asImageBitmap()
+
+private fun imageSourceInfo(context: Context, uri: Uri): ImageSourceInfo? {
+    val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+    context.contentResolver.openInputStream(uri)?.use { input ->
+        BitmapFactory.decodeStream(input, null, options)
+    }
+    if (options.outWidth <= 0 || options.outHeight <= 0) return null
+
+    val bytes = context.contentResolver.openAssetFileDescriptor(uri, "r")?.use { descriptor ->
+        descriptor.length.takeIf { it > 0 }
+    } ?: context.contentResolver.openInputStream(uri)?.use { input ->
+        input.readBytes().size.toLong()
+    } ?: 0L
+
+    return ImageSourceInfo(options.outWidth, options.outHeight, bytes)
+}
+
+private fun estimateEditedBytes(source: ImageSourceInfo, options: ImageEditOptions): Long {
+    val hasEdits = options.rotationDegrees.floorMod(360) != 0 ||
+        options.cropSquare ||
+        options.zoom != 1f ||
+        options.offsetX != 0f ||
+        options.offsetY != 0f
+    if (!hasEdits) return source.bytes
+
+    val sourcePixels = source.width.toLong() * source.height.toLong()
+    val outputPixels = if (options.cropSquare) {
+        val baseSize = minOf(source.width, source.height)
+        val size = (baseSize / options.zoom.coerceAtLeast(1f)).toLong().coerceAtLeast(1L)
+        size * size
+    } else {
+        sourcePixels
+    }
+    val pixelRatio = outputPixels.toDouble() / sourcePixels.coerceAtLeast(1L).toDouble()
+    val estimated = maxOf(source.bytes * pixelRatio * 1.25, outputPixels * 0.16)
+    return estimated.toLong().coerceAtLeast(1L)
+}
+
+private fun formatBytes(bytes: Long): String =
+    if (bytes < 1024) {
+        "$bytes B"
+    } else {
+        "${(bytes + 1023) / 1024} KB"
+    }
+
+private fun Int.floorMod(divisor: Int): Int = ((this % divisor) + divisor) % divisor

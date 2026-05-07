@@ -14,7 +14,6 @@ This is the live feature backlog. It should only contain work that still needs t
 
 ## Media Editing
 
-- Android editor live output size estimate.
 - Background removal.
 - Outline/stroke and shadow controls.
 - Transparent background checkerboard preview.
