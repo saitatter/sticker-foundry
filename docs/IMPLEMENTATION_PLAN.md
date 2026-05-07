@@ -12,8 +12,9 @@ Already implemented:
 - Sharp media pipeline with real image-content validation, WebP conversion, 512x512 sticker resize, tray icon processing, compression limits, and WhatsApp pack constraints.
 - Export API with `contents.json`, `tray_icon.webp`, sticker files, `GET /packs/:id/contents`, `GET /packs/:id/manifest`, `ETag`, and OpenAPI docs.
 - Sync API with `contentHash`, `syncHash`, ownership flags, export readiness, and relative export/tray paths.
+- Backend HTTP e2e coverage for register, pack creation, sticker upload, manifest `ETag`, ZIP export, and `contents.json` parsing.
 - Pack collaboration with owner/viewer/editor roles, invite creation/acceptance/revocation, member listing, member removal, member role editing, role-aware mutation checks, and sync capability flags.
-- Web UI with auth, demo login, pack dashboard search/filter/sort/status badges, pack detail, create/edit/delete/clone, collaboration invites/member management, sticker upload, bulk delete/bulk emoji apply, drag-and-drop uploads, image rotate/square crop, sticker replacement, tray replacement, ordering, ZIP download, contents preview, and account password change.
+- Web UI with auth, demo login, pack dashboard search/filter/sort/status badges, pack detail, create/edit/delete/clone, collaboration invites/member management, sticker upload, bulk delete/bulk emoji apply, drag-and-drop uploads, image rotate/square crop, sticker replacement, tray replacement, ordering, ZIP download, contents preview, account password change, and session management.
 - Android app with MVVM, Retrofit, Room cache, refresh-token auth, local ZIP extraction, local sticker preview, WhatsApp `ContentProvider`, import intents for WhatsApp and WhatsApp Business, role-aware image upload/tray replacement, image rotate/square crop, server URL settings, logout, cache size/clear cache, import readiness, content-hash sync, and stale cache pruning.
 - Docker Compose with backend, web, PostgreSQL, `.env.example`, backend healthcheck, backup/restore docs, Unraid notes, and reverse proxy examples.
 - Semantic-release with emoji release sections, release APK artifact, Dependabot, PR title validation, and issue templates.
@@ -45,57 +46,77 @@ Acceptance criteria:
 - A synced pack imports successfully into WhatsApp Business.
 - Any compatibility issues are turned into tracked issues or fixes.
 
-## Milestone 2: Backend Integration Tests
+## Milestone 2: Web Sticker Copy/Move
 
-Goal: cover the real API flow, not only service-level logic.
+Goal: make pack curation faster after bulk delete and bulk emoji apply.
 
 Tasks:
 
-- Add a test database strategy for backend integration tests.
-- Test register/login, create pack, upload 3 images, replace tray icon, export ZIP, and parse `contents.json`.
-- Verify exported sticker and tray files exist in the ZIP.
-- Test `If-None-Match` behavior for pack manifests.
-- Test auth/visibility rules across owner and public packs.
+- Add backend endpoints to copy one or more stickers between editable packs.
+- Add backend endpoints to move one or more stickers between editable packs.
+- Preserve sticker file names safely or regenerate names to avoid target-pack collisions.
+- Enforce target pack capacity before copying or moving.
+- Add web selected-sticker actions for copy/move target selection.
+- Add tests for owner/editor permissions and target pack capacity.
 
 Acceptance criteria:
 
-- Integration tests run in CI or a documented local command.
-- The WhatsApp export path is covered end to end.
+- Users can copy or move selected stickers into another pack from the web UI.
+- The target pack never exceeds 30 stickers.
+- Viewers cannot copy into or move from packs they cannot edit.
 
-## Milestone 3: Collaboration Client Polish
+## Milestone 3: Playwright Web Smoke Tests
 
-Goal: make shared-pack roles more transparent across clients.
+Goal: catch broken core workflows before release.
+
+Tasks:
+
+- Add Playwright setup for the web app.
+- Seed or create a test account during smoke tests.
+- Test login, pack creation, sticker upload, export readiness, contents preview, and ZIP download trigger.
+- Test collaboration invite panel visibility for owners.
+- Add stable selectors where the current UI needs them.
+
+Acceptance criteria:
+
+- Smoke tests run locally with one command.
+- CI can run the smoke tests after backend/web build.
+- The most important web flows are covered without brittle text-only selectors.
+
+## Milestone 4: Android Quality
+
+Goal: make Android validation first-class in CI.
+
+Tasks:
+
+- Add Android lint job to CI.
+- Add a Gradle command to validate Room schema and debug compile.
+- Document required JDK/SDK env vars for local Windows builds.
+- Add lightweight repository/viewmodel tests where practical.
+
+Acceptance criteria:
+
+- Pull requests validate Android build and lint.
+- Local Android build instructions match the environment requirements.
+
+## Milestone 5: Collaboration Polish
+
+Goal: make shared-pack roles easier to audit and reason about.
 
 Tasks:
 
 - Add invite expiration controls in the web UI.
-- Add clearer accepted/pending invite history.
+- Add clearer accepted/pending invite history filters.
 - Consider optional email matching for invite acceptance.
 - Add Android collaborator details beyond the compact role label.
 
 Acceptance criteria:
 
-- Editors and viewers see clear role information in Android and web.
 - Owners can audit pending and accepted invites clearly.
+- Editors and viewers see clear role information in Android and web.
 - Private shared packs stay covered by backend authorization tests.
 
-## Milestone 4: Sticker Workflow UX
-
-Goal: make daily sticker management faster.
-
-Tasks:
-
-- Add copy/move to another pack.
-- Add a sticker detail panel with richer metadata editing.
-- Add local sticker grid preview in Android before import.
-- Add optimistic UI updates for common web mutations.
-
-Acceptance criteria:
-
-- Users can manage many stickers without repetitive single-item actions.
-- Web failures roll back or show clear recovery states.
-
-## Milestone 5: Advanced Media Editing
+## Milestone 6: Advanced Media Editing
 
 Goal: reduce the need for external image tools.
 
@@ -113,7 +134,7 @@ Acceptance criteria:
 - Common sticker prep workflows are possible inside StickerFoundry.
 - Duplicate or near-duplicate uploads can be warned or blocked.
 
-## Milestone 6: Production Security
+## Milestone 7: Production Security
 
 Goal: make internet-facing deployments safer.
 
@@ -128,9 +149,9 @@ Tasks:
 Acceptance criteria:
 
 - Public deployments have documented security controls.
-- Admins can disable sessions and audit sensitive changes.
+- Admins can inspect sensitive activity and enforce quotas.
 
-## Milestone 7: Quality And Release Automation
+## Milestone 8: Release And Ops Quality
 
 Goal: keep changes safer as the project grows.
 
@@ -153,7 +174,9 @@ Acceptance criteria:
 2. Web copy/move sticker actions.
 3. Playwright web smoke tests.
 4. Android lint/test CI.
-5. Admin settings and quotas.
+5. Collaboration invite expiration/history polish.
+6. Admin settings and quotas.
+7. Audit log and storage limits.
 
 ## Design Notes
 
