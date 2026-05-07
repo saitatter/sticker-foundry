@@ -5,6 +5,7 @@ import { createHash, randomUUID } from 'crypto';
 import { mkdir, readFile, rm, writeFile } from 'fs/promises';
 import { join } from 'path';
 import { tmpdir } from 'os';
+import { Worker } from 'worker_threads';
 import sharp = require('sharp');
 
 export type BackgroundRemovalMode = 'none' | 'threshold' | 'ai';
@@ -64,65 +65,18 @@ export class BackgroundRemovalService {
     const feather = clamp(Math.round(options.feather ?? 14), 0, 48);
     const colorTolerance = 28;
 
-    for (let index = 0; index < data.length; index += info.channels) {
-      const red = data[index];
-      const green = data[index + 1];
-      const blue = data[index + 2];
-      const brightness = (red + green + blue) / 3;
-      const colorSpread = Math.max(red, green, blue) - Math.min(red, green, blue);
-      if (colorSpread > colorTolerance) continue;
+    const processed = await runBackgroundPixelWorker(data, {
+      width: info.width,
+      height: info.height,
+      channels: info.channels,
+      threshold,
+      feather,
+      colorTolerance,
+      cleanupSpeckles: options.cleanupSpeckles !== false,
+      speckleSize: options.speckleSize ?? 24,
+    });
 
-      if (brightness >= threshold) {
-        data[index + 3] = 0;
-      } else if (feather > 0 && brightness >= threshold - feather) {
-        const distance = (threshold - brightness) / feather;
-        data[index + 3] = Math.round(data[index + 3] * clamp(distance, 0, 1));
-      }
-    }
-
-    if (options.cleanupSpeckles !== false) {
-      this.removeSmallAlphaIslands(data, info.width, info.height, info.channels, options.speckleSize ?? 24);
-    }
-
-    return sharp(data, { raw: info }).png().toBuffer();
-  }
-
-  private removeSmallAlphaIslands(data: Buffer, width: number, height: number, channels: number, maxArea: number) {
-    const visited = new Uint8Array(width * height);
-    const stack: number[] = [];
-    const component: number[] = [];
-    const areaLimit = clamp(Math.round(maxArea), 4, 180);
-
-    for (let start = 0; start < visited.length; start += 1) {
-      if (visited[start] || data[start * channels + 3] <= 12) continue;
-
-      stack.length = 0;
-      component.length = 0;
-      stack.push(start);
-      visited[start] = 1;
-
-      while (stack.length > 0) {
-        const current = stack.pop() as number;
-        component.push(current);
-        const x = current % width;
-        const neighbors = [current - 1, current + 1, current - width, current + width];
-
-        for (const neighbor of neighbors) {
-          if (neighbor < 0 || neighbor >= visited.length || visited[neighbor]) continue;
-          const neighborX = neighbor % width;
-          if (Math.abs(neighborX - x) > 1) continue;
-          if (data[neighbor * channels + 3] <= 12) continue;
-          visited[neighbor] = 1;
-          stack.push(neighbor);
-        }
-      }
-
-      if (component.length <= areaLimit) {
-        for (const pixel of component) {
-          data[pixel * channels + 3] = 0;
-        }
-      }
-    }
+    return sharp(processed, { raw: info }).png().toBuffer();
   }
 
   private commandParts(command: string, inputPath: string, outputPath: string) {
@@ -151,6 +105,102 @@ export class BackgroundRemovalService {
 function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
 }
+
+type BackgroundPixelWorkerOptions = {
+  width: number;
+  height: number;
+  channels: number;
+  threshold: number;
+  feather: number;
+  colorTolerance: number;
+  cleanupSpeckles: boolean;
+  speckleSize: number;
+};
+
+function runBackgroundPixelWorker(data: Buffer, options: BackgroundPixelWorkerOptions) {
+  return new Promise<Buffer>((resolve, reject) => {
+    const worker = new Worker(BACKGROUND_PIXEL_WORKER_SOURCE, {
+      eval: true,
+      workerData: { data, options },
+    });
+    worker.once('message', (result: Uint8Array) => resolve(Buffer.from(result)));
+    worker.once('error', reject);
+    worker.once('exit', (code) => {
+      if (code !== 0) reject(new Error(`Background removal worker exited with ${code}`));
+    });
+  });
+}
+
+const BACKGROUND_PIXEL_WORKER_SOURCE = `
+const { parentPort, workerData } = require('worker_threads');
+
+function clamp(value, min, max) {
+  return Math.min(Math.max(value, min), max);
+}
+
+function removeSmallAlphaIslands(data, width, height, channels, maxArea) {
+  const visited = new Uint8Array(width * height);
+  const stack = [];
+  const component = [];
+  const areaLimit = clamp(Math.round(maxArea), 4, 180);
+
+  for (let start = 0; start < visited.length; start += 1) {
+    if (visited[start] || data[start * channels + 3] <= 12) continue;
+
+    stack.length = 0;
+    component.length = 0;
+    stack.push(start);
+    visited[start] = 1;
+
+    while (stack.length > 0) {
+      const current = stack.pop();
+      component.push(current);
+      const x = current % width;
+      const neighbors = [current - 1, current + 1, current - width, current + width];
+
+      for (const neighbor of neighbors) {
+        if (neighbor < 0 || neighbor >= visited.length || visited[neighbor]) continue;
+        const neighborX = neighbor % width;
+        if (Math.abs(neighborX - x) > 1) continue;
+        if (data[neighbor * channels + 3] <= 12) continue;
+        visited[neighbor] = 1;
+        stack.push(neighbor);
+      }
+    }
+
+    if (component.length <= areaLimit) {
+      for (const pixel of component) {
+        data[pixel * channels + 3] = 0;
+      }
+    }
+  }
+}
+
+const { data, options } = workerData;
+const buffer = Buffer.from(data);
+
+for (let index = 0; index < buffer.length; index += options.channels) {
+  const red = buffer[index];
+  const green = buffer[index + 1];
+  const blue = buffer[index + 2];
+  const brightness = (red + green + blue) / 3;
+  const colorSpread = Math.max(red, green, blue) - Math.min(red, green, blue);
+  if (colorSpread > options.colorTolerance) continue;
+
+  if (brightness >= options.threshold) {
+    buffer[index + 3] = 0;
+  } else if (options.feather > 0 && brightness >= options.threshold - options.feather) {
+    const distance = (options.threshold - brightness) / options.feather;
+    buffer[index + 3] = Math.round(buffer[index + 3] * clamp(distance, 0, 1));
+  }
+}
+
+if (options.cleanupSpeckles) {
+  removeSmallAlphaIslands(buffer, options.width, options.height, options.channels, options.speckleSize);
+}
+
+parentPort.postMessage(buffer);
+`;
 
 export function backgroundRemovalCacheKey(options: BackgroundRemovalOptions = {}) {
   return createHash('sha1').update(JSON.stringify(options)).digest('hex');
