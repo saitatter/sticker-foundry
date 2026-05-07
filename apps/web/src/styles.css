@@ -612,7 +612,7 @@ select:focus {
 }
 
 .invite-form {
-  grid-template-columns: minmax(160px, 1fr) 140px auto;
+  grid-template-columns: minmax(160px, 1fr) 140px minmax(180px, 1fr) auto;
   align-items: end;
 }
 
@@ -629,6 +629,16 @@ select:focus {
 
 .invite-list {
   grid-column: 1 / -1;
+}
+
+.invite-filter-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.invite-filter-row select {
+  width: min(220px, 100%);
 }
 
 .invite-code-button {

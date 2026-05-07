@@ -231,11 +231,11 @@ export class StickerFoundryApi {
     return this.request<PackInvite[]>(`/packs/${id}/invites`, { auth: true });
   }
 
-  async createPackInvite(id: string, role: Exclude<PackRole, 'OWNER'>, email?: string) {
+  async createPackInvite(id: string, role: Exclude<PackRole, 'OWNER'>, email?: string, expiresAt?: string) {
     return this.request<PackInvite>(`/packs/${id}/invites`, {
       method: 'POST',
       auth: true,
-      body: JSON.stringify({ role, email: email?.trim() || undefined }),
+      body: JSON.stringify({ role, email: email?.trim() || undefined, expiresAt }),
     });
   }
 

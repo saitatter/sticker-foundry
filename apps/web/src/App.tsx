@@ -1084,9 +1084,17 @@ function CollaborationPanel({
   const [invites, setInvites] = useState<PackInvite[]>([]);
   const [email, setEmail] = useState('');
   const [role, setRole] = useState<Exclude<PackRole, 'OWNER'>>('EDITOR');
+  const [expiresAt, setExpiresAt] = useState('');
+  const [inviteFilter, setInviteFilter] = useState<'all' | 'pending' | 'accepted' | 'expired'>('all');
   const [invite, setInvite] = useState<PackInvite | null>(null);
   const [loading, setLoading] = useState(false);
   const [creating, setCreating] = useState(false);
+  const visibleInvites = invites.filter((item) => {
+    if (inviteFilter === 'pending') return !item.acceptedAt && !isExpiredInvite(item);
+    if (inviteFilter === 'accepted') return Boolean(item.acceptedAt);
+    if (inviteFilter === 'expired') return isExpiredInvite(item);
+    return true;
+  });
 
   const loadCollaboration = useCallback(async () => {
     setLoading(true);
@@ -1109,10 +1117,12 @@ function CollaborationPanel({
     event.preventDefault();
     setCreating(true);
     try {
-      const nextInvite = await api.createPackInvite(pack.id, role, email);
+      const inviteExpiry = expiresAt ? new Date(expiresAt).toISOString() : undefined;
+      const nextInvite = await api.createPackInvite(pack.id, role, email, inviteExpiry);
       setInvite(nextInvite);
       setInvites((current) => [nextInvite, ...current]);
       setEmail('');
+      setExpiresAt('');
       onNotice('Invite created');
     } catch (error) {
       onError(error);
@@ -1207,6 +1217,10 @@ function CollaborationPanel({
               <option value="VIEWER">Viewer</option>
             </select>
           </label>
+          <label>
+            Expires
+            <input value={expiresAt} onChange={(event) => setExpiresAt(event.target.value)} type="datetime-local" />
+          </label>
           <button className="secondary-button" disabled={creating} type="submit">
             <UserPlus size={17} />
             Invite
@@ -1218,14 +1232,25 @@ function CollaborationPanel({
           ) : null}
         </form>
         <div className="invite-list">
-          {invites.map((item) => (
+          <div className="invite-filter-row">
+            <select value={inviteFilter} onChange={(event) => setInviteFilter(event.target.value as typeof inviteFilter)}>
+              <option value="all">All invites</option>
+              <option value="pending">Pending</option>
+              <option value="accepted">Accepted</option>
+              <option value="expired">Expired</option>
+            </select>
+            <span className="counter">{visibleInvites.length}</span>
+          </div>
+          {visibleInvites.map((item) => (
             <div className="invite-row" key={item.id}>
               <span>
                 <strong>{item.email ?? 'Open invite'}</strong>
-                <small>{item.acceptedAt ? `Accepted by ${item.acceptedBy?.email ?? 'member'}` : roleLabel(item.role)}</small>
+                <small>{inviteStatusLabel(item)}</small>
               </span>
               {item.acceptedAt ? (
                 <span className="status-pill ready">Accepted</span>
+              ) : isExpiredInvite(item) ? (
+                <span className="status-pill needs-work">Expired</span>
               ) : (
                 <IconButton label="Revoke invite" onClick={() => void revokeInvite(item.id)} danger>
                   <Trash2 size={16} />
@@ -1233,7 +1258,7 @@ function CollaborationPanel({
               )}
             </div>
           ))}
-          {!loading && invites.length === 0 ? <span className="muted-row">No invites yet.</span> : null}
+          {!loading && visibleInvites.length === 0 ? <span className="muted-row">No invites match this filter.</span> : null}
         </div>
       </div>
     </section>
@@ -1849,6 +1874,17 @@ function roleLabel(role?: PackRole) {
   if (role === 'EDITOR') return 'Editor';
   if (role === 'VIEWER') return 'Viewer';
   return 'Private';
+}
+
+function isExpiredInvite(invite: PackInvite) {
+  return Boolean(!invite.acceptedAt && invite.expiresAt && new Date(invite.expiresAt).getTime() <= Date.now());
+}
+
+function inviteStatusLabel(invite: PackInvite) {
+  if (invite.acceptedAt) return `Accepted by ${invite.acceptedBy?.email ?? 'member'}`;
+  if (isExpiredInvite(invite)) return `Expired ${new Date(invite.expiresAt as string).toLocaleDateString()}`;
+  if (invite.expiresAt) return `${roleLabel(invite.role)} · expires ${new Date(invite.expiresAt).toLocaleDateString()}`;
+  return roleLabel(invite.role);
 }
 
 async function editImageFile(file: File, options: ImageEditOptions) {

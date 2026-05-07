@@ -162,6 +162,10 @@ export class PacksService {
     if (dto.role === PackRole.OWNER) {
       throw new BadRequestException('Owner invites are not supported yet');
     }
+    const expiresAt = dto.expiresAt ? new Date(dto.expiresAt) : undefined;
+    if (expiresAt && expiresAt.getTime() <= Date.now()) {
+      throw new BadRequestException('Invite expiration must be in the future');
+    }
 
     return this.prisma.packInvite.create({
       data: {
@@ -169,7 +173,7 @@ export class PacksService {
         email: dto.email?.toLowerCase(),
         role: dto.role,
         code: this.newInviteCode(),
-        expiresAt: dto.expiresAt ? new Date(dto.expiresAt) : undefined,
+        expiresAt,
         createdById: ownerId,
       },
     });

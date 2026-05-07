@@ -24,6 +24,7 @@ This is the live feature backlog. Items already shipped are kept briefly at the 
 - Configurable CORS origins.
 - Stronger upload content validation.
 - Pack collaboration roles, invite creation/acceptance/revocation, member listing/removal, role editing, and role-aware web/Android controls.
+- Collaboration invite expiration controls and accepted/pending/expired history filters.
 - Web sticker multi-select with bulk delete, bulk emoji apply, and copy/move to another pack.
 - Playwright smoke tests for login, pack creation, upload, contents preview, collaboration panel visibility, and bulk copy workflow.
 - Android lint and debug APK assembly in CI.
@@ -45,9 +46,7 @@ This is the live feature backlog. Items already shipped are kept briefly at the 
 
 ## Collaboration
 
-- Invite expiration controls in the web UI.
 - Optional email matching for invite acceptance.
-- Accepted/pending invite history filters.
 - Android collaborator details beyond the compact role label.
 - Shared team/workspace model for family or community packs.
 - Comments or review status per sticker.

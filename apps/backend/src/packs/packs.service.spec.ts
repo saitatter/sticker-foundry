@@ -234,6 +234,12 @@ describe(PacksService, () => {
         role: PackRole.OWNER,
       }),
     ).rejects.toBeInstanceOf(BadRequestException);
+    await expect(
+      service.createInvite('owner-1', 'pack-1', {
+        role: PackRole.VIEWER,
+        expiresAt: new Date(Date.now() - 60_000).toISOString(),
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
   });
 
   it('allows editors to upload stickers but blocks viewers from mutating sticker metadata', async () => {

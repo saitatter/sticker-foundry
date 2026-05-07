@@ -14,7 +14,7 @@ Already implemented:
 - Sync API with `contentHash`, `syncHash`, ownership flags, export readiness, and relative export/tray paths.
 - Backend HTTP e2e coverage for register, pack creation, sticker upload, manifest `ETag`, ZIP export, and `contents.json` parsing.
 - Pack collaboration with owner/viewer/editor roles, invite creation/acceptance/revocation, member listing, member removal, member role editing, role-aware mutation checks, and sync capability flags.
-- Web UI with auth, demo login, pack dashboard search/filter/sort/status badges, pack detail, create/edit/delete/clone, collaboration invites/member management, sticker upload, bulk delete/bulk emoji apply, bulk copy/move to another pack, drag-and-drop uploads, image rotate/square crop, sticker replacement, tray replacement, ordering, ZIP download, contents preview, account password change, and session management.
+- Web UI with auth, demo login, pack dashboard search/filter/sort/status badges, pack detail, create/edit/delete/clone, collaboration invites/member management, invite expiration/history filters, sticker upload, bulk delete/bulk emoji apply, bulk copy/move to another pack, drag-and-drop uploads, image rotate/square crop, sticker replacement, tray replacement, ordering, ZIP download, contents preview, account password change, and session management.
 - Playwright smoke test coverage for login, pack creation, upload, contents preview, collaboration panel visibility, and bulk copy workflow.
 - Android app with MVVM, Retrofit, Room cache, refresh-token auth, local ZIP extraction, local sticker preview, WhatsApp `ContentProvider`, import intents for WhatsApp and WhatsApp Business, role-aware image upload/tray replacement, image rotate/square crop, server URL settings, logout, cache size/clear cache, import readiness, content-hash sync, and stale cache pruning.
 - CI validates Android debug lint and debug APK assembly.
@@ -46,24 +46,7 @@ Acceptance criteria:
 - A synced pack imports successfully into WhatsApp Business.
 - Any compatibility issues are turned into tracked issues or fixes.
 
-## Milestone 2: Collaboration Polish
-
-Goal: make shared-pack roles easier to audit and reason about.
-
-Tasks:
-
-- Add invite expiration controls in the web UI.
-- Add clearer accepted/pending invite history filters.
-- Consider optional email matching for invite acceptance.
-- Add Android collaborator details beyond the compact role label.
-
-Acceptance criteria:
-
-- Owners can audit pending and accepted invites clearly.
-- Editors and viewers see clear role information in Android and web.
-- Private shared packs stay covered by backend authorization tests.
-
-## Milestone 3: Advanced Media Editing
+## Milestone 2: Advanced Media Editing
 
 Goal: reduce the need for external image tools.
 
@@ -81,7 +64,7 @@ Acceptance criteria:
 - Common sticker prep workflows are possible inside StickerFoundry.
 - Duplicate or near-duplicate uploads can be warned or blocked.
 
-## Milestone 4: Production Security
+## Milestone 3: Production Security
 
 Goal: make internet-facing deployments safer.
 
@@ -98,7 +81,7 @@ Acceptance criteria:
 - Public deployments have documented security controls.
 - Admins can inspect sensitive activity and enforce quotas.
 
-## Milestone 5: Release And Ops Quality
+## Milestone 4: Release And Ops Quality
 
 Goal: keep changes safer as the project grows.
 
@@ -118,9 +101,9 @@ Acceptance criteria:
 ## Near-Term Recommended Order
 
 1. Real-device WhatsApp import validation.
-2. Collaboration invite expiration/history polish.
-3. Admin settings and quotas.
-4. Audit log and storage limits.
+2. Admin settings and quotas.
+3. Audit log and storage limits.
+4. Advanced media editing.
 
 ## Design Notes
 
