@@ -1,4 +1,4 @@
-import { expect, Page, Route, test } from '@playwright/test';
+import { expect, Locator, Page, Route, test } from '@playwright/test';
 
 const png1x1 = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=',
@@ -39,10 +39,7 @@ test('covers core web sticker workflows with mocked API', async ({ page }) => {
   const state = createMockState();
   await mockApi(page, state);
 
-  await page.goto('/');
-  await page.getByLabel('Email').fill('demo@stickerfoundry.local');
-  await page.getByRole('textbox', { name: /Password/ }).fill('stickerfoundry123');
-  await page.locator('form').getByRole('button', { name: 'Login' }).click();
+  await login(page);
 
   await expect(page.getByRole('heading', { name: 'Packs' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Smoke Ready' })).toBeVisible();
@@ -83,6 +80,31 @@ test('covers core web sticker workflows with mocked API', async ({ page }) => {
   await page.locator('.bulk-toolbar').getByLabel('Target').selectOption({ label: 'Scratch Pack (1/30)' });
   await page.locator('.bulk-toolbar').getByRole('button', { name: 'Copy' }).click();
   await expect(page.getByText('Selected stickers copied')).toBeVisible();
+});
+
+test('supports brush editing undo redo and before after compare', async ({ page }) => {
+  const state = createMockState();
+  await mockApi(page, state);
+  await login(page);
+
+  await chooseUploadImage(page, 'brush.png', 'image/png', png1x1);
+  const editor = page.locator('.image-edit-controls').first();
+  const canvas = editor.getByLabel('Edited preview canvas');
+  await expect(canvas).toBeVisible();
+  await expect(editor.getByRole('button', { name: 'Undo brush' })).toBeDisabled();
+
+  await editor.getByRole('button', { name: 'Erase brush' }).click();
+  await drawOnCanvas(canvas);
+  await expect(editor.getByRole('button', { name: 'Undo brush' })).toBeEnabled();
+  await editor.getByRole('button', { name: 'Undo brush' }).click();
+  await expect(editor.getByRole('button', { name: 'Redo brush' })).toBeEnabled();
+  await editor.getByRole('button', { name: 'Redo brush' }).click();
+
+  await editor.getByRole('button', { name: 'Restore brush' }).click();
+  await drawOnCanvas(canvas);
+  await editor.getByRole('button', { name: 'Compare before after' }).click();
+  await expect(editor.getByText('Before')).toBeVisible();
+  await expect(editor.getByText('After')).toBeVisible();
 });
 
 function createMockState() {
@@ -302,6 +324,26 @@ async function json(route: Route, body: unknown, status = 200) {
     contentType: 'application/json',
     body: JSON.stringify(body),
   });
+}
+
+async function login(page: Page) {
+  await page.goto('/');
+  await page.getByLabel('Email').fill('demo@stickerfoundry.local');
+  await page.getByRole('textbox', { name: /Password/ }).fill('stickerfoundry123');
+  await page.locator('form').getByRole('button', { name: 'Login' }).click();
+}
+
+async function chooseUploadImage(page: Page, name: string, mimeType: string, buffer: Buffer) {
+  await page.locator('.upload-panel input[type=file]').setInputFiles({ name, mimeType, buffer });
+}
+
+async function drawOnCanvas(canvas: Locator) {
+  const box = await canvas.boundingBox();
+  if (!box) throw new Error('Missing editor canvas bounds');
+  await canvas.page().mouse.move(box.x + box.width * 0.35, box.y + box.height * 0.35);
+  await canvas.page().mouse.down();
+  await canvas.page().mouse.move(box.x + box.width * 0.65, box.y + box.height * 0.65, { steps: 4 });
+  await canvas.page().mouse.up();
 }
 
 async function stickerGridColumnCount(page: Page) {
