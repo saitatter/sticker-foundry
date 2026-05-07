@@ -1326,6 +1326,29 @@ function PackDetail({
     }
   }
 
+  async function bulkGenerateAltText() {
+    if (selectedStickerIds.length === 0) return;
+
+    setBulkSaving(true);
+    try {
+      for (const sticker of stickers.filter((item) => selectedStickerIds.includes(item.id))) {
+        await api.updateSticker(
+          pack.id,
+          sticker.id,
+          sticker.emojis,
+          generatedAltText(pack, sticker),
+          sticker.reviewStatus,
+        );
+      }
+      setSelectedStickerIds([]);
+      await onChanged('Alt text generated for selected stickers');
+    } catch (error) {
+      onError(error);
+    } finally {
+      setBulkSaving(false);
+    }
+  }
+
   async function bulkTransferStickers(mode: 'copy' | 'move') {
     if (selectedStickerIds.length === 0 || !bulkTargetPackId) return;
 
@@ -1437,6 +1460,14 @@ function PackDetail({
               type="button"
             >
               Apply emoji
+            </button>
+            <button
+              className="secondary-button"
+              disabled={selectedStickerIds.length === 0 || bulkSaving}
+              onClick={() => void bulkGenerateAltText()}
+              type="button"
+            >
+              Generate alt
             </button>
             <button
               className="secondary-button danger-button"
@@ -2673,6 +2704,15 @@ function loadImage(file: File) {
 function editedFileName(file: File) {
   const baseName = file.name.replace(/\.[^.]+$/, '') || 'sticker';
   return `${baseName}-edited.png`;
+}
+
+function generatedAltText(pack: Pack, sticker: Sticker) {
+  const emojiText = sticker.emojis.filter(Boolean).join(' ');
+  const status = reviewStatusLabel(sticker.reviewStatus).toLowerCase();
+  const parts = [`${pack.name} sticker`];
+  if (emojiText) parts.push(`with ${emojiText}`);
+  parts.push(`marked ${status}`);
+  return parts.join(' ').slice(0, 125);
 }
 
 function formatBytes(bytes: number) {

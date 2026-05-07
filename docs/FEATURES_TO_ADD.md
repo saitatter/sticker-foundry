@@ -12,7 +12,6 @@ This is the live feature backlog. It should only contain work that still needs t
 
 ## Sticker Workflow UX
 
-- Bulk accessibility text generation for selected stickers.
 - Copy or move individual stickers from a sticker tile/detail panel.
 - Better mobile web layout for quick edits from a phone browser.
 - Activity feed showing who changed pack metadata or images.
