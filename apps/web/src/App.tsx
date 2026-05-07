@@ -38,6 +38,7 @@ import {
   AdminSettings,
   AnimatedStickerOptions,
   ApiError,
+  BackgroundRemovalUploadOptions,
   AuditLogEntry,
   AuthResponse,
   InstanceSettings,
@@ -49,6 +50,7 @@ import {
   Sticker,
   StickerComment,
   StickerFoundryApi,
+  StickerUploadOptions,
   Team,
   TeamMember,
   User,
@@ -2436,7 +2438,7 @@ function UploadPanel({
 
       for (const [index, file] of files.entries()) {
         const uploadFile = await editableUploadFile(file, pack.isAnimated, editOptions);
-        await api.uploadSticker(pack.id, uploadFile, uploadEmojis, accessibilityText, animatedOptionsFromEdit(file, pack.isAnimated, editOptions));
+        await api.uploadSticker(pack.id, uploadFile, uploadEmojis, accessibilityText, stickerUploadOptionsFromEdit(file, pack.isAnimated, editOptions));
         setUploadedCount(index + 1);
       }
 
@@ -2653,7 +2655,7 @@ function StickerTile({
         packId,
         sticker.id,
         editedFile,
-        animatedOptionsFromEdit(replacementFile, isAnimatedPack, replacementEditOptions),
+        stickerUploadOptionsFromEdit(replacementFile, isAnimatedPack, replacementEditOptions),
       );
       setReplacementFile(null);
       setReplacementEditOptions(defaultImageEditOptions);
@@ -2932,6 +2934,7 @@ type ImageEditOptions = {
   cropSquare: boolean;
   normalizeSquare: boolean;
   removeLightBackground: boolean;
+  serverBackgroundRemovalMode: 'none' | 'threshold' | 'ai';
   backgroundThreshold: number;
   backgroundFeather: number;
   cleanupSpeckles: boolean;
@@ -2989,6 +2992,7 @@ const defaultImageEditOptions: ImageEditOptions = {
   cropSquare: false,
   normalizeSquare: false,
   removeLightBackground: false,
+  serverBackgroundRemovalMode: 'none',
   backgroundThreshold: 238,
   backgroundFeather: 14,
   cleanupSpeckles: true,
@@ -3085,6 +3089,7 @@ function ImageEditControls({
   const [sourcePreviewUrl, setSourcePreviewUrl] = useState<string | null>(null);
   const [compareMode, setCompareMode] = useState(false);
   const isPossiblyAnimated = /\.(gif|webp)$/i.test(file.name);
+  const showBackgroundControls = options.removeLightBackground || options.serverBackgroundRemovalMode !== 'none';
   const animatedDuration = Math.max(0, options.animatedTrimEnd - options.animatedTrimStart);
   const animatedFrameDuration = 1000 / Math.max(1, options.animatedFrameRate);
 
@@ -3299,6 +3304,22 @@ function ImageEditControls({
             type="checkbox"
           />
           Remove light background
+        </label>
+        <label>
+          Server bg
+          <select
+            onChange={(event) =>
+              onChange((current) => ({
+                ...current,
+                serverBackgroundRemovalMode: event.target.value as ImageEditOptions['serverBackgroundRemovalMode'],
+              }))
+            }
+            value={options.serverBackgroundRemovalMode}
+          >
+            <option value="none">Off</option>
+            <option value="threshold">Threshold</option>
+            <option value="ai">AI/fallback</option>
+          </select>
         </label>
         <label className="checkbox-row image-edit-toggle">
           <input checked={options.outline} onChange={(event) => onChange({ ...options, outline: event.target.checked })} type="checkbox" />
@@ -3610,7 +3631,14 @@ function ImageEditControls({
           </label>
         </div>
       ) : null}
-      {options.removeLightBackground ? (
+      {options.serverBackgroundRemovalMode !== 'none' ? (
+        <p className="upload-note server-bg-note">
+          {options.serverBackgroundRemovalMode === 'ai'
+            ? 'Server AI uses the configured self-hosted model and falls back to threshold cleanup.'
+            : 'Server threshold cleanup uses the same threshold, soft edge, and speckle controls.'}
+        </p>
+      ) : null}
+      {showBackgroundControls ? (
         <div className="image-edit-sliders background-sliders">
           <label>
             Threshold
@@ -3832,6 +3860,24 @@ function animatedOptionsFromEdit(file: File, isAnimatedPack: boolean, options: I
     animatedTrimEnd: options.animatedTrimEnd,
     animatedFrameRate: options.animatedFrameRate,
     animatedQuality: options.animatedCompress ? options.outputQuality : undefined,
+  };
+}
+
+function backgroundRemovalOptionsFromEdit(isAnimatedPack: boolean, options: ImageEditOptions): BackgroundRemovalUploadOptions | undefined {
+  if (isAnimatedPack || options.serverBackgroundRemovalMode === 'none') return undefined;
+  return {
+    backgroundRemovalMode: options.serverBackgroundRemovalMode,
+    backgroundRemovalThreshold: options.backgroundThreshold,
+    backgroundRemovalFeather: options.backgroundFeather,
+    backgroundRemovalCleanupSpeckles: options.cleanupSpeckles,
+    backgroundRemovalSpeckleSize: options.speckleSize,
+  };
+}
+
+function stickerUploadOptionsFromEdit(file: File, isAnimatedPack: boolean, options: ImageEditOptions): StickerUploadOptions | undefined {
+  return {
+    ...animatedOptionsFromEdit(file, isAnimatedPack, options),
+    ...backgroundRemovalOptionsFromEdit(isAnimatedPack, options),
   };
 }
 

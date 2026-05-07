@@ -89,6 +89,16 @@ export type AnimatedStickerOptions = {
   animatedQuality?: number;
 };
 
+export type BackgroundRemovalUploadOptions = {
+  backgroundRemovalMode?: 'none' | 'threshold' | 'ai';
+  backgroundRemovalThreshold?: number;
+  backgroundRemovalFeather?: number;
+  backgroundRemovalCleanupSpeckles?: boolean;
+  backgroundRemovalSpeckleSize?: number;
+};
+
+export type StickerUploadOptions = AnimatedStickerOptions & BackgroundRemovalUploadOptions;
+
 export type Pack = {
   id: string;
   name: string;
@@ -200,7 +210,7 @@ async function readError(response: Response) {
   }
 }
 
-function appendAnimatedOptions(form: FormData, options?: AnimatedStickerOptions) {
+function appendStickerUploadOptions(form: FormData, options?: StickerUploadOptions) {
   if (!options) return;
   for (const [key, value] of Object.entries(options)) {
     if (value === undefined || value === null) continue;
@@ -459,14 +469,14 @@ export class StickerFoundryApi {
     });
   }
 
-  async uploadSticker(packId: string, file: File, emojis: string[], accessibilityText: string, animatedOptions?: AnimatedStickerOptions) {
+  async uploadSticker(packId: string, file: File, emojis: string[], accessibilityText: string, uploadOptions?: StickerUploadOptions) {
     const form = new FormData();
     form.append('file', file);
     form.append('emojis', emojis.join(','));
     if (accessibilityText.trim()) {
       form.append('accessibilityText', accessibilityText.trim());
     }
-    appendAnimatedOptions(form, animatedOptions);
+    appendStickerUploadOptions(form, uploadOptions);
 
     return this.request<Sticker>(`/packs/${packId}/stickers`, {
       method: 'POST',
@@ -523,10 +533,10 @@ export class StickerFoundryApi {
     });
   }
 
-  async replaceStickerImage(packId: string, stickerId: string, file: File, animatedOptions?: AnimatedStickerOptions) {
+  async replaceStickerImage(packId: string, stickerId: string, file: File, uploadOptions?: StickerUploadOptions) {
     const form = new FormData();
     form.append('file', file);
-    appendAnimatedOptions(form, animatedOptions);
+    appendStickerUploadOptions(form, uploadOptions);
 
     return this.request<Sticker>(`/packs/${packId}/stickers/${stickerId}/file`, {
       method: 'PUT',
