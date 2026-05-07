@@ -2953,6 +2953,8 @@ type ImageEditOptions = {
   warmth: number;
   tint: number;
   grayscale: boolean;
+  optimizeOutput: boolean;
+  outputQuality: number;
 };
 
 type BrushMode = 'erase' | 'restore';
@@ -3004,6 +3006,8 @@ const defaultImageEditOptions: ImageEditOptions = {
   warmth: 0,
   tint: 0,
   grayscale: false,
+  optimizeOutput: false,
+  outputQuality: 82,
 };
 
 function ImageEditControls({
@@ -3021,6 +3025,8 @@ function ImageEditControls({
   const previewBoundsRef = useRef({ x: 0, y: 0, width: 1, height: 1 });
   const activeStrokeIdRef = useRef<string | null>(null);
   const [redoStrokes, setRedoStrokes] = useState<BrushStroke[]>([]);
+  const [outputSize, setOutputSize] = useState<number | null>(null);
+  const isPossiblyAnimated = /\.(gif|webp)$/i.test(file.name);
 
   useEffect(() => {
     let alive = true;
@@ -3032,9 +3038,11 @@ function ImageEditControls({
     const context = canvas.getContext('2d');
     if (!context) return undefined;
 
+    setOutputSize(null);
     drawCheckerboard(context, canvas.width, canvas.height, 16);
     editImageFile(file, options)
       .then((editedFile) => {
+        setOutputSize(editedFile.size);
         objectUrl = URL.createObjectURL(editedFile);
         return loadImageFromUrl(objectUrl);
       })
@@ -3414,6 +3422,37 @@ function ImageEditControls({
           />
         </label>
       </div>
+      <div className="optimizer-panel">
+        <label className="checkbox-row image-edit-toggle">
+          <input
+            checked={options.optimizeOutput}
+            onChange={(event) => onChange((current) => ({ ...current, optimizeOutput: event.target.checked }))}
+            type="checkbox"
+          />
+          Optimize under 100KB
+        </label>
+        <label>
+          Quality
+          <input
+            disabled={!options.optimizeOutput}
+            max="95"
+            min="35"
+            onChange={(event) => onChange((current) => ({ ...current, outputQuality: Number(event.target.value) }))}
+            step="1"
+            type="range"
+            value={options.outputQuality}
+          />
+        </label>
+        <span className={outputSize && outputSize > 100 * 1024 ? 'optimizer-warning' : 'optimizer-ok'}>
+          {outputSize ? `Output ${formatBytes(outputSize)}` : 'Output pending'}
+        </span>
+        {outputSize && !isPossiblyAnimated && outputSize > 100 * 1024 ? (
+          <span className="optimizer-warning">Static WhatsApp stickers should be under 100KB.</span>
+        ) : null}
+        {isPossiblyAnimated && file.size > 500 * 1024 ? (
+          <span className="optimizer-warning">Animated WhatsApp stickers should be under 500KB.</span>
+        ) : null}
+      </div>
       {options.autoFitSubject ? (
         <div className="image-edit-sliders subject-sliders">
           <label>
@@ -3650,6 +3689,7 @@ async function editImageFile(file: File, options: ImageEditOptions) {
     !options.shadow &&
     !options.autoFitSubject &&
     !hasColorAdjustments(options) &&
+    !options.optimizeOutput &&
     options.brushStrokes.length === 0 &&
     (!options.textEnabled || options.textContent.trim().length === 0)
   ) {
@@ -3719,10 +3759,10 @@ async function editImageFile(file: File, options: ImageEditOptions) {
     applyTextLayer(context, canvas.width, canvas.height, options);
   }
 
-  const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'));
+  const blob = options.optimizeOutput ? await optimizeCanvasBlob(canvas, options.outputQuality) : await canvasToBlob(canvas, 'image/png');
   if (!blob) return file;
 
-  return new File([blob], editedFileName(file), { type: 'image/png' });
+  return new File([blob], editedFileName(file, blob.type), { type: blob.type });
 }
 
 function removeLightBackground(context: CanvasRenderingContext2D, width: number, height: number, options: ImageEditOptions) {
@@ -4111,9 +4151,30 @@ function loadImageFromUrl(url: string) {
   });
 }
 
-function editedFileName(file: File) {
+function canvasToBlob(canvas: HTMLCanvasElement, type: string, quality?: number) {
+  return new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, type, quality));
+}
+
+async function optimizeCanvasBlob(canvas: HTMLCanvasElement, initialQuality: number) {
+  let quality = clamp(initialQuality, 35, 95) / 100;
+  let bestBlob = await canvasToBlob(canvas, 'image/webp', quality);
+  while (bestBlob && bestBlob.size > 100 * 1024 && quality > 0.35) {
+    quality = Math.max(0.35, quality - 0.07);
+    bestBlob = await canvasToBlob(canvas, 'image/webp', quality);
+  }
+  return bestBlob ?? canvasToBlob(canvas, 'image/png');
+}
+
+function editedFileName(file: File, mimeType = 'image/png') {
   const baseName = file.name.replace(/\.[^.]+$/, '') || 'sticker';
-  return `${baseName}-edited.png`;
+  const extension = mimeType === 'image/webp' ? 'webp' : 'png';
+  return `${baseName}-edited.${extension}`;
+}
+
+function formatBytes(bytes: number) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / 1024 / 1024).toFixed(2)} MB`;
 }
 
 function generatedAltText(pack: Pack, sticker: Sticker) {
@@ -4123,9 +4184,4 @@ function generatedAltText(pack: Pack, sticker: Sticker) {
   if (emojiText) parts.push(`with ${emojiText}`);
   parts.push(`marked ${status}`);
   return parts.join(' ').slice(0, 125);
-}
-
-function formatBytes(bytes: number) {
-  if (bytes < 1024) return `${bytes} B`;
-  return `${Math.round(bytes / 1024)} KB`;
 }

@@ -860,6 +860,36 @@ select:focus {
   font-weight: 700;
 }
 
+.optimizer-panel {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: minmax(170px, auto) minmax(160px, 1fr) auto minmax(220px, auto);
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.optimizer-panel input[type='range'] {
+  padding: 0;
+}
+
+.optimizer-ok,
+.optimizer-warning {
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.optimizer-ok {
+  color: var(--primary);
+}
+
+.optimizer-warning {
+  color: #b45309;
+}
+
 .image-edit-sliders input {
   padding: 0;
 }
@@ -1445,6 +1475,10 @@ select:focus {
     grid-template-columns: repeat(3, minmax(120px, 1fr));
   }
 
+  .optimizer-panel {
+    grid-template-columns: 1fr 1fr;
+  }
+
   .tray-form .secondary-button {
     grid-column: 2;
   }
@@ -1536,7 +1570,8 @@ select:focus {
 
   .image-edit-sliders,
   .background-sliders,
-  .brush-sliders {
+  .brush-sliders,
+  .optimizer-panel {
     grid-template-columns: 1fr;
   }
 
