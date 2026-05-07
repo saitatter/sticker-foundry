@@ -2615,6 +2615,7 @@ function StickerTile({
 type ImageEditOptions = {
   rotation: 0 | 90 | 180 | 270;
   cropSquare: boolean;
+  normalizeSquare: boolean;
   removeLightBackground: boolean;
   outline: boolean;
   shadow: boolean;
@@ -2626,6 +2627,7 @@ type ImageEditOptions = {
 const defaultImageEditOptions: ImageEditOptions = {
   rotation: 0,
   cropSquare: false,
+  normalizeSquare: false,
   removeLightBackground: false,
   outline: false,
   shadow: false,
@@ -2698,6 +2700,14 @@ function ImageEditControls({
             type="checkbox"
           />
           Square crop
+        </label>
+        <label className="checkbox-row image-edit-toggle">
+          <input
+            checked={options.normalizeSquare}
+            onChange={(event) => onChange({ ...options, normalizeSquare: event.target.checked })}
+            type="checkbox"
+          />
+          Normalize square
         </label>
         <label className="checkbox-row image-edit-toggle">
           <input
@@ -2878,6 +2888,7 @@ async function editImageFile(file: File, options: ImageEditOptions) {
   if (
     options.rotation === 0 &&
     !options.cropSquare &&
+    !options.normalizeSquare &&
     !options.removeLightBackground &&
     !options.outline &&
     !options.shadow
@@ -2906,8 +2917,11 @@ async function editImageFile(file: File, options: ImageEditOptions) {
   const rotated = options.rotation === 90 || options.rotation === 270;
 
   const canvas = document.createElement('canvas');
-  canvas.width = rotated ? sourceHeight : sourceWidth;
-  canvas.height = rotated ? sourceWidth : sourceHeight;
+  const outputWidth = rotated ? sourceHeight : sourceWidth;
+  const outputHeight = rotated ? sourceWidth : sourceHeight;
+  const normalizedSide = options.normalizeSquare ? Math.max(outputWidth, outputHeight) : undefined;
+  canvas.width = normalizedSide ?? outputWidth;
+  canvas.height = normalizedSide ?? outputHeight;
 
   const context = canvas.getContext('2d');
   if (!context) return file;

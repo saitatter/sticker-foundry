@@ -14,7 +14,6 @@ This is the live feature backlog. It should only contain work that still needs t
 
 ## Media Editing
 
-- Batch image normalization before upload.
 - Duplicate sticker detection using perceptual hashes.
 - Animated sticker support as a separate opt-in pipeline.
 
