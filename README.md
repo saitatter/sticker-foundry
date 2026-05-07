@@ -505,6 +505,7 @@ Unraid-specific volume and proxy notes are in [docs/UNRAID.md](docs/UNRAID.md).
 ## 🔄 Releases
 
 StickerFoundry uses **semantic-release** with Conventional Commits. On every push to `main`, CI checks whether a new version should be published.
+Release note review and APK tester guidance lives in [docs/RELEASE_NOTES.md](docs/RELEASE_NOTES.md).
 
 Use commit messages like:
 
