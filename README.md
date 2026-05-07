@@ -11,9 +11,10 @@ StickerFoundry is a self-hosted collaborative WhatsApp sticker pack manager: web
 ## ✨ What Works
 
 - NestJS API with PostgreSQL, Prisma, JWT auth, refresh sessions, password reset, audit logs, teams, roles, invites, and admin settings.
-- Sticker upload pipeline with WebP conversion, 512x512 normalization, static/animated validation, duplicate detection, image bomb safeguards, and queued media processing.
+- Sticker upload pipeline with WebP conversion, 512x512 normalization, static/animated validation, animated trim/FPS resampling, duplicate detection, image bomb safeguards, and queued media processing.
 - Disk storage by default, optional S3-compatible storage, cached ZIP exports, manifest/ETag sync, and Prometheus metrics.
-- Web UI for pack management, collaboration, public share pages, image editing, review status, comments, bulk actions, keyboard shortcuts, and responsive sticker grids.
+- Web UI for pack management, collaboration, public share pages, review status, comments, bulk actions, keyboard shortcuts, and responsive sticker grids.
+- Sticker editor with brush erase/restore, undo/redo, background cleanup, text layer, auto-fit subject, color tools, size optimizer, animated controls, batch presets, and before/after compare.
 - Background removal can run in-browser, on the backend threshold pipeline, or through an optional self-hosted AI command with threshold fallback.
 - Android Kotlin app with Retrofit, Room cache, retry-safe ZIP extraction, local extraction status, image upload/editing, WhatsApp and WhatsApp Business import intents, and stale-edit conflict handling.
 - Docker Compose stack for PostgreSQL, backend, and web.
@@ -135,6 +136,7 @@ cd apps/android
 - `GET /api/packs`
 - `POST /api/packs`
 - `POST /api/packs/:id/stickers`
+- `PUT /api/packs/:id/stickers/:stickerId/file`
 - `GET /api/packs/:id/export`
 - `GET /api/packs/:id/manifest`
 - `GET /api/public/packs`
@@ -156,4 +158,4 @@ Use OpenAPI at `/api/docs` for the full contract.
 
 ## 🚧 Remaining Work
 
-The main open items are real-device WhatsApp validation, Docker stack validation on a host with Docker installed, and finalizing the Android package identity before publishing signed release APKs. See [docs/FEATURES_TO_ADD.md](docs/FEATURES_TO_ADD.md).
+The main open items are real-device WhatsApp validation, Docker stack validation on a host with Docker installed, Android package identity/signing, and choosing a first-party packaged ONNX background-removal model. See [docs/FEATURES_TO_ADD.md](docs/FEATURES_TO_ADD.md).

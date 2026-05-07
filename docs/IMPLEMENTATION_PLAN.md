@@ -6,8 +6,9 @@ This document tracks what is still meaningful to validate or decide. Implemented
 
 - Backend, web, Android, Docker files, semantic-release, and operational docs are implemented as a usable starting project.
 - Backend exports are cached and available through manifest/ETag-aware sync.
+- Backend media processing supports static and animated WebP normalization, animated trim/FPS resampling, server-side threshold background removal, and optional self-hosted AI background removal through `BACKGROUND_REMOVAL_COMMAND`.
 - Android caches packs locally, tracks extraction status, and rejects stale edits through server-side version checks.
-- Web supports collaboration, image editing, public pack browsing, keyboard shortcuts, and responsive sticker workflows.
+- Web supports collaboration, public pack browsing, keyboard shortcuts, responsive sticker workflows, advanced sticker editing, batch presets, size warnings, and before/after compare.
 
 ## Milestone 1: Real WhatsApp Validation
 
@@ -59,6 +60,22 @@ Acceptance criteria:
 
 - Signed APK installs cleanly over future releases.
 - WhatsApp import still works with the final provider authority.
+
+## Milestone 4: Packaged AI Background Removal
+
+Goal: make AI background removal turnkey instead of command-configurable only.
+
+Tasks:
+
+- Choose the default model/runtime after testing quality, CPU/RAM use, and Docker image size.
+- Add packaging docs or a companion worker image for the selected ONNX/RMBG/U2-Net/MODNet style model.
+- Add a health/status indicator that tells web users whether AI background removal is available.
+- Keep threshold fallback as the default degraded mode.
+
+Acceptance criteria:
+
+- A clean self-hosted deployment can enable AI background removal without custom scripting.
+- Missing model/runtime is visible to admins and does not break uploads.
 
 ## Design Notes
 

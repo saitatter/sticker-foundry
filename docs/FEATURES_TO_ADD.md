@@ -10,9 +10,11 @@ This backlog intentionally contains only work that is not implemented yet or can
 - Document tested Android/WhatsApp versions.
 - Add fixes for any provider compatibility issues discovered during real-device testing.
 
-## Sticker Editing
+## Sticker Editing / AI
 
-- Add first-party ONNX model packaging/profile docs after choosing the default model and runtime image.
+- Choose and package a first-party ONNX background-removal model/runtime for turnkey self-hosted AI mode.
+- Add admin/web status for whether `BACKGROUND_REMOVAL_COMMAND` or the packaged AI runtime is available.
+- Add Android parity for the advanced web editor tools that are currently web-only.
 
 ## Deployment And Ops
 
@@ -21,3 +23,4 @@ This backlog intentionally contains only work that is not implemented yet or can
 ## Release And Quality
 
 - Finalize Android package identity before publishing signed release APKs. Signing scaffolding exists, but the starter `applicationId` must be replaced first.
+- Add more focused web editor tests for brush, compare, optimizer, server background removal options, and animated option submission.
