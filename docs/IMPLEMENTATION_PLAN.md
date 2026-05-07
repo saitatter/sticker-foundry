@@ -9,6 +9,7 @@ This document tracks what is still meaningful to validate or decide. Implemented
 - Backend media processing supports static and animated WebP normalization, animated trim/FPS resampling, server-side threshold background removal, and optional self-hosted AI background removal through `BACKGROUND_REMOVAL_COMMAND`.
 - Android caches packs locally, tracks extraction status, and rejects stale edits through server-side version checks.
 - Web supports collaboration, public pack browsing, keyboard shortcuts, responsive sticker workflows, advanced sticker editing, batch presets, size warnings, and before/after compare.
+- Web editor coverage includes focused Playwright tests for brush/compare, optimizer/background upload options, and animated trim/FPS option submission.
 
 ## Milestone 1: Real WhatsApp Validation
 
