@@ -25,4 +25,8 @@ export class UpdatePackDto {
   @IsOptional()
   @IsBoolean()
   requiresApproval?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  isAnimated?: boolean;
 }

@@ -25,6 +25,10 @@ export class CreatePackDto {
   requiresApproval?: boolean;
 
   @IsOptional()
+  @IsBoolean()
+  isAnimated?: boolean;
+
+  @IsOptional()
   @IsUUID()
   teamId?: string;
 }

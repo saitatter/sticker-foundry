@@ -39,6 +39,8 @@ describe(PackExportService, () => {
       id: 'pack-1234567890',
       name: 'Memes',
       publisher: 'Sticker Foundry',
+      requiresApproval: false,
+      isAnimated: false,
       imageDataVersion: '7',
       stickers: [
         {
@@ -111,6 +113,8 @@ describe(PackExportService, () => {
       id: 'pack-1',
       name: 'Too small',
       publisher: 'Sticker Foundry',
+      requiresApproval: false,
+      isAnimated: false,
       imageDataVersion: '1',
       stickers: [{ fileName: 'only.webp', emojis: ['\uD83D\uDE00'], accessibilityText: null }],
     });
@@ -124,6 +128,7 @@ describe(PackExportService, () => {
       name: 'Reviewed',
       publisher: 'Sticker Foundry',
       requiresApproval: true,
+      isAnimated: false,
       imageDataVersion: '2',
       stickers: [
         { fileName: 'one.webp', emojis: ['😀'], accessibilityText: null, reviewStatus: 'APPROVED' },
@@ -156,6 +161,8 @@ describe(PackExportService, () => {
       id: 'pack-manifest',
       name: 'Manifest Pack',
       publisher: 'Sticker Foundry',
+      requiresApproval: false,
+      isAnimated: true,
       imageDataVersion: '4',
       stickers: [
         {
@@ -191,6 +198,7 @@ describe(PackExportService, () => {
     expect(manifest).toEqual(
       expect.objectContaining({
         id: pack.id,
+        isAnimated: true,
         stickerCount: 3,
         canExport: true,
         exportPath: `/packs/${pack.id}/export`,

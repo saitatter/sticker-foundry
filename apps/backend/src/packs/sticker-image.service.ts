@@ -12,14 +12,16 @@ export type ProcessedImage = {
   perceptualHash: string;
 };
 
+type ImageMetadata = Awaited<ReturnType<sharp.Sharp['metadata']>>;
+
 @Injectable()
 export class StickerImageService {
-  async processSticker(input: Buffer): Promise<ProcessedImage> {
-    return this.processWebp(input, WHATSAPP_LIMITS.stickerPixels, WHATSAPP_LIMITS.maxStaticStickerBytes);
+  async processSticker(input: Buffer, options: { animated?: boolean } = {}): Promise<ProcessedImage> {
+    return options.animated ? this.processAnimatedWebp(input) : this.processStaticWebp(input);
   }
 
   async processTrayIcon(input: Buffer): Promise<ProcessedImage> {
-    return this.processWebp(input, WHATSAPP_LIMITS.trayIconPixels, WHATSAPP_LIMITS.maxTrayIconBytes);
+    return this.processWebp(input, WHATSAPP_LIMITS.trayIconPixels, WHATSAPP_LIMITS.maxTrayIconBytes, false);
   }
 
   async writeProcessedImage(filePath: string, image: ProcessedImage) {
@@ -34,12 +36,27 @@ export class StickerImageService {
     }
   }
 
-  private async processWebp(input: Buffer, pixels: number, maxBytes: number): Promise<ProcessedImage> {
-    await this.assertSupportedImageContent(input);
+  private async processStaticWebp(input: Buffer): Promise<ProcessedImage> {
+    const metadata = await this.metadataFor(input);
+    this.assertSupportedImageContent(metadata);
+    if ((metadata.pages ?? 1) > 1) {
+      throw new BadRequestException('Animated uploads require an animated pack');
+    }
+    return this.processWebp(input, WHATSAPP_LIMITS.stickerPixels, WHATSAPP_LIMITS.maxStaticStickerBytes, false);
+  }
+
+  private async processAnimatedWebp(input: Buffer): Promise<ProcessedImage> {
+    const metadata = await this.metadataFor(input);
+    this.assertSupportedImageContent(metadata);
+    this.assertAnimatedStickerMetadata(metadata);
+    return this.processWebp(input, WHATSAPP_LIMITS.stickerPixels, WHATSAPP_LIMITS.maxAnimatedStickerBytes, true);
+  }
+
+  private async processWebp(input: Buffer, pixels: number, maxBytes: number, animated: boolean): Promise<ProcessedImage> {
     let last: Buffer | undefined;
 
     for (const quality of [90, 80, 70, 60, 50, 40, 32, 25]) {
-      const output = await sharp(input, { animated: false })
+      const output = await sharp(input, { animated })
         .rotate()
         .resize(pixels, pixels, {
           fit: 'contain',
@@ -70,16 +87,38 @@ export class StickerImageService {
     );
   }
 
-  private async assertSupportedImageContent(input: Buffer) {
-    let format: string | undefined;
+  private async metadataFor(input: Buffer): Promise<ImageMetadata> {
     try {
-      format = (await sharp(input, { animated: false }).metadata()).format;
+      return await sharp(input, { animated: true }).metadata();
     } catch {
       throw new BadRequestException('Upload is not a valid image file');
     }
+  }
 
+  private assertSupportedImageContent(metadata: ImageMetadata) {
+    const format = metadata.format;
     if (!format || !['avif', 'gif', 'heif', 'jpeg', 'jpg', 'png', 'tiff', 'webp'].includes(format)) {
       throw new BadRequestException(`Unsupported image format: ${format ?? 'unknown'}`);
+    }
+  }
+
+  private assertAnimatedStickerMetadata(metadata: ImageMetadata) {
+    if ((metadata.pages ?? 1) <= 1) {
+      throw new BadRequestException('Animated packs require animated sticker uploads');
+    }
+
+    const delays = metadata.delay ?? [];
+    const totalDuration = delays.reduce((total, delay) => total + delay, 0);
+    const tooFastFrame = delays.some((delay) => delay < WHATSAPP_LIMITS.minAnimatedFrameDurationMs);
+    if (tooFastFrame) {
+      throw new BadRequestException(
+        `Animated sticker frames must be at least ${WHATSAPP_LIMITS.minAnimatedFrameDurationMs}ms`,
+      );
+    }
+    if (totalDuration > WHATSAPP_LIMITS.maxAnimatedStickerDurationMs) {
+      throw new BadRequestException(
+        `Animated sticker duration must be at most ${WHATSAPP_LIMITS.maxAnimatedStickerDurationMs}ms`,
+      );
     }
   }
 

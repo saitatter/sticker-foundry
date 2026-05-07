@@ -74,6 +74,7 @@ class StickerRepository private constructor(context: Context) {
                         publisher = remote.publisher,
                         imageDataVersion = remote.imageDataVersion,
                         isPublic = remote.isPublic,
+                        isAnimated = remote.isAnimated,
                         isOwner = remote.isOwner,
                         teamId = remote.teamId,
                         teamName = remote.teamName,
@@ -92,6 +93,7 @@ class StickerRepository private constructor(context: Context) {
             db.stickerDao().upsertPack(
                 extracted.entity.copy(
                     isPublic = remote.isPublic,
+                    isAnimated = remote.isAnimated,
                     isOwner = remote.isOwner,
                     teamId = remote.teamId,
                     teamName = remote.teamName,

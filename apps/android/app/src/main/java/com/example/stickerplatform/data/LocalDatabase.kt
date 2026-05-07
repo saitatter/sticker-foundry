@@ -26,6 +26,7 @@ data class PackEntity(
     val syncHash: String,
     val localPath: String,
     val isPublic: Boolean,
+    val isAnimated: Boolean,
     val isOwner: Boolean,
     val teamId: String?,
     val teamName: String?,
@@ -92,7 +93,7 @@ interface StickerDao {
     suspend fun deleteAllPacks()
 }
 
-@Database(entities = [PackEntity::class, StickerEntity::class], version = 6, exportSchema = true)
+@Database(entities = [PackEntity::class, StickerEntity::class], version = 7, exportSchema = true)
 abstract class LocalDatabase : RoomDatabase() {
     abstract fun stickerDao(): StickerDao
 
@@ -135,10 +136,16 @@ abstract class LocalDatabase : RoomDatabase() {
             }
         }
 
+        private val migration6To7 = object : Migration(6, 7) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE packs ADD COLUMN isAnimated INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
         fun get(context: Context): LocalDatabase =
             instance ?: synchronized(this) {
                 instance ?: Room.databaseBuilder(context.applicationContext, LocalDatabase::class.java, "stickers.db")
-                    .addMigrations(migration1To2, migration2To3, migration3To4, migration4To5, migration5To6)
+                    .addMigrations(migration1To2, migration2To3, migration3To4, migration4To5, migration5To6, migration6To7)
                     .build()
                     .also { instance = it }
             }
@@ -146,7 +153,7 @@ abstract class LocalDatabase : RoomDatabase() {
         fun providerGet(context: Context): LocalDatabase =
             instance ?: synchronized(this) {
                 instance ?: Room.databaseBuilder(context.applicationContext, LocalDatabase::class.java, "stickers.db")
-                    .addMigrations(migration1To2, migration2To3, migration3To4, migration4To5, migration5To6)
+                    .addMigrations(migration1To2, migration2To3, migration3To4, migration4To5, migration5To6, migration6To7)
                     .allowMainThreadQueries()
                     .build()
                     .also { instance = it }

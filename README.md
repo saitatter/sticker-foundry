@@ -71,7 +71,7 @@ The server owns users, packs, stickers, metadata, and normalized media. Android 
 
 WhatsApp does not import arbitrary remote sticker URLs. It asks the sticker app's `ContentProvider` for pack metadata and sticker binary files. That is why the Android app must keep sticker files local and must declare an exported provider with the `com.whatsapp.sticker.READ` read permission. The import intent only starts the confirmation flow; WhatsApp still reads the pack through provider URIs.
 
-The static sticker constraints implemented here match WhatsApp's Android sticker app requirements: 3-30 stickers per pack, 512x512 WebP stickers, static sticker size <=100KB, tray icon 96x96 and <=50KB. Animated packs are deliberately out of scope for this starter.
+The sticker constraints implemented here match WhatsApp's Android sticker app requirements: 3-30 stickers per pack, 512x512 WebP stickers, static sticker size <=100KB, animated sticker size <=500KB, animated duration <=10 seconds with frames >=8ms, tray icon 96x96 and <=50KB. Packs are marked as static or animated because WhatsApp does not allow mixing both formats in one pack.
 
 References:
 
@@ -252,7 +252,7 @@ curl -L http://localhost:3000/api/packs/PACK_ID/export \
 - `tray_icon.webp`
 - one `.webp` file per sticker
 
-The generated `contents.json` uses WhatsApp's sticker pack fields, including `identifier`, `name`, `publisher`, `tray_image_file`, `image_data_version`, `animated_sticker_pack`, and per-sticker `image_file`, `emojis`, and `accessibility_text`.
+The generated `contents.json` uses WhatsApp's sticker pack fields, including `identifier`, `name`, `publisher`, `tray_image_file`, `image_data_version`, `animated_sticker_pack`, and per-sticker `image_file`, `emojis`, and `accessibility_text`. The `animated_sticker_pack` value comes from the pack's opt-in animated setting and is preserved by Android's Room cache and `ContentProvider`.
 
 ### 👥 Collaboration
 
@@ -384,6 +384,7 @@ The web app lives in `apps/web` and provides:
 - Sticker detail dialog with large preview and metadata editing.
 - Sticker comments for collaborator notes.
 - Pack-level approval toggle for reviewed exports.
+- Pack-level static/animated export toggle.
 - Mobile-focused web layout tweaks for quick phone edits.
 - Sticker image replacement.
 - Sticker image replacement from web UI.

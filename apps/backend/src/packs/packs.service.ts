@@ -26,6 +26,7 @@ type AccessPack = {
   teamId?: string | null;
   imageDataVersion?: string;
   isPublic?: boolean;
+  isAnimated?: boolean;
   _count?: { stickers: number };
   members?: Array<{ userId: string; role: PackRole }>;
   team?: { members?: Array<{ userId?: string; role: PackRole }> } | null;
@@ -54,6 +55,7 @@ export class PacksService {
         description: dto.description,
         isPublic: dto.isPublic ?? false,
         requiresApproval: dto.requiresApproval ?? false,
+        isAnimated: dto.isAnimated ?? false,
       },
     });
     await this.audit.record({ actorId: ownerId, action: 'pack.create', entityType: 'pack', entityId: pack.id });
@@ -358,6 +360,7 @@ export class PacksService {
         publisher: source.publisher,
         description: source.description,
         isPublic: false,
+        isAnimated: source.isAnimated,
         imageDataVersion: source.imageDataVersion,
         stickers: {
           create: source.stickers.map((sticker) => ({
@@ -417,6 +420,7 @@ export class PacksService {
         description: dto.description,
         isPublic: dto.isPublic,
         requiresApproval: dto.requiresApproval,
+        isAnimated: dto.isAnimated,
       },
     });
     await this.audit.record({ actorId: ownerId, action: 'pack.update', entityType: 'pack', entityId: id });
@@ -451,7 +455,7 @@ export class PacksService {
       throw new BadRequestException(`A pack can contain at most ${WHATSAPP_LIMITS.maxStickersPerPack} stickers`);
     }
 
-    const processed = await this.imageService.processSticker(file.buffer);
+    const processed = await this.imageService.processSticker(file.buffer, { animated: pack.isAnimated });
     await this.rejectDuplicateSticker(packId, processed.perceptualHash);
     await this.enforceStorageQuota(pack.ownerId, processed.sizeBytes);
     const fileName = `${uuidv4()}.webp`;
@@ -603,7 +607,7 @@ export class PacksService {
       throw new NotFoundException('Sticker not found');
     }
 
-    const processed = await this.imageService.processSticker(file.buffer);
+    const processed = await this.imageService.processSticker(file.buffer, { animated: pack.isAnimated });
     await this.rejectDuplicateSticker(packId, processed.perceptualHash, stickerId);
     const existingSize = typeof sticker.sizeBytes === 'number' ? sticker.sizeBytes : 0;
     await this.enforceStorageQuota(pack.ownerId, Math.max(0, processed.sizeBytes - existingSize));

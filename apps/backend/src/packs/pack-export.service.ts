@@ -15,6 +15,7 @@ type ExportPack = {
   name: string;
   publisher: string;
   requiresApproval: boolean;
+  isAnimated: boolean;
   imageDataVersion: string;
   stickers: Array<{
     fileName: string;
@@ -66,6 +67,7 @@ export class PackExportService {
       name: pack.name,
       publisher: pack.publisher,
       requiresApproval: pack.requiresApproval,
+      isAnimated: pack.isAnimated,
       imageDataVersion: pack.imageDataVersion,
       stickerCount,
       canExport,
@@ -107,7 +109,7 @@ export class PackExportService {
           tray_image_file: 'tray_icon.webp',
           image_data_version: pack.imageDataVersion,
           avoid_cache: false,
-          animated_sticker_pack: false,
+          animated_sticker_pack: pack.isAnimated,
           publisher_email: '',
           publisher_website: '',
           privacy_policy_website: '',
@@ -157,7 +159,7 @@ export class PackExportService {
 
   private async contentHash(pack: ExportPack & { stickers: Array<ExportPack['stickers'][number] & { sha256?: string }> }) {
     const hash = createHash('sha256');
-    hash.update(`${pack.id}:${pack.imageDataVersion}`);
+    hash.update(`${pack.id}:${pack.imageDataVersion}:${pack.isAnimated}`);
 
     try {
       const trayIcon = await readFile(join(this.packDirectory(pack.id), 'tray_icon.webp'));

@@ -27,6 +27,7 @@ type PackRecord = {
   description: string | null;
   isPublic: boolean;
   requiresApproval: boolean;
+  isAnimated: boolean;
   imageDataVersion: string;
   createdAt: Date;
   updatedAt: Date;
@@ -208,6 +209,7 @@ class InMemoryPrisma {
         description: data.description ?? null,
         isPublic: data.isPublic ?? false,
         requiresApproval: data.requiresApproval ?? false,
+        isAnimated: data.isAnimated ?? false,
         imageDataVersion: data.imageDataVersion ?? '1',
         createdAt: now,
         updatedAt: now,

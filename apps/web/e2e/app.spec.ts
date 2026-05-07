@@ -25,6 +25,7 @@ type Pack = {
   description?: string | null;
   isPublic: boolean;
   requiresApproval: boolean;
+  isAnimated: boolean;
   imageDataVersion: string;
   stickerCount: number;
   updatedAt: string;
@@ -94,6 +95,7 @@ function createMockState() {
       description: null,
       isPublic: false,
       requiresApproval: false,
+      isAnimated: false,
       imageDataVersion: '1',
       stickerCount: stickers.length,
       updatedAt: new Date().toISOString(),
@@ -131,7 +133,7 @@ async function mockApi(page: Page, state: ReturnType<typeof createMockState>) {
       return json(route, []);
     }
     if (method === 'POST' && path === '/packs') {
-      const body = request.postDataJSON() as { name: string; publisher: string; isPublic?: boolean };
+      const body = request.postDataJSON() as { name: string; publisher: string; isPublic?: boolean; isAnimated?: boolean };
       const pack: Pack = {
         id: `pack-${state.packs.length + 1}`,
         name: body.name,
@@ -139,6 +141,7 @@ async function mockApi(page: Page, state: ReturnType<typeof createMockState>) {
         description: null,
         isPublic: body.isPublic ?? false,
         requiresApproval: false,
+        isAnimated: body.isAnimated ?? false,
         imageDataVersion: '1',
         stickerCount: 0,
         updatedAt: new Date().toISOString(),
@@ -167,7 +170,7 @@ async function mockApi(page: Page, state: ReturnType<typeof createMockState>) {
             publisher: pack.publisher,
             tray_image_file: 'tray_icon.webp',
             image_data_version: pack.imageDataVersion,
-            animated_sticker_pack: false,
+            animated_sticker_pack: pack.isAnimated,
             stickers: pack.stickers?.map((sticker) => ({
               image_file: sticker.fileName,
               emojis: sticker.emojis,

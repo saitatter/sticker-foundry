@@ -34,4 +34,37 @@ describe(StickerImageService, () => {
       }),
     );
   });
+
+  it('uses the animated pipeline only for animated packs', async () => {
+    const frames = await Promise.all([
+      frameBuffer({ r: 255, g: 0, b: 0, alpha: 1 }),
+      frameBuffer({ r: 0, g: 0, b: 255, alpha: 1 }),
+    ]);
+    const animated = await sharp(frames, { join: { animated: true } }).webp({ delay: [100, 100] }).toBuffer();
+
+    await expect(service.processSticker(animated)).rejects.toBeInstanceOf(BadRequestException);
+
+    const processed = await service.processSticker(animated, { animated: true });
+    expect(processed.sizeBytes).toBeLessThanOrEqual(500 * 1024);
+    await expect(sharp(processed.bytes, { animated: true }).metadata()).resolves.toEqual(
+      expect.objectContaining({
+        format: 'webp',
+        pages: 2,
+        width: 512,
+      }),
+    );
+  });
 });
+
+function frameBuffer(background: sharp.Color) {
+  return sharp({
+    create: {
+      width: 64,
+      height: 64,
+      channels: 4,
+      background,
+    },
+  })
+    .png()
+    .toBuffer();
+}

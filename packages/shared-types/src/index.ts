@@ -35,6 +35,7 @@ export type PackDto = {
   description?: string | null;
   isPublic: boolean;
   requiresApproval: boolean;
+  isAnimated: boolean;
   teamId?: string | null;
   teamName?: string | null;
   imageDataVersion: string;
@@ -55,6 +56,7 @@ export type SyncPackDto = {
   description?: string | null;
   isPublic: boolean;
   requiresApproval: boolean;
+  isAnimated: boolean;
   isOwner: boolean;
   teamId?: string | null;
   teamName?: string | null;
@@ -90,6 +92,7 @@ export type PackManifestDto = {
   publisher: string;
   imageDataVersion: string;
   requiresApproval?: boolean;
+  isAnimated?: boolean;
   stickerCount: number;
   canExport: boolean;
   contentHash: string;

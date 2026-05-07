@@ -33,15 +33,13 @@ Goal: reduce the need for external image tools.
 
 Tasks:
 
-- Add outline/stroke and shadow controls.
-- Add transparent background preview.
-- Add duplicate detection with perceptual hashes.
-- Evaluate animated sticker support as a separate pipeline.
+- Validate animated sticker imports on real WhatsApp devices.
 
 Acceptance criteria:
 
 - Common sticker prep workflows are possible inside StickerFoundry.
 - Duplicate or near-duplicate uploads can be warned or blocked.
+- Static and animated pack metadata stays separate from upload through Android import.
 
 ## Milestone 3: Production Security
 
@@ -86,4 +84,4 @@ Acceptance criteria:
 - Android remains a cache and WhatsApp bridge.
 - `ContentProvider` is non-negotiable for WhatsApp integration because WhatsApp imports pack metadata and sticker files by querying the sticker app, not by reading remote URLs.
 - `imageDataVersion` remains for WhatsApp compatibility, while `contentHash` is preferred for app sync decisions.
-- Static stickers come first. Animated stickers should remain separate because their validation and processing rules differ.
+- Static and animated sticker packs remain separate because WhatsApp does not allow mixed packs and their validation rules differ.

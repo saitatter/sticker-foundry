@@ -10,12 +10,6 @@ This is the live feature backlog. It should only contain work that still needs t
 - Document tested Android/WhatsApp versions.
 - Add fixes for any provider compatibility issues discovered during real-device testing.
 
-## Sticker Workflow UX
-
-## Media Editing
-
-- Animated sticker support as a separate opt-in pipeline.
-
 ## Android
 
 - Better friendly error states for network failures and invalid server URLs.

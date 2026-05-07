@@ -87,6 +87,7 @@ export type Pack = {
   description?: string | null;
   isPublic: boolean;
   requiresApproval: boolean;
+  isAnimated: boolean;
   teamId?: string | null;
   teamName?: string | null;
   imageDataVersion: string;
@@ -162,6 +163,7 @@ export type CreatePackInput = {
   description?: string;
   isPublic: boolean;
   requiresApproval?: boolean;
+  isAnimated?: boolean;
   teamId?: string;
 };
 

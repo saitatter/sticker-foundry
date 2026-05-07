@@ -10,6 +10,7 @@ import {
   Eye,
   EyeOff,
   FileJson,
+  Film,
   Globe2,
   GripVertical,
   ImagePlus,
@@ -778,6 +779,7 @@ function PackCreateForm({
   const [publisher, setPublisher] = useState('');
   const [isPublic, setIsPublic] = useState(false);
   const [requiresApproval, setRequiresApproval] = useState(false);
+  const [isAnimated, setIsAnimated] = useState(false);
   const [teamId, setTeamId] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
@@ -785,11 +787,12 @@ function PackCreateForm({
     event.preventDefault();
     setSubmitting(true);
     try {
-      const pack = await api.createPack({ name, publisher, isPublic, requiresApproval, teamId: teamId || undefined });
+      const pack = await api.createPack({ name, publisher, isPublic, requiresApproval, isAnimated, teamId: teamId || undefined });
       setName('');
       setPublisher('');
       setIsPublic(false);
       setRequiresApproval(false);
+      setIsAnimated(false);
       setTeamId('');
       onCreated(pack);
     } catch (error) {
@@ -825,6 +828,10 @@ function PackCreateForm({
             type="checkbox"
           />
           Require approval
+        </label>
+        <label className="checkbox-row">
+          <input checked={isAnimated} onChange={(event) => setIsAnimated(event.target.checked)} type="checkbox" />
+          Animated pack
         </label>
         {teams.length > 0 ? (
           <label>
@@ -1216,6 +1223,12 @@ function PackList({
                 {pack.stickerCount >= 3 ? <CheckCircle2 size={13} /> : <AlertCircle size={13} />}
                 {pack.stickerCount}/30
               </span>
+              {pack.isAnimated ? (
+                <span className="status-pill pending">
+                  <Film size={13} />
+                  Animated
+                </span>
+              ) : null}
               {pack.role ? <span className="status-pill">{roleLabel(pack.role)}</span> : null}
             </span>
           </button>
@@ -1500,6 +1513,7 @@ function PackDetail({
       <div className="stats-grid">
         <Metric label="Stickers" value={`${stickers.length}/30`} />
         <Metric label="Export" value={`${exportStickerCount}/30`} />
+        <Metric label="Format" value={pack.isAnimated ? 'Animated' : 'Static'} />
         <Metric label="Role" value={roleLabel(pack.role)} />
         <Metric label="Version" value={pack.imageDataVersion} />
         <Metric label="Updated" value={new Date(pack.updatedAt).toLocaleDateString()} />
@@ -1509,6 +1523,7 @@ function PackDetail({
         stickerCount={exportStickerCount}
         canExport={canExport}
         requiresApproval={pack.requiresApproval}
+        isAnimated={pack.isAnimated}
       />
 
       {contentsPreview ? <pre className="contents-preview">{contentsPreview}</pre> : null}
@@ -1706,10 +1721,12 @@ function ExportReadiness({
   stickerCount,
   canExport,
   requiresApproval,
+  isAnimated,
 }: {
   stickerCount: number;
   canExport: boolean;
   requiresApproval: boolean;
+  isAnimated: boolean;
 }) {
   const missing = Math.max(0, 3 - stickerCount);
 
@@ -1721,8 +1738,8 @@ function ExportReadiness({
           <h3>{canExport ? 'WhatsApp export ready' : 'WhatsApp export blocked'}</h3>
           <p>
             {canExport
-              ? `${requiresApproval ? 'Approved stickers' : 'Ordered stickers'} are included in contents.json and the ZIP.`
-              : `${missing} more ${requiresApproval ? 'approved ' : ''}sticker${missing === 1 ? '' : 's'} needed.`}
+              ? `${requiresApproval ? 'Approved stickers' : 'Ordered stickers'} are included in the ${isAnimated ? 'animated' : 'static'} contents.json and ZIP.`
+              : `${missing} more ${requiresApproval ? 'approved ' : ''}sticker${missing === 1 ? '' : 's'} needed for this ${isAnimated ? 'animated' : 'static'} pack.`}
           </p>
         </div>
       </div>
@@ -1944,6 +1961,7 @@ function PackEditForm({
   const [description, setDescription] = useState(pack.description ?? '');
   const [isPublic, setIsPublic] = useState(pack.isPublic);
   const [requiresApproval, setRequiresApproval] = useState(pack.requiresApproval);
+  const [isAnimated, setIsAnimated] = useState(pack.isAnimated);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -1952,14 +1970,16 @@ function PackEditForm({
     setDescription(pack.description ?? '');
     setIsPublic(pack.isPublic);
     setRequiresApproval(pack.requiresApproval);
-  }, [pack.description, pack.isPublic, pack.name, pack.publisher, pack.requiresApproval]);
+    setIsAnimated(pack.isAnimated);
+  }, [pack.description, pack.isAnimated, pack.isPublic, pack.name, pack.publisher, pack.requiresApproval]);
 
   const dirty =
     name !== pack.name ||
     publisher !== pack.publisher ||
     description !== (pack.description ?? '') ||
     isPublic !== pack.isPublic ||
-    requiresApproval !== pack.requiresApproval;
+    requiresApproval !== pack.requiresApproval ||
+    isAnimated !== pack.isAnimated;
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -1971,6 +1991,7 @@ function PackEditForm({
         description,
         isPublic,
         requiresApproval,
+        isAnimated,
       });
       await onChanged('Pack updated');
     } catch (error) {
@@ -2010,6 +2031,10 @@ function PackEditForm({
             type="checkbox"
           />
           Require approval
+        </label>
+        <label className="checkbox-row edit-toggle">
+          <input checked={isAnimated} onChange={(event) => setIsAnimated(event.target.checked)} type="checkbox" />
+          Animated pack
         </label>
         <button className="secondary-button" disabled={!dirty || saving} type="submit">
           <Edit3 size={17} />

@@ -35,7 +35,7 @@ export class SyncService {
         const updatedAt = pack.updatedAt.toISOString();
         const canExport =
           stickerCount >= WHATSAPP_LIMITS.minStickersPerPack && stickerCount <= WHATSAPP_LIMITS.maxStickersPerPack;
-        const contentHash = this.contentHash(pack.id, pack.imageDataVersion, exportStickers);
+        const contentHash = this.contentHash(pack.id, pack.imageDataVersion, pack.isAnimated, exportStickers);
 
         const role =
           pack.ownerId === userId
@@ -49,6 +49,7 @@ export class SyncService {
           description: pack.description,
           isPublic: pack.isPublic,
           requiresApproval: pack.requiresApproval,
+          isAnimated: pack.isAnimated,
           isOwner: pack.ownerId === userId,
           role,
           teamId: pack.teamId,
@@ -60,7 +61,7 @@ export class SyncService {
           canExport,
           updatedAt,
           contentHash,
-          syncHash: this.syncHash(pack.id, pack.imageDataVersion, stickerCount, updatedAt),
+          syncHash: this.syncHash(pack.id, pack.imageDataVersion, stickerCount, updatedAt, pack.isAnimated),
           exportPath: `/packs/${pack.id}/export`,
           trayIconPath: `/packs/${pack.id}/tray-icon`,
         };
@@ -68,13 +69,13 @@ export class SyncService {
     };
   }
 
-  private syncHash(packId: string, imageDataVersion: string, stickerCount: number, updatedAt: string) {
-    return createHash('sha256').update(`${packId}:${imageDataVersion}:${stickerCount}:${updatedAt}`).digest('hex');
+  private syncHash(packId: string, imageDataVersion: string, stickerCount: number, updatedAt: string, isAnimated: boolean) {
+    return createHash('sha256').update(`${packId}:${imageDataVersion}:${stickerCount}:${updatedAt}:${isAnimated}`).digest('hex');
   }
 
-  private contentHash(packId: string, imageDataVersion: string, stickers: Array<{ fileName: string; sha256: string }>) {
+  private contentHash(packId: string, imageDataVersion: string, isAnimated: boolean, stickers: Array<{ fileName: string; sha256: string }>) {
     const hash = createHash('sha256');
-    hash.update(`${packId}:${imageDataVersion}`);
+    hash.update(`${packId}:${imageDataVersion}:${isAnimated}`);
     for (const sticker of stickers) {
       hash.update(`${sticker.fileName}:${sticker.sha256}`);
     }

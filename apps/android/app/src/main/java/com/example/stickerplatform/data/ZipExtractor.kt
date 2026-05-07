@@ -45,6 +45,7 @@ class ZipExtractor(
                 syncHash = "",
                 localPath = packDir.absolutePath,
                 isPublic = true,
+                isAnimated = pack.animatedStickerPack == true,
                 isOwner = false,
                 teamId = null,
                 teamName = null,
