@@ -25,6 +25,7 @@ This is the live feature backlog. Items already shipped are kept briefly at the 
 - Stronger upload content validation.
 - Pack collaboration roles, invite creation/acceptance/revocation, member listing/removal, role editing, and role-aware web/Android controls.
 - Web sticker multi-select with bulk delete, bulk emoji apply, and copy/move to another pack.
+- Playwright smoke tests for login, pack creation, upload, contents preview, collaboration panel visibility, and bulk copy workflow.
 - Compose `.env.example` and reverse proxy examples.
 - Dependabot and GitHub issue templates.
 - Metrics endpoint for basic monitoring.
@@ -39,8 +40,6 @@ This is the live feature backlog. Items already shipped are kept briefly at the 
 
 ## Next: Quality Gates
 
-- Playwright smoke tests for login, pack creation, upload, contents preview, export readiness, and collaboration panel visibility.
-- Stable web test selectors for smoke-test-heavy surfaces.
 - Android lint in CI.
 - Document local Android build requirements: JDK 17 and Android SDK env vars.
 - Add a CI job or documented command for backend e2e tests.
@@ -101,7 +100,6 @@ This is the live feature backlog. Items already shipped are kept briefly at the 
 - Admin settings page for registration mode, quotas, and instance branding.
 - Public pack browser for visible packs.
 - Keyboard shortcuts for review and ordering workflows.
-- Playwright smoke-test-friendly selectors.
 - Better responsive layout for dense sticker grids on small screens.
 
 ## Sync And Reliability
@@ -125,6 +123,5 @@ This is the live feature backlog. Items already shipped are kept briefly at the 
 
 - Web lint and format scripts.
 - Android lint in CI.
-- Playwright smoke tests for the web UI.
 - Release notes polish with screenshots or APK install notes.
 - Signed Android release builds later, once package identity is finalized.

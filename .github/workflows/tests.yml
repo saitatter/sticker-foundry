@@ -35,6 +35,12 @@ jobs:
       - name: Build web
         run: npm run build:web
 
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Test web smoke flows
+        run: npm run test:web
+
       - name: Build shared types
         run: npm --workspace packages/shared-types run build
 
