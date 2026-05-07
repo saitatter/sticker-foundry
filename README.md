@@ -26,6 +26,7 @@ StickerFoundry is a self-hosted collaborative WhatsApp sticker pack manager, sha
 - Web collaboration panel for owner-managed invite creation, invite revocation, team member management, member visibility, member removal, and role changes.
 - Collaboration invite expiration controls and accepted/pending/expired invite filters.
 - Web sticker multi-select with bulk delete, bulk emoji apply, and copy/move to another pack.
+- Individual sticker copy/move controls from tile and detail views.
 - Bulk accessibility text generation for selected stickers.
 - Per-sticker review status (`Pending`, `Approved`, `Needs work`) in the web editor.
 - Per-sticker collaborator comments from the web editor.

@@ -994,6 +994,13 @@ select:focus {
   gap: 8px;
 }
 
+.sticker-transfer-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: end;
+  gap: 8px;
+}
+
 .sticker-edit-form input,
 .sticker-edit-form select {
   height: 36px;
@@ -1096,6 +1103,10 @@ select:focus {
 }
 
 .sticker-detail-layout .form-grid {
+  grid-column: 1 / -1;
+}
+
+.sticker-detail-layout .sticker-transfer-form {
   grid-column: 1 / -1;
 }
 
@@ -1232,6 +1243,7 @@ select:focus {
   .stats-grid,
   .collaboration-grid,
   .sticker-detail-layout,
+  .sticker-transfer-form,
   .bulk-toolbar,
   .invite-form {
     grid-template-columns: 1fr 1fr;
@@ -1274,6 +1286,7 @@ select:focus {
   .collaboration-grid,
   .sticker-detail-layout,
   .sticker-detail-meta,
+  .sticker-transfer-form,
   .bulk-toolbar,
   .invite-form,
   .image-edit-controls {

@@ -17,6 +17,7 @@ import {
   Lock,
   LogOut,
   MessageSquare,
+  MoveRight,
   Plus,
   RefreshCw,
   RotateCcw,
@@ -1517,6 +1518,7 @@ function PackDetail({
                 api={api}
                 key={sticker.id}
                 packId={pack.id}
+                transferTargets={transferTargets}
                 sticker={sticker}
                 version={pack.imageDataVersion}
                 canEdit={canEdit}
@@ -2064,6 +2066,7 @@ function UploadPanel({
 function StickerTile({
   api,
   packId,
+  transferTargets,
   sticker,
   version,
   canEdit,
@@ -2083,6 +2086,7 @@ function StickerTile({
 }: {
   api: StickerFoundryApi;
   packId: string;
+  transferTargets: Pack[];
   sticker: Sticker;
   version: string;
   canEdit: boolean;
@@ -2114,12 +2118,17 @@ function StickerTile({
   const [commentsLoading, setCommentsLoading] = useState(false);
   const [commentSaving, setCommentSaving] = useState(false);
   const [detailOpen, setDetailOpen] = useState(false);
+  const [transferTargetPackId, setTransferTargetPackId] = useState('');
 
   useEffect(() => {
     setEmojis(sticker.emojis.join(','));
     setAccessibilityText(sticker.accessibilityText ?? '');
     setReviewStatus(sticker.reviewStatus);
   }, [sticker.accessibilityText, sticker.emojis, sticker.reviewStatus]);
+
+  useEffect(() => {
+    setTransferTargetPackId('');
+  }, [packId, sticker.id]);
 
   useEffect(() => {
     let alive = true;
@@ -2225,6 +2234,48 @@ function StickerTile({
     } catch (error) {
       onError(error);
     }
+  }
+
+  async function transferSticker(mode: 'copy' | 'move') {
+    if (!transferTargetPackId) return;
+    try {
+      if (mode === 'copy') {
+        await api.copyStickers(packId, transferTargetPackId, [sticker.id]);
+      } else {
+        await api.moveStickers(packId, transferTargetPackId, [sticker.id]);
+      }
+      setTransferTargetPackId('');
+      await onChanged();
+    } catch (error) {
+      onError(error);
+    }
+  }
+
+  function renderTransferControls() {
+    if (!canEdit || transferTargets.length === 0) return null;
+    return (
+      <div className="sticker-transfer-form">
+        <label>
+          Target pack
+          <select value={transferTargetPackId} onChange={(event) => setTransferTargetPackId(event.target.value)}>
+            <option value="">Choose pack</option>
+            {transferTargets.map((target) => (
+              <option key={target.id} value={target.id}>
+                {target.name} ({target.stickerCount}/30)
+              </option>
+            ))}
+          </select>
+        </label>
+        <button className="secondary-button" disabled={!transferTargetPackId} onClick={() => void transferSticker('copy')} type="button">
+          <Copy size={16} />
+          Copy
+        </button>
+        <button className="secondary-button" disabled={!transferTargetPackId} onClick={() => void transferSticker('move')} type="button">
+          <MoveRight size={16} />
+          Move
+        </button>
+      </div>
+    );
   }
 
   const dirty =
@@ -2343,6 +2394,7 @@ function StickerTile({
           {replacementFile ? (
             <ImageEditControls file={replacementFile} options={replacementEditOptions} onChange={setReplacementEditOptions} compact />
           ) : null}
+          {renderTransferControls()}
           <IconButton label="Delete sticker" onClick={() => void deleteSticker()} danger>
             <Trash2 size={16} />
           </IconButton>
@@ -2398,6 +2450,7 @@ function StickerTile({
                   </button>
                 </form>
               ) : null}
+              {renderTransferControls()}
             </div>
           </div>
         </div>
