@@ -292,6 +292,17 @@ buildConfigField("String", "API_BASE_URL", "\"http://192.168.1.50:3000/api/\"")
 
 The Android app also has a Settings dialog where testers can change the API URL, log out, inspect cache size, and clear the local pack cache without rebuilding the APK.
 
+Local Android validation on Windows needs JDK 17 and a valid Android SDK:
+
+```powershell
+$env:JAVA_HOME='C:\Program Files (x86)\Android\openjdk\jdk-17.0.14'
+$env:ANDROID_HOME='C:\Program Files (x86)\Android\android-sdk'
+$env:ANDROID_SDK_ROOT=$env:ANDROID_HOME
+$env:Path="$env:JAVA_HOME\bin;$env:Path"
+cd apps/android
+.\gradlew.bat :app:lintDebug :app:assembleDebug
+```
+
 User flow:
 
 1. Login in the app.

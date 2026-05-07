@@ -60,6 +60,10 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Build debug APK
+      - name: Lint Android debug
+        working-directory: apps/android
+        run: ./gradlew :app:lintDebug
+
+      - name: Build Android debug APK
         working-directory: apps/android
         run: ./gradlew :app:assembleDebug
