@@ -13,7 +13,6 @@ This backlog intentionally contains only work that is not implemented yet or can
 ## Sticker Editing / AI
 
 - Choose and package a first-party ONNX background-removal model/runtime for turnkey self-hosted AI mode.
-- Add admin/web status for whether `BACKGROUND_REMOVAL_COMMAND` or the packaged AI runtime is available.
 - Add Android parity for the advanced web editor tools that are currently web-only.
 
 ## Deployment And Ops

@@ -69,7 +69,7 @@ Tasks:
 
 - Choose the default model/runtime after testing quality, CPU/RAM use, and Docker image size.
 - Add packaging docs or a companion worker image for the selected ONNX/RMBG/U2-Net/MODNet style model.
-- Add a health/status indicator that tells web users whether AI background removal is available.
+- Keep the admin/web status indicator aligned with the packaged runtime.
 - Keep threshold fallback as the default degraded mode.
 
 Acceptance criteria:
