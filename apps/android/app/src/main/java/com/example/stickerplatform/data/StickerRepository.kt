@@ -162,8 +162,12 @@ class StickerRepository private constructor(context: Context) {
             error("Pack is not exportable yet")
         }
 
-        val bytes = withAuthRetry { bearer -> api().exportPack(bearer, remote.id).bytes() }
-        val extracted = extractor.extract(remote.id, bytes)
+        val zipFile = downloadZipToTemp(remote.id)
+        val extracted = try {
+            extractor.extract(remote.id, zipFile)
+        } finally {
+            zipFile.delete()
+        }
         db.stickerDao().upsertPack(
             extracted.entity.copy(
                 isPublic = remote.isPublic,
@@ -193,6 +197,24 @@ class StickerRepository private constructor(context: Context) {
             throw HttpException(response)
         }
         return ManifestLookup(notModified = false, manifest = response.body() ?: error("Manifest response was empty"))
+    }
+
+    private suspend fun downloadZipToTemp(packId: String): File {
+        val downloadDir = File(appContext.cacheDir, "downloads").apply { mkdirs() }
+        val zipFile = File(downloadDir, "$packId-${System.currentTimeMillis()}.zip.tmp")
+        try {
+            withAuthRetry { bearer ->
+                api().exportPack(bearer, packId).use { body ->
+                    body.byteStream().use { input ->
+                        zipFile.outputStream().use { output -> input.copyTo(output) }
+                    }
+                }
+            }
+            return zipFile
+        } catch (error: Throwable) {
+            zipFile.delete()
+            throw error
+        }
     }
 
     private fun api(): StickerApi {
