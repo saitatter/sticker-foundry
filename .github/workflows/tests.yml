@@ -32,6 +32,9 @@ jobs:
       - name: Test backend
         run: npm run test:backend
 
+      - name: Test backend e2e
+        run: npm run test:e2e:backend
+
       - name: Build web
         run: npm run build:web
 

@@ -10,10 +10,6 @@ This is the live feature backlog. It should only contain work that still needs t
 - Document tested Android/WhatsApp versions.
 - Add fixes for any provider compatibility issues discovered during real-device testing.
 
-## Next: Quality Gates
-
-- Add a CI job or documented command for backend e2e tests.
-
 ## Collaboration
 
 - Optional email matching for invite acceptance.

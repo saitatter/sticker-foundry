@@ -140,10 +140,11 @@ CORS_ORIGIN=https://stickers.example.com,https://admin.example.com
 
 ```bash
 npm run test:backend
+npm run test:e2e:backend
 ```
 
 The backend test suite covers pack/sticker business rules, sticker ordering, and WhatsApp export metadata.
-It also includes an HTTP e2e flow for register, create pack, upload stickers, manifest ETags, ZIP export, and `contents.json` parsing.
+The dedicated e2e command runs the HTTP flow for register, create pack, upload stickers, manifest ETags, ZIP export, admin settings, audit log export, and `contents.json` parsing.
 
 ### 🧪 Web smoke tests
 

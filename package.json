@@ -19,6 +19,7 @@
     "prisma:migrate": "npm --workspace apps/backend run prisma:migrate",
     "prisma:seed": "npm --workspace apps/backend run prisma:seed",
     "test:backend": "npm --workspace apps/backend run test",
+    "test:e2e:backend": "npm --workspace apps/backend run test:e2e",
     "test:web": "playwright test",
     "build:shared-types": "npm --workspace packages/shared-types run build",
     "release:dry-run": "semantic-release --dry-run"
