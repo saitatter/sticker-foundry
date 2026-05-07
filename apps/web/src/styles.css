@@ -881,6 +881,7 @@ select:focus {
   position: relative;
   display: grid;
   gap: 10px;
+  min-width: 0;
   padding: 10px;
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -1002,6 +1003,13 @@ select:focus {
   gap: 8px;
   color: var(--muted);
   font-size: 12px;
+}
+
+.sticker-meta span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .sticker-edit-form {
@@ -1412,12 +1420,23 @@ select:focus {
   }
 
   .sticker-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 10px;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 8px;
   }
 
   .sticker-tile {
+    gap: 8px;
     padding: 8px;
+  }
+
+  .sticker-tile .secondary-button,
+  .sticker-tile .icon-button {
+    min-width: 0;
+  }
+
+  .sticker-preview-button {
+    justify-self: center;
+    width: min(100%, 180px);
   }
 
   .sticker-meta,
@@ -1457,7 +1476,7 @@ select:focus {
 
 @media (max-width: 420px) {
   .sticker-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   }
 
   .detail-actions,

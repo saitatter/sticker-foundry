@@ -10,10 +10,6 @@ This is the live feature backlog. It should only contain work that still needs t
 - Document tested Android/WhatsApp versions.
 - Add fixes for any provider compatibility issues discovered during real-device testing.
 
-## Web App
-
-- Better responsive layout for dense sticker grids on small screens.
-
 ## Sync And Reliability
 
 - Use manifest/ETag from Android before ZIP download.

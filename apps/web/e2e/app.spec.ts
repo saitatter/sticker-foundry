@@ -53,6 +53,10 @@ test('covers core web sticker workflows with mocked API', async ({ page }) => {
   await expect(page.locator('.sticker-tile').first()).toContainText('Needs work');
   await page.keyboard.press('Shift+ArrowDown');
   await expect.poll(() => state.packs[0].stickers?.[1]?.id).toBe('sticker-1');
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(page.locator('.sticker-grid')).toBeVisible();
+  await expect.poll(() => stickerGridColumnCount(page)).toBeGreaterThanOrEqual(2);
+  await page.setViewportSize({ width: 1280, height: 720 });
 
   await page.getByRole('button', { name: 'Preview JSON' }).click();
   await expect(page.locator('.contents-preview')).toContainText('sticker_packs');
@@ -279,4 +283,8 @@ async function json(route: Route, body: unknown, status = 200) {
     contentType: 'application/json',
     body: JSON.stringify(body),
   });
+}
+
+async function stickerGridColumnCount(page: Page) {
+  return page.locator('.sticker-grid').evaluate((element) => getComputedStyle(element).gridTemplateColumns.split(' ').length);
 }
