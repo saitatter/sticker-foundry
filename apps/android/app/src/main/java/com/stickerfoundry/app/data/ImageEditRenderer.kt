@@ -164,6 +164,4 @@ object ImageEditRenderer {
         matrix.postConcat(contrastMatrix)
         return matrix
     }
-
-    private fun Int.floorMod(divisor: Int): Int = ((this % divisor) + divisor) % divisor
 }

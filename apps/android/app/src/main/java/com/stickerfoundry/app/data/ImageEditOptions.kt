@@ -68,5 +68,3 @@ fun ImageEditOptions.hasBrushEdits(): Boolean =
 
 fun ImageEditOptions.hasEdits(): Boolean =
     hasGeometryEdits() || hasColorEdits() || hasTextEdit() || hasBrushEdits()
-
-private fun Int.floorMod(divisor: Int): Int = ((this % divisor) + divisor) % divisor
