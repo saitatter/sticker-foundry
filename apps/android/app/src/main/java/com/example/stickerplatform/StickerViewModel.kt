@@ -108,6 +108,17 @@ class StickerViewModel(
         }
     }
 
+    fun clearPackCache(packId: String) {
+        viewModelScope.launch {
+            runCatching { repository.clearPackCache(packId) }
+                .onSuccess {
+                    refreshCacheUsage()
+                    setInfo("Pack cache cleared")
+                }
+                .onFailure { setError(it, "Pack cache cleanup failed") }
+        }
+    }
+
     fun uploadSticker(packId: String, uri: Uri, options: ImageEditOptions) {
         viewModelScope.launch {
             setInfo("Uploading sticker")

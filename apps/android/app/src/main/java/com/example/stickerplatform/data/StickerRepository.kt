@@ -112,6 +112,10 @@ class StickerRepository private constructor(context: Context) {
         packsDirectory().deleteRecursively()
     }
 
+    suspend fun clearPackCache(packId: String) = withContext(Dispatchers.IO) {
+        deleteLocalPack(packId)
+    }
+
     private suspend fun deleteLocalPack(packId: String) {
         db.stickerDao().deletePack(packId)
         File(packsDirectory(), packId).deleteRecursively()

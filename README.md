@@ -333,7 +333,7 @@ For a physical phone, change `API_BASE_URL` in `apps/android/app/build.gradle.kt
 buildConfigField("String", "API_BASE_URL", "\"http://192.168.1.50:3000/api/\"")
 ```
 
-The Android app also has a Settings dialog where testers can change and validate the API URL, log out, inspect cache size, and clear the local pack cache without rebuilding the APK. Each pack can also be resynced manually from its card. Network, HTTP, and invalid URL failures are surfaced as friendly status messages.
+The Android app also has a Settings dialog where testers can change and validate the API URL, log out, inspect cache size, and clear the local cache without rebuilding the APK. Each pack can also be resynced manually or removed from the local cache from its card. Network, HTTP, and invalid URL failures are surfaced as friendly status messages.
 
 Local Android validation on Windows needs JDK 17 and a valid Android SDK:
 

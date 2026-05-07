@@ -120,6 +120,7 @@ private fun StickerApp(viewModel: StickerViewModel = viewModel(factory = Sticker
                         onAdd = { WhatsAppStickerLauncher.addPack(context, pack) },
                         onAddBusiness = { WhatsAppStickerLauncher.addPackToBusiness(context, pack) },
                         onResync = { viewModel.syncPack(pack.id) },
+                        onClearLocal = { viewModel.clearPackCache(pack.id) },
                         onUploadSticker = {
                             stickerUploadPackId = pack.id
                             stickerPicker.launch("image/*")
@@ -258,6 +259,7 @@ private fun PackRow(
     onAdd: () -> Unit,
     onAddBusiness: () -> Unit,
     onResync: () -> Unit,
+    onClearLocal: () -> Unit,
     onUploadSticker: () -> Unit,
     onReplaceTrayIcon: () -> Unit,
 ) {
@@ -302,6 +304,9 @@ private fun PackRow(
                 }
                 Button(onClick = onResync) {
                     Text("Resync")
+                }
+                TextButton(onClick = onClearLocal) {
+                    Text("Clear local")
                 }
             }
             if (pack.stickerCount < 3) {
