@@ -2,6 +2,7 @@ package com.example.stickerplatform.data
 
 import okhttp3.ResponseBody
 import okhttp3.MultipartBody
+import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.GET
 import retrofit2.http.Header
@@ -49,4 +50,11 @@ interface StickerApi {
         @Header("Authorization") bearerToken: String,
         @Path("id") packId: String,
     ): ResponseBody
+
+    @GET("packs/{id}/manifest")
+    suspend fun packManifest(
+        @Header("Authorization") bearerToken: String,
+        @Path("id") packId: String,
+        @Header("If-None-Match") ifNoneMatch: String? = null,
+    ): Response<PackManifestDto>
 }

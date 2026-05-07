@@ -64,6 +64,20 @@ data class SyncPackDto(
     val trayIconPath: String,
 )
 
+data class PackManifestDto(
+    val id: String,
+    val name: String,
+    val publisher: String,
+    val requiresApproval: Boolean,
+    val isAnimated: Boolean = false,
+    val imageDataVersion: String,
+    val stickerCount: Int,
+    val canExport: Boolean,
+    val contentHash: String,
+    val exportPath: String,
+    val trayIconPath: String,
+)
+
 data class ContentsJson(
     @Json(name = "sticker_packs") val stickerPacks: List<StickerPackJson>,
 )

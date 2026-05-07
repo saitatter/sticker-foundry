@@ -12,7 +12,6 @@ This is the live feature backlog. It should only contain work that still needs t
 
 ## Sync And Reliability
 
-- Use manifest/ETag from Android before ZIP download.
 - Resumable or retry-safe Android downloads.
 - Track local extraction status in Room.
 - Export cache on server for unchanged packs.

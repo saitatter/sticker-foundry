@@ -145,7 +145,23 @@ class StickerRepository private constructor(context: Context) {
     }
 
     private suspend fun downloadAndCache(remote: SyncPackDto) {
-        val remoteSyncKey = remote.contentHash ?: remote.syncHash
+        val local = db.stickerDao().getPack(remote.id)
+        val manifestLookup = fetchManifest(remote.id, local?.syncHash)
+        val manifest = manifestLookup.manifest
+        val remoteSyncKey = manifest?.contentHash ?: remote.contentHash ?: remote.syncHash
+        if (manifestLookup.notModified && local != null) {
+            updateCachedPackMetadata(local, remote)
+            return
+        }
+        if (local?.syncHash == remoteSyncKey) {
+            updateCachedPackMetadata(local, remote)
+            return
+        }
+        if (manifest?.canExport == false) {
+            deleteLocalPack(remote.id)
+            error("Pack is not exportable yet")
+        }
+
         val bytes = withAuthRetry { bearer -> api().exportPack(bearer, remote.id).bytes() }
         val extracted = extractor.extract(remote.id, bytes)
         db.stickerDao().upsertPack(
@@ -158,13 +174,25 @@ class StickerRepository private constructor(context: Context) {
                 role = remote.role ?: if (remote.isOwner) "OWNER" else "VIEWER",
                 canEdit = remote.canEdit ?: remote.isOwner,
                 canManage = remote.canManage ?: remote.isOwner,
-                stickerCount = remote.stickerCount,
+                stickerCount = manifest?.stickerCount ?: remote.stickerCount,
                 syncHash = remoteSyncKey,
                 updatedAt = remote.updatedAt,
             ),
         )
         db.stickerDao().deleteStickers(extracted.entity.id)
         db.stickerDao().upsertStickers(extracted.stickers)
+    }
+
+    private suspend fun fetchManifest(packId: String, localSyncHash: String?): ManifestLookup {
+        val ifNoneMatch = localSyncHash?.takeIf { it.isNotBlank() }?.let { "\"$it\"" }
+        val response = withAuthRetry { bearer -> api().packManifest(bearer, packId, ifNoneMatch) }
+        if (response.code() == 304) {
+            return ManifestLookup(notModified = true, manifest = null)
+        }
+        if (!response.isSuccessful) {
+            throw HttpException(response)
+        }
+        return ManifestLookup(notModified = false, manifest = response.body() ?: error("Manifest response was empty"))
     }
 
     private fun api(): StickerApi {
@@ -286,3 +314,8 @@ class StickerRepository private constructor(context: Context) {
             }
     }
 }
+
+private data class ManifestLookup(
+    val notModified: Boolean,
+    val manifest: PackManifestDto?,
+)
