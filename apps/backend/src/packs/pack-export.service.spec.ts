@@ -3,6 +3,7 @@ import { mkdir, mkdtemp, rm, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { PackExportService } from './pack-export.service';
+import { PackStorageService } from './pack-storage.service';
 
 function createArchive() {
   return {
@@ -30,7 +31,8 @@ describe(PackExportService, () => {
     const config = {
       get: jest.fn((_key: string, fallback: string) => dataDir ?? fallback),
     };
-    const service = new PackExportService(prisma as never, config as never);
+    const storage = new PackStorageService(config as never);
+    const service = new PackExportService(prisma as never, storage);
     return { service, prisma };
   }
 
@@ -73,7 +75,6 @@ describe(PackExportService, () => {
       where: { id: pack.id },
       include: { stickers: { orderBy: [{ position: 'asc' }, { createdAt: 'asc' }] } },
     });
-    expect(archive.file).toHaveBeenCalledWith(join(packDir, 'tray_icon.webp'), { name: 'tray_icon.webp' });
     expect(archive.append).toHaveBeenNthCalledWith(1, expect.any(String), { name: 'contents.json' });
 
     const contents = JSON.parse(archive.append.mock.calls[0][0]);
@@ -103,9 +104,10 @@ describe(PackExportService, () => {
         accessibility_text: 'third sticker',
       },
     ]);
-    expect(archive.append).toHaveBeenNthCalledWith(2, expect.anything(), { name: 'first.webp' });
-    expect(archive.append).toHaveBeenNthCalledWith(3, expect.anything(), { name: 'second.webp' });
-    expect(archive.append).toHaveBeenNthCalledWith(4, expect.anything(), { name: 'third.webp' });
+    expect(archive.append).toHaveBeenNthCalledWith(2, expect.anything(), { name: 'tray_icon.webp' });
+    expect(archive.append).toHaveBeenNthCalledWith(3, expect.anything(), { name: 'first.webp' });
+    expect(archive.append).toHaveBeenNthCalledWith(4, expect.anything(), { name: 'second.webp' });
+    expect(archive.append).toHaveBeenNthCalledWith(5, expect.anything(), { name: 'third.webp' });
   });
 
   it('rejects exports with fewer than the WhatsApp minimum sticker count', async () => {
@@ -153,7 +155,7 @@ describe(PackExportService, () => {
       'three.webp',
       'five.webp',
     ]);
-    expect(archive.append).toHaveBeenCalledTimes(4);
+    expect(archive.append).toHaveBeenCalledTimes(5);
   });
 
   it('builds a manifest with a stable content hash and export paths', async () => {

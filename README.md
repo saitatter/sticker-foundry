@@ -153,6 +153,8 @@ Upload safety limits reject oversized image bombs before processing. Tune `UPLOA
 
 Media processing runs through a backend queue to keep Sharp transforms bounded under load. Tune `MEDIA_QUEUE_CONCURRENCY` and `MEDIA_QUEUE_MAX_WAITING` for your CPU and expected upload volume.
 
+File storage defaults to local disk under `/data/packs/{pack_id}`. Set `STORAGE_DRIVER=s3` plus `S3_BUCKET`, `S3_REGION`, optional `S3_ENDPOINT`, `S3_PREFIX`, `S3_FORCE_PATH_STYLE`, `S3_ACCESS_KEY_ID`, and `S3_SECRET_ACCESS_KEY` to use an S3-compatible backend such as MinIO or R2.
+
 CORS is open by default for local development. For production, set `CORS_ORIGIN` to a comma-separated allowlist, for example:
 
 ```bash

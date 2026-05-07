@@ -14,7 +14,6 @@ This is the live feature backlog. It should only contain work that still needs t
 
 ## Backend
 
-- Optional S3-compatible storage backend.
 - Server-side pack export cache invalidated by `imageDataVersion`.
 
 ## Web App

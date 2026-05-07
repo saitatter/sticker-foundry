@@ -118,10 +118,10 @@ export class PacksController {
 
   @Get(':id/tray-icon')
   async trayIcon(@CurrentUser() user: RequestUser, @Param('id') id: string, @Res() response: Response) {
-    const filePath = await this.packsService.getTrayIconFilePath(user.sub, id);
+    const stream = await this.packsService.getTrayIconFilePath(user.sub, id);
     response.setHeader('Content-Type', 'image/webp');
     response.setHeader('Cache-Control', 'private, max-age=300');
-    return response.sendFile(filePath);
+    return stream.pipe(response);
   }
 
   @Post(':id/tray-icon')
@@ -144,7 +144,7 @@ export class PacksController {
     const file = await this.packsService.getStickerFilePath(user.sub, id, stickerId);
     response.setHeader('Content-Type', 'image/webp');
     response.setHeader('Cache-Control', 'private, max-age=300');
-    return response.sendFile(file.path);
+    return file.stream.pipe(response);
   }
 
   @Put(':id/stickers/:stickerId/file')

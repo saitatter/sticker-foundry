@@ -1,12 +1,9 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import archiver = require('archiver');
 import { createHash } from 'crypto';
-import { createReadStream } from 'fs';
-import { mkdir, readFile } from 'fs/promises';
-import { join } from 'path';
 import { StickerReviewStatus } from '@prisma/client';
 import { PrismaService } from '../prisma.service';
+import { PackStorageService } from './pack-storage.service';
 import { DEFAULT_STICKER_EMOJIS, WHATSAPP_LIMITS } from './whatsapp-constraints';
 
 type Archive = archiver.Archiver;
@@ -29,20 +26,17 @@ type ExportPack = {
 export class PackExportService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly config: ConfigService,
+    private readonly storage: PackStorageService,
   ) {}
 
   async buildZip(packId: string, archive: Archive) {
     const pack = await this.loadValidExportPack(packId);
 
-    const packDir = this.packDirectory(pack.id);
-    await mkdir(packDir, { recursive: true });
-
     archive.append(JSON.stringify(this.contentsForPack(pack), null, 2), { name: 'contents.json' });
-    archive.file(join(packDir, 'tray_icon.webp'), { name: 'tray_icon.webp' });
+    archive.append(await this.storage.readStream(pack.id, 'tray_icon.webp'), { name: 'tray_icon.webp' });
 
     for (const sticker of pack.stickers) {
-      archive.append(createReadStream(join(packDir, sticker.fileName)), { name: sticker.fileName });
+      archive.append(await this.storage.readStream(pack.id, sticker.fileName), { name: sticker.fileName });
     }
   }
 
@@ -93,8 +87,7 @@ export class PackExportService {
   }
 
   packDirectory(packId: string) {
-    const dataDir = this.config.get<string>('DATA_DIR', './data');
-    return join(dataDir, 'packs', packId);
+    return this.storage.packDirectory(packId);
   }
 
   private contentsForPack(pack: ExportPack) {
@@ -162,7 +155,7 @@ export class PackExportService {
     hash.update(`${pack.id}:${pack.imageDataVersion}:${pack.isAnimated}`);
 
     try {
-      const trayIcon = await readFile(join(this.packDirectory(pack.id), 'tray_icon.webp'));
+      const trayIcon = await this.storage.readBuffer(pack.id, 'tray_icon.webp');
       hash.update(trayIcon);
     } catch {
       hash.update('missing-tray-icon');

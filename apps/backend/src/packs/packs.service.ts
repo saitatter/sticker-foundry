@@ -2,8 +2,6 @@ import { BadRequestException, ForbiddenException, Injectable, NotFoundException 
 import { ConfigService } from '@nestjs/config';
 import { PackRole, StickerReviewStatus } from '@prisma/client';
 import { randomBytes } from 'crypto';
-import { cp, mkdir, rm } from 'fs/promises';
-import { join, resolve } from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import { AuditService } from '../audit/audit.service';
 import { PrismaService } from '../prisma.service';
@@ -17,7 +15,7 @@ import { UpdatePackDto } from './dto/update-pack.dto';
 import { UpdateStickerDto } from './dto/update-sticker.dto';
 import { UploadStickerDto } from './dto/upload-sticker.dto';
 import { MediaQueueService } from './media-queue.service';
-import { PackExportService } from './pack-export.service';
+import { PackStorageService } from './pack-storage.service';
 import { StickerImageService } from './sticker-image.service';
 import { DEFAULT_STICKER_EMOJIS, WHATSAPP_LIMITS } from './whatsapp-constraints';
 
@@ -37,11 +35,11 @@ type AccessPack = {
 export class PacksService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly exportService: PackExportService,
     private readonly imageService: StickerImageService,
     private readonly config: ConfigService,
     private readonly audit: AuditService,
     private readonly mediaQueue: MediaQueueService,
+    private readonly storage: PackStorageService,
   ) {}
 
   async create(ownerId: string, dto: CreatePackDto) {
@@ -157,7 +155,7 @@ export class PacksService {
     }
 
     await this.prisma.pack.delete({ where: { id } });
-    await rm(this.exportService.packDirectory(id), { recursive: true, force: true });
+    await this.storage.deletePack(id);
     await this.audit.record({ actorId: ownerId, action: 'pack.delete', entityType: 'pack', entityId: id });
 
     return { deleted: true };
@@ -380,10 +378,7 @@ export class PacksService {
     });
 
     try {
-      await cp(this.exportService.packDirectory(source.id), this.exportService.packDirectory(cloned.id), {
-        recursive: true,
-        force: true,
-      });
+      await this.storage.copyPack(source.id, cloned.id);
     } catch (error) {
       await this.prisma.pack.delete({ where: { id: cloned.id } });
       throw error;
@@ -461,12 +456,11 @@ export class PacksService {
     await this.rejectDuplicateSticker(packId, processed.perceptualHash);
     await this.enforceStorageQuota(pack.ownerId, processed.sizeBytes);
     const fileName = `${uuidv4()}.webp`;
-    const packDir = this.exportService.packDirectory(packId);
-    await this.imageService.writeProcessedImage(join(packDir, fileName), processed);
+    await this.storage.writeImage(packId, fileName, processed);
 
     if (pack._count.stickers === 0) {
       const tray = await this.mediaQueue.enqueue(() => this.imageService.processTrayIcon(file.buffer));
-      await this.imageService.writeProcessedImage(join(packDir, 'tray_icon.webp'), tray);
+      await this.storage.writeImage(packId, 'tray_icon.webp', tray);
     }
 
     const emojis = (dto.emojis?.filter(Boolean) ?? DEFAULT_STICKER_EMOJIS).slice(0, WHATSAPP_LIMITS.maxStickerEmojis);
@@ -516,7 +510,7 @@ export class PacksService {
     }
 
     const tray = await this.mediaQueue.enqueue(() => this.imageService.processTrayIcon(file.buffer));
-    await this.imageService.writeProcessedImage(join(this.exportService.packDirectory(packId), 'tray_icon.webp'), tray);
+    await this.storage.writeImage(packId, 'tray_icon.webp', tray);
 
     const updated = await this.prisma.pack.update({
       where: { id: packId },
@@ -528,7 +522,7 @@ export class PacksService {
 
   async getTrayIconFilePath(userId: string, packId: string) {
     await this.get(userId, packId);
-    return resolve(join(this.exportService.packDirectory(packId), 'tray_icon.webp'));
+    return this.storage.readStream(packId, 'tray_icon.webp');
   }
 
   async getStickerFilePath(userId: string, packId: string, stickerId: string) {
@@ -542,7 +536,7 @@ export class PacksService {
 
     return {
       fileName: sticker.fileName,
-      path: resolve(join(this.exportService.packDirectory(packId), sticker.fileName)),
+      stream: await this.storage.readStream(packId, sticker.fileName),
     };
   }
 
@@ -563,7 +557,7 @@ export class PacksService {
     }
 
     await this.prisma.sticker.delete({ where: { id: stickerId } });
-    await rm(join(this.exportService.packDirectory(packId), sticker.fileName), { force: true });
+    await this.storage.deleteFile(packId, sticker.fileName);
     await this.compactStickerPositions(packId);
     await this.prisma.pack.update({
       where: { id: packId },
@@ -613,10 +607,7 @@ export class PacksService {
     await this.rejectDuplicateSticker(packId, processed.perceptualHash, stickerId);
     const existingSize = typeof sticker.sizeBytes === 'number' ? sticker.sizeBytes : 0;
     await this.enforceStorageQuota(pack.ownerId, Math.max(0, processed.sizeBytes - existingSize));
-    await this.imageService.writeProcessedImage(
-      join(this.exportService.packDirectory(packId), sticker.fileName),
-      processed,
-    );
+    await this.storage.writeImage(packId, sticker.fileName, processed);
 
     const updated = await this.prisma.sticker.update({
       where: { id: stickerId },
@@ -791,13 +782,9 @@ export class PacksService {
     }));
 
     try {
-      await mkdir(this.exportService.packDirectory(dto.targetPackId), { recursive: true });
       await Promise.all(
         copies.map((copy) =>
-          cp(
-            join(this.exportService.packDirectory(sourcePackId), copy.sourceFileName),
-            join(this.exportService.packDirectory(dto.targetPackId), copy.fileName),
-          ),
+          this.storage.copyFile(sourcePackId, copy.sourceFileName, dto.targetPackId, copy.fileName),
         ),
       );
 
@@ -824,7 +811,7 @@ export class PacksService {
       ]);
     } catch (error) {
       await Promise.all(
-        copies.map((copy) => rm(join(this.exportService.packDirectory(dto.targetPackId), copy.fileName), { force: true })),
+        copies.map((copy) => this.storage.deleteFile(dto.targetPackId, copy.fileName)),
       );
       throw error;
     }
@@ -857,13 +844,9 @@ export class PacksService {
     }));
 
     try {
-      await mkdir(this.exportService.packDirectory(dto.targetPackId), { recursive: true });
       await Promise.all(
         moves.map((move) =>
-          cp(
-            join(this.exportService.packDirectory(sourcePackId), move.sticker.fileName),
-            join(this.exportService.packDirectory(dto.targetPackId), move.fileName),
-          ),
+          this.storage.copyFile(sourcePackId, move.sticker.fileName, dto.targetPackId, move.fileName),
         ),
       );
 
@@ -889,12 +872,12 @@ export class PacksService {
       ]);
 
       await Promise.all(
-        moves.map((move) => rm(join(this.exportService.packDirectory(sourcePackId), move.sticker.fileName), { force: true })),
+        moves.map((move) => this.storage.deleteFile(sourcePackId, move.sticker.fileName)),
       );
       await this.compactStickerPositions(sourcePackId);
     } catch (error) {
       await Promise.all(
-        moves.map((move) => rm(join(this.exportService.packDirectory(dto.targetPackId), move.fileName), { force: true })),
+        moves.map((move) => this.storage.deleteFile(dto.targetPackId, move.fileName)),
       );
       throw error;
     }

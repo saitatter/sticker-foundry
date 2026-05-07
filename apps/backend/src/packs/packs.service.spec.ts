@@ -1,14 +1,8 @@
 import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { PackRole } from '@prisma/client';
-import { cp, mkdir, rm } from 'fs/promises';
 import { PacksService } from './packs.service';
 
 jest.mock('uuid', () => ({ v4: () => 'generated-sticker-id' }));
-jest.mock('fs/promises', () => ({
-  cp: jest.fn(),
-  mkdir: jest.fn(),
-  rm: jest.fn(),
-}));
 
 function createService() {
   const prisma = {
@@ -59,14 +53,18 @@ function createService() {
     $transaction: jest.fn(async (operations: unknown[]) => operations),
   };
 
-  const exportService = {
-    packDirectory: jest.fn((packId: string) => `C:/tmp/sticker-foundry/${packId}`),
-  };
-
   const imageService = {
     processSticker: jest.fn(),
     processTrayIcon: jest.fn(),
-    writeProcessedImage: jest.fn(),
+  };
+
+  const storage = {
+    writeImage: jest.fn(),
+    deletePack: jest.fn(),
+    copyPack: jest.fn(),
+    readStream: jest.fn(),
+    deleteFile: jest.fn(),
+    copyFile: jest.fn(),
   };
 
   const config = {
@@ -83,13 +81,13 @@ function createService() {
 
   const service = new PacksService(
     prisma as never,
-    exportService as never,
     imageService as never,
     config as never,
     audit as never,
     mediaQueue as never,
+    storage as never,
   );
-  return { service, prisma, exportService, imageService, audit };
+  return { service, prisma, imageService, audit, storage };
 }
 
 describe(PacksService, () => {
@@ -98,7 +96,7 @@ describe(PacksService, () => {
   });
 
   it('stores uploaded stickers at the next pack position and creates a tray icon for the first sticker', async () => {
-    const { service, prisma, imageService } = createService();
+    const { service, prisma, imageService, storage } = createService();
     const processedSticker = { buffer: Buffer.from('sticker'), sizeBytes: 42, sha256: 'sticker-sha' };
     const processedTray = { buffer: Buffer.from('tray'), sizeBytes: 20, sha256: 'tray-sha' };
 
@@ -130,11 +128,8 @@ describe(PacksService, () => {
         sha256: 'sticker-sha',
       }),
     );
-    expect(imageService.writeProcessedImage).toHaveBeenCalledWith(
-      expect.stringContaining('generated-sticker-id.webp'),
-      processedSticker,
-    );
-    expect(imageService.writeProcessedImage).toHaveBeenCalledWith(expect.stringContaining('tray_icon.webp'), processedTray);
+    expect(storage.writeImage).toHaveBeenCalledWith('pack-1', 'generated-sticker-id.webp', processedSticker);
+    expect(storage.writeImage).toHaveBeenCalledWith('pack-1', 'tray_icon.webp', processedTray);
     expect(prisma.pack.update).toHaveBeenCalledWith({
       where: { id: 'pack-1' },
       data: { imageDataVersion: '5' },
@@ -142,7 +137,7 @@ describe(PacksService, () => {
   });
 
   it('creates packs inside editable teams', async () => {
-    const { service, prisma } = createService();
+    const { service, prisma, storage } = createService();
     prisma.team.findUnique.mockResolvedValue({
       id: 'team-1',
       ownerId: 'other-user',
@@ -187,7 +182,7 @@ describe(PacksService, () => {
   });
 
   it('assigns later uploaded stickers after the existing sticker count without replacing the tray icon', async () => {
-    const { service, prisma, imageService } = createService();
+    const { service, prisma, imageService, storage } = createService();
 
     prisma.pack.findUnique.mockResolvedValue({
       id: 'pack-1',
@@ -208,7 +203,7 @@ describe(PacksService, () => {
 
     expect(sticker.position).toBe(2);
     expect(imageService.processTrayIcon).not.toHaveBeenCalled();
-    expect(imageService.writeProcessedImage).toHaveBeenCalledTimes(1);
+    expect(storage.writeImage).toHaveBeenCalledTimes(1);
   });
 
   it('reorders stickers only when the request contains every sticker in the pack', async () => {
@@ -323,7 +318,7 @@ describe(PacksService, () => {
   });
 
   it('allows editors to upload stickers but blocks viewers from mutating sticker metadata', async () => {
-    const { service, prisma, imageService } = createService();
+    const { service, prisma, imageService, storage } = createService();
 
     prisma.pack.findUnique
       .mockResolvedValueOnce({
@@ -487,7 +482,7 @@ describe(PacksService, () => {
   });
 
   it('copies selected stickers into another editable pack', async () => {
-    const { service, prisma } = createService();
+    const { service, prisma, storage } = createService();
 
     prisma.pack.findUnique
       .mockResolvedValueOnce({
@@ -535,8 +530,7 @@ describe(PacksService, () => {
       }),
     ).resolves.toEqual(expect.objectContaining({ id: 'target-pack', stickerCount: 3 }));
 
-    expect(mkdir).toHaveBeenCalledWith(expect.stringContaining('target-pack'), { recursive: true });
-    expect(cp).toHaveBeenCalledWith(expect.stringContaining('source.webp'), expect.stringContaining('generated-sticker-id.webp'));
+    expect(storage.copyFile).toHaveBeenCalledWith('source-pack', 'source.webp', 'target-pack', 'generated-sticker-id.webp');
     expect(prisma.sticker.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
         packId: 'target-pack',
@@ -547,7 +541,7 @@ describe(PacksService, () => {
   });
 
   it('blocks sticker uploads when the owner storage quota would be exceeded', async () => {
-    const { service, prisma, imageService } = createService();
+    const { service, prisma, imageService, storage } = createService();
 
     prisma.appSetting.findUnique.mockResolvedValue({ key: 'storageQuotaBytes', value: '100' });
     prisma.sticker.aggregate.mockResolvedValue({ _sum: { sizeBytes: 80 } });
@@ -575,12 +569,12 @@ describe(PacksService, () => {
       ),
     ).rejects.toBeInstanceOf(BadRequestException);
 
-    expect(imageService.writeProcessedImage).not.toHaveBeenCalled();
+    expect(storage.writeImage).not.toHaveBeenCalled();
     expect(prisma.sticker.create).not.toHaveBeenCalled();
   });
 
   it('moves selected stickers into another editable pack and rejects full targets', async () => {
-    const { service, prisma } = createService();
+    const { service, prisma, storage } = createService();
 
     prisma.pack.findUnique
       .mockResolvedValueOnce({
@@ -616,9 +610,9 @@ describe(PacksService, () => {
         stickerIds: ['sticker-1'],
       }),
     ).rejects.toBeInstanceOf(BadRequestException);
-    expect(cp).not.toHaveBeenCalledWith(expect.stringContaining('source.webp'), expect.stringContaining('generated-sticker-id.webp'));
+    expect(storage.copyFile).not.toHaveBeenCalled();
 
-    jest.mocked(cp).mockClear();
+    storage.copyFile.mockClear();
     prisma.pack.findUnique
       .mockResolvedValueOnce({
         id: 'source-pack',
@@ -652,8 +646,8 @@ describe(PacksService, () => {
       }),
     ).resolves.toEqual(expect.objectContaining({ id: 'target-pack' }));
 
-    expect(cp).toHaveBeenCalledWith(expect.stringContaining('source.webp'), expect.stringContaining('generated-sticker-id.webp'));
-    expect(rm).toHaveBeenCalledWith(expect.stringContaining('source.webp'), { force: true });
+    expect(storage.copyFile).toHaveBeenCalledWith('source-pack', 'source.webp', 'target-pack', 'generated-sticker-id.webp');
+    expect(storage.deleteFile).toHaveBeenCalledWith('source-pack', 'source.webp');
     expect(prisma.sticker.update).toHaveBeenCalledWith({
       where: { id: 'sticker-1' },
       data: expect.objectContaining({
@@ -665,7 +659,7 @@ describe(PacksService, () => {
   });
 
   it('replaces a sticker image without changing its metadata or file name', async () => {
-    const { service, prisma, imageService } = createService();
+    const { service, prisma, imageService, storage } = createService();
     const processed = { buffer: Buffer.from('new-sticker'), sizeBytes: 77, sha256: 'new-sha' };
 
     prisma.pack.findUnique.mockResolvedValue({
@@ -699,7 +693,7 @@ describe(PacksService, () => {
       { buffer: Buffer.from('source'), mimetype: 'image/png' } as Express.Multer.File,
     );
 
-    expect(imageService.writeProcessedImage).toHaveBeenCalledWith(expect.stringContaining('existing.webp'), processed);
+    expect(storage.writeImage).toHaveBeenCalledWith('pack-1', 'existing.webp', processed);
     expect(prisma.sticker.update).toHaveBeenCalledWith({
       where: { id: 'sticker-1' },
       data: {

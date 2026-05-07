@@ -3,6 +3,7 @@ import { MulterModule } from '@nestjs/platform-express';
 import { AuditModule } from '../audit/audit.module';
 import { PrismaService } from '../prisma.service';
 import { PackExportService } from './pack-export.service';
+import { PackStorageService } from './pack-storage.service';
 import { PacksController } from './packs.controller';
 import { PacksService } from './packs.service';
 import { MediaQueueService } from './media-queue.service';
@@ -19,6 +20,6 @@ import { StickerImageService } from './sticker-image.service';
     }),
   ],
   controllers: [PacksController, PublicPacksController],
-  providers: [PacksService, PackExportService, MediaQueueService, StickerImageService, PrismaService],
+  providers: [PacksService, PackExportService, PackStorageService, MediaQueueService, StickerImageService, PrismaService],
 })
 export class PacksModule {}
