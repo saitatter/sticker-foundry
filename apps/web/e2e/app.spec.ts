@@ -49,6 +49,9 @@ test('covers core web sticker workflows with mocked API', async ({ page }) => {
   await page.getByRole('button', { name: 'Preview JSON' }).click();
   await expect(page.locator('.contents-preview')).toContainText('sticker_packs');
   await expect(page.getByRole('heading', { name: 'Collaboration' })).toBeVisible();
+  await page.locator('.sticker-preview-button').first().click();
+  await expect(page.getByRole('heading', { name: 'Sticker detail' })).toBeVisible();
+  await page.locator('.sticker-detail-dialog').getByRole('button', { name: 'Close' }).click();
 
   await page.locator('.tool-panel').filter({ hasText: 'New pack' }).getByLabel('Name').fill('Scratch Pack');
   await page.locator('.tool-panel').filter({ hasText: 'New pack' }).getByLabel('Publisher').fill('QA');

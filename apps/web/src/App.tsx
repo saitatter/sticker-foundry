@@ -2082,6 +2082,7 @@ function StickerTile({
   const [commentBody, setCommentBody] = useState('');
   const [commentsLoading, setCommentsLoading] = useState(false);
   const [commentSaving, setCommentSaving] = useState(false);
+  const [detailOpen, setDetailOpen] = useState(false);
 
   useEffect(() => {
     setEmojis(sticker.emojis.join(','));
@@ -2230,7 +2231,12 @@ function StickerTile({
           Select
         </label>
       ) : null}
-      <div className="sticker-preview">{url ? <img alt={sticker.accessibilityText ?? sticker.fileName} src={url} /> : null}</div>
+      <button className="sticker-preview sticker-preview-button" onClick={() => setDetailOpen(true)} type="button">
+        {url ? <img alt={sticker.accessibilityText ?? sticker.fileName} src={url} /> : null}
+        <span>
+          <Eye size={16} />
+        </span>
+      </button>
       <div className="sticker-meta">
         <span>{formatBytes(sticker.sizeBytes)}</span>
         <span>{sticker.emojis.join(' ') || 'No emoji'}</span>
@@ -2310,6 +2316,60 @@ function StickerTile({
             <Trash2 size={16} />
           </IconButton>
         </>
+      ) : null}
+      {detailOpen ? (
+        <div className="modal-backdrop" role="presentation">
+          <div className="modal-panel sticker-detail-dialog">
+            <div className="section-heading">
+              <h2>Sticker detail</h2>
+              <button className="secondary-button" onClick={() => setDetailOpen(false)} type="button">
+                Close
+              </button>
+            </div>
+            <div className="sticker-detail-layout">
+              <div className="sticker-detail-preview">
+                {url ? <img alt={sticker.accessibilityText ?? sticker.fileName} src={url} /> : null}
+              </div>
+              <div className="sticker-detail-meta">
+                <Metric label="Size" value={formatBytes(sticker.sizeBytes)} />
+                <Metric label="Position" value={String(sticker.position + 1)} />
+                <Metric label="Status" value={reviewStatusLabel(sticker.reviewStatus)} />
+                <Metric label="Created" value={new Date(sticker.createdAt).toLocaleDateString()} />
+              </div>
+              {canEdit ? (
+                <form className="form-grid" onSubmit={saveMetadata}>
+                  <label>
+                    Emojis
+                    <input value={emojis} onChange={(event) => setEmojis(event.target.value)} placeholder="smile,laugh" />
+                  </label>
+                  <label>
+                    Alt text
+                    <input
+                      value={accessibilityText}
+                      onChange={(event) => setAccessibilityText(event.target.value)}
+                      maxLength={125}
+                    />
+                  </label>
+                  <label>
+                    Review
+                    <select
+                      value={reviewStatus}
+                      onChange={(event) => setReviewStatus(event.target.value as Sticker['reviewStatus'])}
+                    >
+                      <option value="PENDING">Pending</option>
+                      <option value="APPROVED">Approved</option>
+                      <option value="NEEDS_WORK">Needs work</option>
+                    </select>
+                  </label>
+                  <button className="primary-button" disabled={!dirty || saving} type="submit">
+                    <Edit3 size={17} />
+                    Save metadata
+                  </button>
+                </form>
+              ) : null}
+            </div>
+          </div>
+        </div>
       ) : null}
     </article>
   );

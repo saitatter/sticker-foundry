@@ -370,6 +370,7 @@ The web app lives in `apps/web` and provides:
 - Tray icon preview and replacement.
 - Sticker emoji and accessibility text editing.
 - Sticker review status editing.
+- Sticker detail dialog with large preview and metadata editing.
 - Sticker comments for collaborator notes.
 - Pack-level approval toggle for reviewed exports.
 - Sticker image replacement.

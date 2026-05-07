@@ -948,6 +948,28 @@ select:focus {
   border-radius: 6px;
 }
 
+.sticker-preview-button {
+  position: relative;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  cursor: zoom-in;
+}
+
+.sticker-preview-button span {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  background: rgba(255, 255, 255, 0.92);
+}
+
 .sticker-preview img {
   width: 100%;
   height: 100%;
@@ -1029,6 +1051,52 @@ select:focus {
 .comment-form textarea {
   min-height: 72px;
   resize: vertical;
+}
+
+.sticker-detail-dialog {
+  width: min(760px, calc(100vw - 32px));
+}
+
+.sticker-detail-layout {
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) minmax(240px, 0.8fr);
+  gap: 16px;
+}
+
+.sticker-detail-preview {
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background:
+    linear-gradient(45deg, #e7eeec 25%, transparent 25%),
+    linear-gradient(-45deg, #e7eeec 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #e7eeec 75%),
+    linear-gradient(-45deg, transparent 75%, #e7eeec 75%);
+  background-size: 24px 24px;
+  background-position:
+    0 0,
+    0 12px,
+    12px -12px,
+    -12px 0;
+}
+
+.sticker-detail-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.sticker-detail-meta {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  align-content: start;
+}
+
+.sticker-detail-layout .form-grid {
+  grid-column: 1 / -1;
 }
 
 .auth-layout {
@@ -1163,6 +1231,7 @@ select:focus {
 
   .stats-grid,
   .collaboration-grid,
+  .sticker-detail-layout,
   .bulk-toolbar,
   .invite-form {
     grid-template-columns: 1fr 1fr;
@@ -1174,6 +1243,10 @@ select:focus {
 
   .tray-form .secondary-button {
     grid-column: 2;
+  }
+
+  .sticker-detail-layout .form-grid {
+    grid-column: auto;
   }
 }
 
@@ -1199,6 +1272,8 @@ select:focus {
   .edit-form,
   .tray-form,
   .collaboration-grid,
+  .sticker-detail-layout,
+  .sticker-detail-meta,
   .bulk-toolbar,
   .invite-form,
   .image-edit-controls {
