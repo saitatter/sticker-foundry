@@ -12,7 +12,6 @@ This is the live feature backlog. It should only contain work that still needs t
 
 ## Collaboration
 
-- Optional email matching for invite acceptance.
 - Android collaborator details beyond the compact role label.
 - Shared team/workspace model for family or community packs.
 - Comments or review status per sticker.

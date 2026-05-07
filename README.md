@@ -250,6 +250,8 @@ curl -X POST http://localhost:3000/api/packs/PACK_ID/invites \
   -d '{"email":"friend@example.com","role":"EDITOR"}'
 ```
 
+If an invite has an email, only a signed-in user with that email can accept it. Invites without an email can be accepted by anyone with the code.
+
 The invited user accepts the returned `code` while signed in:
 
 ```bash

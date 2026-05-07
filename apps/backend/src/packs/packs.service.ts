@@ -237,6 +237,12 @@ export class PacksService {
     if (invite.expiresAt && invite.expiresAt.getTime() < Date.now()) {
       throw new BadRequestException('Invite has expired');
     }
+    if (invite.email) {
+      const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { email: true } });
+      if (user?.email.toLowerCase() !== invite.email.toLowerCase()) {
+        throw new ForbiddenException('This invite is assigned to a different email address');
+      }
+    }
 
     await this.prisma.$transaction([
       this.prisma.packMember.upsert({

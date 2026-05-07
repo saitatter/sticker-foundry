@@ -44,6 +44,9 @@ function createService() {
       findUnique: jest.fn(),
       update: jest.fn((args: unknown) => args),
     },
+    user: {
+      findUnique: jest.fn(),
+    },
     $transaction: jest.fn(async (operations: unknown[]) => operations),
   };
 
@@ -329,6 +332,25 @@ describe(PacksService, () => {
       data: { acceptedAt: expect.any(Date), acceptedById: 'editor-1' },
     });
     expect(pack).toEqual(expect.objectContaining({ role: PackRole.EDITOR, canEdit: true, canManage: false }));
+  });
+
+  it('rejects email-bound invites for a different signed-in user', async () => {
+    const { service, prisma } = createService();
+
+    prisma.packInvite.findUnique.mockResolvedValue({
+      id: 'invite-1',
+      packId: 'pack-1',
+      email: 'friend@example.com',
+      role: PackRole.EDITOR,
+      acceptedAt: null,
+      expiresAt: null,
+      pack: { id: 'pack-1' },
+    });
+    prisma.user.findUnique.mockResolvedValue({ email: 'other@example.com' });
+
+    await expect(service.acceptInvite('other-user', 'invite-code')).rejects.toBeInstanceOf(ForbiddenException);
+    expect(prisma.packMember.upsert).not.toHaveBeenCalled();
+    expect(prisma.packInvite.update).not.toHaveBeenCalled();
   });
 
   it('lets owners update members, remove members, and revoke pending invites', async () => {
