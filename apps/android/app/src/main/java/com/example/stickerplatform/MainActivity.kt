@@ -79,6 +79,7 @@ private fun StickerApp(viewModel: StickerViewModel = viewModel(factory = Sticker
     var trayIconPackId by remember { mutableStateOf<String?>(null) }
     var pendingEdit by remember { mutableStateOf<PendingImageEdit?>(null) }
     var showSettings by remember { mutableStateOf(false) }
+    var showTroubleshooting by remember { mutableStateOf(false) }
     val stickerPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         val packId = stickerUploadPackId
         stickerUploadPackId = null
@@ -144,8 +145,13 @@ private fun StickerApp(viewModel: StickerViewModel = viewModel(factory = Sticker
             onSaveServerUrl = { viewModel.saveServerUrl(it) },
             onLogout = { viewModel.logout() },
             onClearCache = { viewModel.clearCache() },
+            onTroubleshooting = { showTroubleshooting = true },
             onDismiss = { showSettings = false },
         )
+    }
+
+    if (showTroubleshooting) {
+        ImportTroubleshootingDialog(onDismiss = { showTroubleshooting = false })
     }
 
     pendingEdit?.let { edit ->
@@ -216,6 +222,7 @@ private fun SettingsDialog(
     onSaveServerUrl: (String) -> Unit,
     onLogout: () -> Unit,
     onClearCache: () -> Unit,
+    onTroubleshooting: () -> Unit,
     onDismiss: () -> Unit,
 ) {
     var editedServerUrl by remember(serverUrl) { mutableStateOf(serverUrl) }
@@ -241,6 +248,9 @@ private fun SettingsDialog(
                         Text("Clear cache")
                     }
                 }
+                TextButton(onClick = onTroubleshooting) {
+                    Text("Import troubleshooting")
+                }
             }
         },
         confirmButton = {
@@ -251,6 +261,28 @@ private fun SettingsDialog(
         dismissButton = {
             TextButton(onClick = onDismiss) {
                 Text("Close")
+            }
+        },
+    )
+}
+
+@Composable
+private fun ImportTroubleshootingDialog(onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Import troubleshooting") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Check the pack has 3-30 stickers and a tray icon.", style = MaterialTheme.typography.bodySmall)
+                Text("Tap Resync, then try WhatsApp import again.", style = MaterialTheme.typography.bodySmall)
+                Text("If the pack was already added, change stickers or tray icon so image_data_version increments.", style = MaterialTheme.typography.bodySmall)
+                Text("For provider errors, check adb logcat and the contentProviderAuthority build setting.", style = MaterialTheme.typography.bodySmall)
+                Text("Test WhatsApp and WhatsApp Business separately; each app keeps its own imported pack state.", style = MaterialTheme.typography.bodySmall)
+            }
+        },
+        confirmButton = {
+            Button(onClick = onDismiss) {
+                Text("Done")
             }
         },
     )

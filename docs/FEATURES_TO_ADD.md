@@ -12,8 +12,6 @@ This is the live feature backlog. It should only contain work that still needs t
 
 ## Android
 
-- Optional import troubleshooting screen for provider/WhatsApp errors.
-
 ## Backend
 
 - Password reset flow if email is configured.
