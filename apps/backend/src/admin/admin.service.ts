@@ -8,6 +8,8 @@ const SETTING_KEYS = {
   registrationMode: 'registrationMode',
   registrationInviteCode: 'registrationInviteCode',
   storageQuotaBytes: 'storageQuotaBytes',
+  instanceName: 'instanceName',
+  instanceDescription: 'instanceDescription',
 } as const;
 
 @Injectable()
@@ -29,6 +31,17 @@ export class AdminService {
       storageQuotaBytes: this.parseQuota(
         settings.get(SETTING_KEYS.storageQuotaBytes) ?? this.config.get<string>('STORAGE_QUOTA_BYTES', ''),
       ),
+      ...(await this.publicSettings(settings)),
+    };
+  }
+
+  async publicSettings(existingSettings?: Map<string, string>) {
+    const settings = existingSettings ?? (await this.settingMap());
+    return {
+      instanceName: settings.get(SETTING_KEYS.instanceName) ?? this.config.get<string>('INSTANCE_NAME', 'StickerFoundry'),
+      instanceDescription:
+        settings.get(SETTING_KEYS.instanceDescription) ??
+        this.config.get<string>('INSTANCE_DESCRIPTION', 'Self-hosted sticker pack management'),
     };
   }
 
@@ -45,6 +58,12 @@ export class AdminService {
     if (dto.storageQuotaBytes !== undefined) {
       writes.push(this.upsert(SETTING_KEYS.storageQuotaBytes, dto.storageQuotaBytes?.toString() ?? ''));
     }
+    if (dto.instanceName !== undefined) {
+      writes.push(this.upsert(SETTING_KEYS.instanceName, dto.instanceName));
+    }
+    if (dto.instanceDescription !== undefined) {
+      writes.push(this.upsert(SETTING_KEYS.instanceDescription, dto.instanceDescription));
+    }
 
     await Promise.all(writes);
     await this.audit.record({
@@ -56,6 +75,7 @@ export class AdminService {
         registrationMode: dto.registrationMode ?? null,
         registrationInviteCodeChanged: dto.registrationInviteCode !== undefined,
         storageQuotaBytes: dto.storageQuotaBytes ?? null,
+        instanceName: dto.instanceName ?? null,
       },
     });
     return this.settings(userId);

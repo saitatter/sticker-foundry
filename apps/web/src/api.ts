@@ -24,6 +24,13 @@ export type AdminSettings = {
   registrationMode: RegistrationMode;
   registrationInviteCode: string;
   storageQuotaBytes: number | null;
+  instanceName: string;
+  instanceDescription: string;
+};
+
+export type InstanceSettings = {
+  instanceName: string;
+  instanceDescription: string;
 };
 
 export type AuditLogEntry = {
@@ -41,6 +48,8 @@ export type UpdateAdminSettingsInput = {
   registrationMode?: RegistrationMode;
   registrationInviteCode?: string | null;
   storageQuotaBytes?: number | null;
+  instanceName?: string;
+  instanceDescription?: string;
 };
 
 export type Sticker = {
@@ -194,6 +203,10 @@ export class StickerFoundryApi {
       method: 'DELETE',
       auth: true,
     });
+  }
+
+  async instanceSettings() {
+    return this.request<InstanceSettings>('/instance');
   }
 
   async adminSettings() {

@@ -14,4 +14,12 @@ export class UpdateAdminSettingsDto {
   @Min(1)
   @Max(10_995_116_277_760)
   storageQuotaBytes?: number | null;
+
+  @IsOptional()
+  @IsString()
+  instanceName?: string;
+
+  @IsOptional()
+  @IsString()
+  instanceDescription?: string;
 }

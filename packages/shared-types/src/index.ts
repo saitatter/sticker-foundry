@@ -129,6 +129,13 @@ export type AdminSettingsDto = {
   registrationMode: RegistrationMode;
   registrationInviteCode: string;
   storageQuotaBytes: number | null;
+  instanceName: string;
+  instanceDescription: string;
+};
+
+export type InstanceSettingsDto = {
+  instanceName: string;
+  instanceDescription: string;
 };
 
 export type AuditLogEntryDto = {

@@ -335,7 +335,13 @@ describe('StickerFoundry API e2e', () => {
     await request(server)
       .patch('/api/admin/settings')
       .set('Authorization', `Bearer ${token}`)
-      .send({ registrationMode: 'invite-only', registrationInviteCode: 'team-code', storageQuotaBytes: 10_485_760 })
+      .send({
+        registrationMode: 'invite-only',
+        registrationInviteCode: 'team-code',
+        storageQuotaBytes: 10_485_760,
+        instanceName: 'Team Stickers',
+        instanceDescription: 'Private sticker ops',
+      })
       .expect(200)
       .expect((response) => {
         expect(response.body).toEqual(
@@ -343,6 +349,20 @@ describe('StickerFoundry API e2e', () => {
             registrationMode: 'invite-only',
             registrationInviteCode: 'team-code',
             storageQuotaBytes: 10_485_760,
+            instanceName: 'Team Stickers',
+            instanceDescription: 'Private sticker ops',
+          }),
+        );
+      });
+
+    await request(server)
+      .get('/api/instance')
+      .expect(200)
+      .expect((response) => {
+        expect(response.body).toEqual(
+          expect.objectContaining({
+            instanceName: 'Team Stickers',
+            instanceDescription: 'Private sticker ops',
           }),
         );
       });

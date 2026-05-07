@@ -33,6 +33,7 @@ import {
   ApiError,
   AuditLogEntry,
   AuthResponse,
+  InstanceSettings,
   Pack,
   PackInvite,
   PackMember,
@@ -48,6 +49,10 @@ const TOKEN_KEY = 'stickerfoundry.token';
 const REFRESH_TOKEN_KEY = 'stickerfoundry.refreshToken';
 const DEMO_EMAIL = 'demo@stickerfoundry.local';
 const DEMO_PASSWORD = 'stickerfoundry123';
+const DEFAULT_INSTANCE_SETTINGS: InstanceSettings = {
+  instanceName: 'StickerFoundry',
+  instanceDescription: 'Self-hosted sticker pack management',
+};
 
 type Notice = {
   tone: 'info' | 'error' | 'success';
@@ -61,6 +66,7 @@ export function App() {
   const [token, setToken] = useState(() => localStorage.getItem(TOKEN_KEY));
   const [refreshToken, setRefreshToken] = useState(() => localStorage.getItem(REFRESH_TOKEN_KEY));
   const [user, setUser] = useState<User | null>(null);
+  const [instanceSettings, setInstanceSettings] = useState<InstanceSettings>(DEFAULT_INSTANCE_SETTINGS);
   const [packs, setPacks] = useState<Pack[]>([]);
   const [selectedPackId, setSelectedPackId] = useState<string | null>(null);
   const [selectedPack, setSelectedPack] = useState<Pack | null>(null);
@@ -119,6 +125,10 @@ export function App() {
   }, [api, reportError, selectedPackId]);
 
   useEffect(() => {
+    api.instanceSettings().then(setInstanceSettings).catch(() => undefined);
+  }, [api]);
+
+  useEffect(() => {
     if (!token) return;
     api
       .me()
@@ -160,7 +170,7 @@ export function App() {
   };
 
   if (!token) {
-    return <AuthScreen api={api} onSignedIn={saveSession} onError={reportError} notice={notice} />;
+    return <AuthScreen api={api} instanceSettings={instanceSettings} onSignedIn={saveSession} onError={reportError} notice={notice} />;
   }
 
   return (
@@ -169,7 +179,7 @@ export function App() {
         <div className="brand">
           <span className="brand-mark">SF</span>
           <div>
-            <h1>StickerFoundry</h1>
+            <h1>{instanceSettings.instanceName}</h1>
             <p>{user?.email ?? 'Signed in'}</p>
           </div>
         </div>
@@ -251,8 +261,12 @@ export function App() {
         <AccountDialog
           api={api}
           isAdmin={Boolean(user?.isAdmin)}
+          instanceSettings={instanceSettings}
           onClose={() => setShowAccountDialog(false)}
-          onChanged={(message) => setNotice({ tone: 'success', text: message })}
+          onChanged={(message, settings) => {
+            if (settings) setInstanceSettings(settings);
+            setNotice({ tone: 'success', text: message });
+          }}
           onError={reportError}
         />
       ) : null}
@@ -263,14 +277,16 @@ export function App() {
 function AccountDialog({
   api,
   isAdmin,
+  instanceSettings,
   onClose,
   onChanged,
   onError,
 }: {
   api: StickerFoundryApi;
   isAdmin: boolean;
+  instanceSettings: InstanceSettings;
   onClose: () => void;
-  onChanged: (message: string) => void;
+  onChanged: (message: string, settings?: InstanceSettings) => void;
   onError: (error: unknown) => void;
 }) {
   const [currentPassword, setCurrentPassword] = useState('');
@@ -282,6 +298,8 @@ function AccountDialog({
   const [registrationMode, setRegistrationMode] = useState<RegistrationMode>('open');
   const [registrationInviteCode, setRegistrationInviteCode] = useState('');
   const [storageQuotaMb, setStorageQuotaMb] = useState('');
+  const [instanceName, setInstanceName] = useState(instanceSettings.instanceName);
+  const [instanceDescription, setInstanceDescription] = useState(instanceSettings.instanceDescription);
   const [savingAdmin, setSavingAdmin] = useState(false);
 
   useEffect(() => {
@@ -297,6 +315,8 @@ function AccountDialog({
         setRegistrationMode(settings.registrationMode);
         setRegistrationInviteCode(settings.registrationInviteCode ?? '');
         setStorageQuotaMb(settings.storageQuotaBytes ? String(Math.round(settings.storageQuotaBytes / 1024 / 1024)) : '');
+        setInstanceName(settings.instanceName);
+        setInstanceDescription(settings.instanceDescription);
       })
       .catch(onError);
     api.adminAuditLog().then(setAuditLog).catch(onError);
@@ -350,13 +370,20 @@ function AccountDialog({
         registrationMode,
         registrationInviteCode: registrationInviteCode.trim() || null,
         storageQuotaBytes: quotaNumber === null ? null : Math.round(quotaNumber * 1024 * 1024),
+        instanceName: instanceName.trim() || DEFAULT_INSTANCE_SETTINGS.instanceName,
+        instanceDescription: instanceDescription.trim() || DEFAULT_INSTANCE_SETTINGS.instanceDescription,
       });
       setAdminSettings(settings);
       setRegistrationMode(settings.registrationMode);
       setRegistrationInviteCode(settings.registrationInviteCode ?? '');
       setStorageQuotaMb(settings.storageQuotaBytes ? String(Math.round(settings.storageQuotaBytes / 1024 / 1024)) : '');
+      setInstanceName(settings.instanceName);
+      setInstanceDescription(settings.instanceDescription);
       setAuditLog(await api.adminAuditLog());
-      onChanged('Admin settings saved');
+      onChanged('Admin settings saved', {
+        instanceName: settings.instanceName,
+        instanceDescription: settings.instanceDescription,
+      });
     } catch (error) {
       onError(error);
     } finally {
@@ -429,6 +456,22 @@ function AccountDialog({
               <ShieldCheck size={18} />
             </div>
             <label>
+              Instance name
+              <input
+                maxLength={80}
+                value={instanceName}
+                onChange={(event) => setInstanceName(event.target.value)}
+              />
+            </label>
+            <label>
+              Instance description
+              <input
+                maxLength={160}
+                value={instanceDescription}
+                onChange={(event) => setInstanceDescription(event.target.value)}
+              />
+            </label>
+            <label>
               Registration
               <select value={registrationMode} onChange={(event) => setRegistrationMode(event.target.value as RegistrationMode)}>
                 <option value="open">Open</option>
@@ -484,11 +527,13 @@ function AccountDialog({
 
 function AuthScreen({
   api,
+  instanceSettings,
   onSignedIn,
   onError,
   notice,
 }: {
   api: StickerFoundryApi;
+  instanceSettings: InstanceSettings;
   onSignedIn: (auth: AuthResponse) => void;
   onError: (error: unknown) => void;
   notice: Notice | null;
@@ -531,8 +576,8 @@ function AuthScreen({
         <div className="brand auth-brand">
           <span className="brand-mark">SF</span>
           <div>
-            <h1>StickerFoundry</h1>
-            <p>Self-hosted sticker pack management</p>
+            <h1>{instanceSettings.instanceName}</h1>
+            <p>{instanceSettings.instanceDescription}</p>
           </div>
         </div>
 

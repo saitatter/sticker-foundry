@@ -16,7 +16,7 @@ StickerFoundry is a self-hosted collaborative WhatsApp sticker pack manager, sha
 - JWT register/login.
 - Short-lived access tokens with refresh-token sessions, logout revocation, and web session management.
 - Registration mode control with `REGISTRATION_MODE=open|invite-only|disabled` and optional `REGISTRATION_INVITE_CODE`.
-- First-user admin bootstrap plus web admin settings for registration mode, invite code, and per-owner storage quota.
+- First-user admin bootstrap plus web admin settings for branding, registration mode, invite code, and per-owner storage quota.
 - Admin audit log for auth, admin setting, pack, collaboration, and sticker mutation events.
 - Authenticated password change endpoint and web account dialog.
 - Pack CRUD with ownership, public visibility, viewer/editor collaboration roles, invite codes, member management, and invite revocation.
@@ -125,7 +125,7 @@ The seed command creates a local demo account and a WhatsApp-compatible demo pac
 
 The web login screen includes a **Use demo account** button that fills these seeded credentials.
 
-Registration is open by default. The first registered account becomes an admin. Admins can change registration mode, invite code, and per-owner storage quota from the web account dialog. For initial public deployments, you can also seed defaults with `REGISTRATION_MODE=invite-only`, `REGISTRATION_INVITE_CODE`, and optional `STORAGE_QUOTA_BYTES`.
+Registration is open by default. The first registered account becomes an admin. Admins can change instance name/description, registration mode, invite code, and per-owner storage quota from the web account dialog. For initial public deployments, you can also seed defaults with `INSTANCE_NAME`, `INSTANCE_DESCRIPTION`, `REGISTRATION_MODE=invite-only`, `REGISTRATION_INVITE_CODE`, and optional `STORAGE_QUOTA_BYTES`.
 
 Access tokens default to `ACCESS_TOKEN_TTL=15m`; refresh sessions default to `REFRESH_TOKEN_TTL_DAYS=30`. Users can revoke sessions from the web account dialog, and Android refreshes tokens automatically during sync/upload flows.
 
