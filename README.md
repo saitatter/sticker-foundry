@@ -375,6 +375,7 @@ The web app lives in `apps/web` and provides:
 - Sticker detail dialog with large preview and metadata editing.
 - Sticker comments for collaborator notes.
 - Pack-level approval toggle for reviewed exports.
+- Mobile-focused web layout tweaks for quick phone edits.
 - Sticker image replacement.
 - Sticker image replacement from web UI.
 - Client-side rotate and square crop before upload or replacement.

@@ -1274,9 +1274,47 @@ select:focus {
     flex-direction: column;
   }
 
+  .topbar-actions,
+  .detail-actions {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .detail-actions .secondary-button,
+  .topbar-actions .icon-button {
+    width: 100%;
+  }
+
   .content,
   .sidebar {
     padding: 14px;
+  }
+
+  .workspace {
+    min-height: auto;
+  }
+
+  .pack-list-scroll {
+    grid-template-columns: 1fr;
+    max-height: 220px;
+  }
+
+  .pack-row {
+    min-height: 84px;
+  }
+
+  .sticker-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .sticker-tile {
+    padding: 8px;
+  }
+
+  .sticker-meta,
+  .sticker-select {
+    font-size: 11px;
   }
 
   .stats-grid,
@@ -1295,5 +1333,27 @@ select:focus {
 
   .tray-form .secondary-button {
     grid-column: auto;
+  }
+
+  .bulk-toolbar {
+    position: sticky;
+    top: 0;
+    z-index: 4;
+    padding: 10px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface);
+    box-shadow: var(--shadow);
+  }
+}
+
+@media (max-width: 420px) {
+  .sticker-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .detail-actions,
+  .topbar-actions {
+    grid-template-columns: 1fr;
   }
 }
