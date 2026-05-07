@@ -47,6 +47,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.stickerplatform.data.EXTRACTION_FAILED
+import com.example.stickerplatform.data.EXTRACTION_READY
+import com.example.stickerplatform.data.EXTRACTION_SYNCING
 import com.example.stickerplatform.data.ImageEditOptions
 import com.example.stickerplatform.data.PackEntity
 import com.example.stickerplatform.data.StickerEntity
@@ -299,6 +302,7 @@ private fun PackRow(
     onUploadSticker: () -> Unit,
     onReplaceTrayIcon: () -> Unit,
 ) {
+    val cacheReady = pack.extractionStatus == EXTRACTION_READY
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(
             modifier = Modifier.padding(12.dp),
@@ -325,16 +329,23 @@ private fun PackRow(
                 "${if (pack.isPublic) "Public pack" else "Private pack"} · Updated ${pack.updatedAt.take(10)}",
                 style = MaterialTheme.typography.bodySmall,
             )
+            if (!cacheReady) {
+                Text(
+                    extractionStatusLabel(pack),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (pack.extractionStatus == EXTRACTION_FAILED) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+                )
+            }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(
                     onClick = onAdd,
-                    enabled = pack.stickerCount >= 3,
+                    enabled = pack.stickerCount >= 3 && cacheReady,
                 ) {
                     Text("WhatsApp")
                 }
                 Button(
                     onClick = onAddBusiness,
-                    enabled = pack.stickerCount >= 3,
+                    enabled = pack.stickerCount >= 3 && cacheReady,
                 ) {
                     Text("Business")
                 }
@@ -401,6 +412,12 @@ private fun collaboratorDetails(pack: PackEntity): String = when {
     pack.canManage -> "Can manage members, invites, pack details, and stickers"
     pack.canEdit -> "Can upload stickers, replace tray icons, and edit sticker images"
     else -> "Can sync, preview, export, and import into WhatsApp"
+}
+
+private fun extractionStatusLabel(pack: PackEntity): String = when (pack.extractionStatus) {
+    EXTRACTION_SYNCING -> "Local cache is syncing"
+    EXTRACTION_FAILED -> "Local cache failed${pack.extractionError?.let { ": $it" } ?: ""}"
+    else -> "Local cache is not ready"
 }
 
 @Composable

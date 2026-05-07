@@ -72,6 +72,8 @@ class ZipExtractor(
                     canManage = false,
                     stickerCount = pack.stickers.size,
                     updatedAt = System.currentTimeMillis().toString(),
+                    extractionStatus = EXTRACTION_READY,
+                    extractionError = null,
                 ),
                 stickers = pack.stickers.map {
                     StickerEntity(

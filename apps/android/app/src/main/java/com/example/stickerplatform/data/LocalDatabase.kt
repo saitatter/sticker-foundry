@@ -16,6 +16,10 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import kotlinx.coroutines.flow.Flow
 
+const val EXTRACTION_READY = "READY"
+const val EXTRACTION_SYNCING = "SYNCING"
+const val EXTRACTION_FAILED = "FAILED"
+
 @Entity(tableName = "packs")
 data class PackEntity(
     @PrimaryKey val id: String,
@@ -35,6 +39,8 @@ data class PackEntity(
     val canManage: Boolean,
     val stickerCount: Int,
     val updatedAt: String,
+    val extractionStatus: String,
+    val extractionError: String?,
 )
 
 @Entity(
@@ -91,9 +97,12 @@ interface StickerDao {
 
     @Query("DELETE FROM packs")
     suspend fun deleteAllPacks()
+
+    @Query("UPDATE packs SET extractionStatus = :status, extractionError = :error WHERE id = :packId")
+    suspend fun updateExtractionStatus(packId: String, status: String, error: String?)
 }
 
-@Database(entities = [PackEntity::class, StickerEntity::class], version = 7, exportSchema = true)
+@Database(entities = [PackEntity::class, StickerEntity::class], version = 8, exportSchema = true)
 abstract class LocalDatabase : RoomDatabase() {
     abstract fun stickerDao(): StickerDao
 
@@ -142,10 +151,25 @@ abstract class LocalDatabase : RoomDatabase() {
             }
         }
 
+        private val migration7To8 = object : Migration(7, 8) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE packs ADD COLUMN extractionStatus TEXT NOT NULL DEFAULT 'READY'")
+                db.execSQL("ALTER TABLE packs ADD COLUMN extractionError TEXT")
+            }
+        }
+
         fun get(context: Context): LocalDatabase =
             instance ?: synchronized(this) {
                 instance ?: Room.databaseBuilder(context.applicationContext, LocalDatabase::class.java, "stickers.db")
-                    .addMigrations(migration1To2, migration2To3, migration3To4, migration4To5, migration5To6, migration6To7)
+                    .addMigrations(
+                        migration1To2,
+                        migration2To3,
+                        migration3To4,
+                        migration4To5,
+                        migration5To6,
+                        migration6To7,
+                        migration7To8,
+                    )
                     .build()
                     .also { instance = it }
             }
@@ -153,7 +177,15 @@ abstract class LocalDatabase : RoomDatabase() {
         fun providerGet(context: Context): LocalDatabase =
             instance ?: synchronized(this) {
                 instance ?: Room.databaseBuilder(context.applicationContext, LocalDatabase::class.java, "stickers.db")
-                    .addMigrations(migration1To2, migration2To3, migration3To4, migration4To5, migration5To6, migration6To7)
+                    .addMigrations(
+                        migration1To2,
+                        migration2To3,
+                        migration3To4,
+                        migration4To5,
+                        migration5To6,
+                        migration6To7,
+                        migration7To8,
+                    )
                     .allowMainThreadQueries()
                     .build()
                     .also { instance = it }

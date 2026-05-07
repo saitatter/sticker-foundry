@@ -140,6 +140,8 @@ class StickerRepository private constructor(context: Context) {
                 canManage = remote.canManage ?: remote.isOwner,
                 stickerCount = remote.stickerCount,
                 updatedAt = remote.updatedAt,
+                extractionStatus = EXTRACTION_READY,
+                extractionError = null,
             ),
         )
     }
@@ -162,11 +164,17 @@ class StickerRepository private constructor(context: Context) {
             error("Pack is not exportable yet")
         }
 
-        val zipFile = downloadZipToTemp(remote.id)
+        markExtractionStatus(remote.id, EXTRACTION_SYNCING, null)
         val extracted = try {
-            extractor.extract(remote.id, zipFile)
-        } finally {
-            zipFile.delete()
+            val zipFile = downloadZipToTemp(remote.id)
+            try {
+                extractor.extract(remote.id, zipFile)
+            } finally {
+                zipFile.delete()
+            }
+        } catch (error: Throwable) {
+            markExtractionStatus(remote.id, EXTRACTION_FAILED, error.message ?: error::class.java.simpleName)
+            throw error
         }
         db.stickerDao().upsertPack(
             extracted.entity.copy(
@@ -181,6 +189,8 @@ class StickerRepository private constructor(context: Context) {
                 stickerCount = manifest?.stickerCount ?: remote.stickerCount,
                 syncHash = remoteSyncKey,
                 updatedAt = remote.updatedAt,
+                extractionStatus = EXTRACTION_READY,
+                extractionError = null,
             ),
         )
         db.stickerDao().deleteStickers(extracted.entity.id)
@@ -215,6 +225,10 @@ class StickerRepository private constructor(context: Context) {
             zipFile.delete()
             throw error
         }
+    }
+
+    private suspend fun markExtractionStatus(packId: String, status: String, error: String?) {
+        db.stickerDao().updateExtractionStatus(packId, status, error)
     }
 
     private fun api(): StickerApi {

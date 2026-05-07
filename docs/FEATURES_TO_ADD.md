@@ -12,7 +12,6 @@ This is the live feature backlog. It should only contain work that still needs t
 
 ## Sync And Reliability
 
-- Track local extraction status in Room.
 - Export cache on server for unchanged packs.
 - Better conflict handling when the same pack is edited from web and Android.
 
