@@ -22,4 +22,3 @@ This backlog intentionally contains only work that is not implemented yet or can
 ## Release And Quality
 
 - Finalize Android package identity before publishing signed release APKs. Signing scaffolding exists, but the starter `applicationId` must be replaced first.
-- Add more focused web editor tests for brush, compare, optimizer, server background removal options, and animated option submission.
