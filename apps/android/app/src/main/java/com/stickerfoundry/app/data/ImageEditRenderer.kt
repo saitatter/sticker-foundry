@@ -7,6 +7,8 @@ import android.graphics.ColorMatrix
 import android.graphics.ColorMatrixColorFilter
 import android.graphics.Matrix
 import android.graphics.Paint
+import android.graphics.PorterDuff
+import android.graphics.PorterDuffXfermode
 import android.graphics.Typeface
 
 object ImageEditRenderer {
@@ -92,13 +94,15 @@ object ImageEditRenderer {
         val scale = maxOf(width, height) / 512f
 
         options.brushStrokes.forEach { stroke ->
-            val color = if (stroke.mode == BrushMode.Erase) Color.BLACK else Color.WHITE
             val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                this.color = color
+                color = if (stroke.mode == BrushMode.Erase) Color.TRANSPARENT else Color.WHITE
                 style = Paint.Style.STROKE
                 strokeCap = Paint.Cap.ROUND
                 strokeJoin = Paint.Join.ROUND
                 strokeWidth = stroke.size.coerceIn(8f, 128f) * scale
+                xfermode = PorterDuffXfermode(
+                    if (stroke.mode == BrushMode.Erase) PorterDuff.Mode.CLEAR else PorterDuff.Mode.SRC,
+                )
             }
             val points = stroke.points.map {
                 it.x.coerceIn(0f, 1f) * width to it.y.coerceIn(0f, 1f) * height
@@ -114,19 +118,14 @@ object ImageEditRenderer {
             }
         }
 
-        val output = bitmap.copy(Bitmap.Config.ARGB_8888, true)
-        val pixels = IntArray(width * height)
-        val maskPixels = IntArray(width * height)
-        output.getPixels(pixels, 0, width, 0, 0, width, height)
-        mask.getPixels(maskPixels, 0, width, 0, 0, width, height)
-
-        pixels.indices.forEach { index ->
-            val alpha = Color.alpha(pixels[index])
-            val maskAlpha = Color.red(maskPixels[index])
-            val nextAlpha = alpha * maskAlpha / 255
-            pixels[index] = (pixels[index] and 0x00FFFFFF) or (nextAlpha shl 24)
+        val output = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+        Canvas(output).apply {
+            drawBitmap(bitmap, 0f, 0f, null)
+            val maskPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_IN)
+            }
+            drawBitmap(mask, 0f, 0f, maskPaint)
         }
-        output.setPixels(pixels, 0, width, 0, 0, width, height)
         return output
     }
 
