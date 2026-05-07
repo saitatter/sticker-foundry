@@ -115,16 +115,17 @@ model Pack {
 }
 
 model Sticker {
-  id                String   @id @default(uuid())
+  id                String              @id @default(uuid())
   packId            String
-  pack              Pack     @relation(fields: [packId], references: [id], onDelete: Cascade)
+  pack              Pack                @relation(fields: [packId], references: [id], onDelete: Cascade)
   fileName          String
   emojis            String[]
   accessibilityText String?
   sizeBytes         Int
   sha256            String
-  position          Int      @default(0)
-  createdAt         DateTime @default(now())
+  position          Int                 @default(0)
+  reviewStatus      StickerReviewStatus @default(PENDING)
+  createdAt         DateTime            @default(now())
 
   @@unique([packId, fileName])
   @@index([packId])
@@ -135,6 +136,12 @@ enum PackRole {
   VIEWER
   EDITOR
   OWNER
+}
+
+enum StickerReviewStatus {
+  PENDING
+  APPROVED
+  NEEDS_WORK
 }
 
 model PackMember {

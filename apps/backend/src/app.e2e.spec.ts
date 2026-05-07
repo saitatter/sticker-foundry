@@ -40,6 +40,7 @@ type StickerRecord = {
   sizeBytes: number;
   sha256: string;
   position: number;
+  reviewStatus: 'PENDING' | 'APPROVED' | 'NEEDS_WORK';
   createdAt: Date;
 };
 
@@ -242,7 +243,12 @@ class InMemoryPrisma {
 
   sticker = {
     create: jest.fn(async ({ data }: { data: Omit<StickerRecord, 'id' | 'createdAt'> }) => {
-      const sticker: StickerRecord = { ...data, id: `sticker-${this.stickerSeq++}`, createdAt: new Date() };
+      const sticker: StickerRecord = {
+        ...data,
+        reviewStatus: data.reviewStatus ?? 'PENDING',
+        id: `sticker-${this.stickerSeq++}`,
+        createdAt: new Date(),
+      };
       this.stickers.push(sticker);
       return sticker;
     }),

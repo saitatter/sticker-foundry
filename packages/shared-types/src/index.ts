@@ -6,10 +6,12 @@ export type StickerDto = {
   sizeBytes: number;
   sha256: string;
   position: number;
+  reviewStatus: StickerReviewStatus;
   createdAt: string;
 };
 
 export type PackRole = 'VIEWER' | 'EDITOR' | 'OWNER';
+export type StickerReviewStatus = 'PENDING' | 'APPROVED' | 'NEEDS_WORK';
 
 export type PackDto = {
   id: string;

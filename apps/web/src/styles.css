@@ -407,6 +407,10 @@ select:focus {
   color: var(--success);
 }
 
+.status-pill.pending {
+  color: var(--primary-strong);
+}
+
 .status-pill.needs-work {
   color: var(--warning);
 }
@@ -968,7 +972,8 @@ select:focus {
   gap: 8px;
 }
 
-.sticker-edit-form input {
+.sticker-edit-form input,
+.sticker-edit-form select {
   height: 36px;
 }
 

@@ -13,6 +13,7 @@ type Sticker = {
   sizeBytes: number;
   sha256: string;
   position: number;
+  reviewStatus: 'PENDING' | 'APPROVED' | 'NEEDS_WORK';
   createdAt: string;
 };
 
@@ -77,6 +78,7 @@ function createMockState() {
     sizeBytes: 512,
     sha256: `sha-${index + 1}`,
     position: index,
+    reviewStatus: 'APPROVED',
     createdAt: new Date().toISOString(),
   }));
   const packs: Pack[] = [
@@ -219,6 +221,7 @@ function newSticker(pack: Pack, fileName: string): Sticker {
     sizeBytes: 512,
     sha256: `${fileName}-sha`,
     position: pack.stickers?.length ?? 0,
+    reviewStatus: 'PENDING',
     createdAt: new Date().toISOString(),
   };
 }

@@ -312,6 +312,7 @@ export class PacksService {
             sizeBytes: sticker.sizeBytes,
             sha256: sticker.sha256,
             position: sticker.position,
+            reviewStatus: sticker.reviewStatus,
           })),
         },
       },
@@ -595,6 +596,7 @@ export class PacksService {
       data: {
         emojis: dto.emojis?.filter(Boolean).slice(0, WHATSAPP_LIMITS.maxStickerEmojis),
         accessibilityText: dto.accessibilityText,
+        reviewStatus: dto.reviewStatus,
       },
     });
 
@@ -692,6 +694,7 @@ export class PacksService {
               sizeBytes: copy.sticker.sizeBytes,
               sha256: copy.sticker.sha256,
               position: copy.position,
+              reviewStatus: copy.sticker.reviewStatus,
             },
           }),
         ),

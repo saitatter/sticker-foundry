@@ -2033,6 +2033,7 @@ function StickerTile({
   const [url, setUrl] = useState<string | null>(null);
   const [emojis, setEmojis] = useState(sticker.emojis.join(','));
   const [accessibilityText, setAccessibilityText] = useState(sticker.accessibilityText ?? '');
+  const [reviewStatus, setReviewStatus] = useState(sticker.reviewStatus);
   const [saving, setSaving] = useState(false);
   const [replacementFile, setReplacementFile] = useState<File | null>(null);
   const [replacementEditOptions, setReplacementEditOptions] = useState<ImageEditOptions>(defaultImageEditOptions);
@@ -2041,7 +2042,8 @@ function StickerTile({
   useEffect(() => {
     setEmojis(sticker.emojis.join(','));
     setAccessibilityText(sticker.accessibilityText ?? '');
-  }, [sticker.accessibilityText, sticker.emojis]);
+    setReviewStatus(sticker.reviewStatus);
+  }, [sticker.accessibilityText, sticker.emojis, sticker.reviewStatus]);
 
   useEffect(() => {
     let alive = true;
@@ -2083,6 +2085,7 @@ function StickerTile({
           .filter(Boolean)
           .slice(0, 3),
         accessibilityText.trim(),
+        reviewStatus,
       );
       await onChanged();
     } catch (error) {
@@ -2109,7 +2112,10 @@ function StickerTile({
     }
   }
 
-  const dirty = emojis !== sticker.emojis.join(',') || accessibilityText !== (sticker.accessibilityText ?? '');
+  const dirty =
+    emojis !== sticker.emojis.join(',') ||
+    accessibilityText !== (sticker.accessibilityText ?? '') ||
+    reviewStatus !== sticker.reviewStatus;
 
   return (
     <article
@@ -2146,6 +2152,7 @@ function StickerTile({
         <span>{formatBytes(sticker.sizeBytes)}</span>
         <span>{sticker.emojis.join(' ') || 'No emoji'}</span>
       </div>
+      <span className={`status-pill ${reviewStatusClass(sticker.reviewStatus)}`}>{reviewStatusLabel(sticker.reviewStatus)}</span>
       {canEdit ? (
         <>
           <form className="sticker-edit-form" onSubmit={saveMetadata}>
@@ -2156,6 +2163,14 @@ function StickerTile({
             <label>
               Alt text
               <input value={accessibilityText} onChange={(event) => setAccessibilityText(event.target.value)} maxLength={125} />
+            </label>
+            <label>
+              Review
+              <select value={reviewStatus} onChange={(event) => setReviewStatus(event.target.value as Sticker['reviewStatus'])}>
+                <option value="PENDING">Pending</option>
+                <option value="APPROVED">Approved</option>
+                <option value="NEEDS_WORK">Needs work</option>
+              </select>
             </label>
             <button className="secondary-button sticker-save" disabled={!dirty || saving} type="submit">
               Save
@@ -2386,6 +2401,18 @@ function roleLabel(role?: PackRole) {
   if (role === 'EDITOR') return 'Editor';
   if (role === 'VIEWER') return 'Viewer';
   return 'Private';
+}
+
+function reviewStatusLabel(status: Sticker['reviewStatus']) {
+  if (status === 'APPROVED') return 'Approved';
+  if (status === 'NEEDS_WORK') return 'Needs work';
+  return 'Pending';
+}
+
+function reviewStatusClass(status: Sticker['reviewStatus']) {
+  if (status === 'APPROVED') return 'ready';
+  if (status === 'NEEDS_WORK') return 'needs-work';
+  return 'pending';
 }
 
 function auditActionLabel(action: string) {

@@ -62,10 +62,12 @@ export type Sticker = {
   sizeBytes: number;
   sha256: string;
   position: number;
+  reviewStatus: StickerReviewStatus;
   createdAt: string;
 };
 
 export type PackRole = 'VIEWER' | 'EDITOR' | 'OWNER';
+export type StickerReviewStatus = 'PENDING' | 'APPROVED' | 'NEEDS_WORK';
 
 export type Pack = {
   id: string;
@@ -427,13 +429,20 @@ export class StickerFoundryApi {
     });
   }
 
-  async updateSticker(packId: string, stickerId: string, emojis: string[], accessibilityText: string) {
+  async updateSticker(
+    packId: string,
+    stickerId: string,
+    emojis: string[],
+    accessibilityText: string,
+    reviewStatus?: StickerReviewStatus,
+  ) {
     return this.request<Sticker>(`/packs/${packId}/stickers/${stickerId}`, {
       method: 'PATCH',
       auth: true,
       body: JSON.stringify({
         emojis: emojis.slice(0, 3),
         accessibilityText,
+        reviewStatus,
       }),
     });
   }
