@@ -16,6 +16,5 @@ This is the live feature backlog. It should only contain work that still needs t
 
 ## Release And Quality
 
-- Web lint and format scripts.
 - Release notes polish with screenshots or APK install notes.
 - Signed Android release builds later, once package identity is finalized.
