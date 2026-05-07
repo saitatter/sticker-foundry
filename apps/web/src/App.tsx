@@ -2944,6 +2944,8 @@ type ImageEditOptions = {
   textRotation: number;
   textX: number;
   textY: number;
+  autoFitSubject: boolean;
+  subjectPadding: number;
 };
 
 type BrushMode = 'erase' | 'restore';
@@ -2986,6 +2988,8 @@ const defaultImageEditOptions: ImageEditOptions = {
   textRotation: 0,
   textX: 50,
   textY: 82,
+  autoFitSubject: false,
+  subjectPadding: 12,
 };
 
 function ImageEditControls({
@@ -3153,6 +3157,12 @@ function ImageEditControls({
         <IconButton label="Restore brush" onClick={() => setBrushMode('restore')}>
           <RefreshCw size={16} />
         </IconButton>
+        <IconButton
+          label="Center subject"
+          onClick={() => onChange((current) => ({ ...current, autoFitSubject: true, normalizeSquare: true }))}
+        >
+          <MoveRight size={16} />
+        </IconButton>
         <label className="checkbox-row image-edit-toggle">
           <input
             checked={options.cropSquare}
@@ -3200,6 +3210,14 @@ function ImageEditControls({
             type="checkbox"
           />
           Text
+        </label>
+        <label className="checkbox-row image-edit-toggle">
+          <input
+            checked={options.autoFitSubject}
+            onChange={(event) => onChange((current) => ({ ...current, autoFitSubject: event.target.checked, normalizeSquare: event.target.checked || current.normalizeSquare }))}
+            type="checkbox"
+          />
+          Auto-fit
         </label>
       </div>
       <div className="layer-strip" aria-label="Canvas layers">
@@ -3302,6 +3320,21 @@ function ImageEditControls({
               step="1"
               type="range"
               value={options.textY}
+            />
+          </label>
+        </div>
+      ) : null}
+      {options.autoFitSubject ? (
+        <div className="image-edit-sliders subject-sliders">
+          <label>
+            Subject padding
+            <input
+              max="35"
+              min="0"
+              onChange={(event) => onChange((current) => ({ ...current, subjectPadding: Number(event.target.value) }))}
+              step="1"
+              type="range"
+              value={options.subjectPadding}
             />
           </label>
         </div>
@@ -3525,6 +3558,7 @@ async function editImageFile(file: File, options: ImageEditOptions) {
     !options.removeLightBackground &&
     !options.outline &&
     !options.shadow &&
+    !options.autoFitSubject &&
     options.brushStrokes.length === 0 &&
     (!options.textEnabled || options.textContent.trim().length === 0)
   ) {
@@ -3576,6 +3610,9 @@ async function editImageFile(file: File, options: ImageEditOptions) {
   }
   if (options.brushStrokes.length > 0) {
     applyBrushStrokes(context, canvas.width, canvas.height, options.brushStrokes, restoreSource);
+  }
+  if (options.autoFitSubject) {
+    fitSubjectToCanvas(context, options.subjectPadding);
   }
   if (options.outline) {
     applyOutline(context, canvas.width, canvas.height);
@@ -3761,6 +3798,56 @@ function applyTextLayer(context: CanvasRenderingContext2D, width: number, height
   context.fillStyle = options.textColor;
   context.fillText(text, 0, 0, maxTextWidth);
   context.restore();
+}
+
+function fitSubjectToCanvas(context: CanvasRenderingContext2D, paddingPercent: number) {
+  const sourceCanvas = document.createElement('canvas');
+  sourceCanvas.width = context.canvas.width;
+  sourceCanvas.height = context.canvas.height;
+  sourceCanvas.getContext('2d')?.drawImage(context.canvas, 0, 0);
+  const bounds = visiblePixelBounds(context, sourceCanvas.width, sourceCanvas.height);
+  if (!bounds) return;
+
+  const padding = clamp(paddingPercent, 0, 35) / 100;
+  const paddedWidth = bounds.width * (1 + padding * 2);
+  const paddedHeight = bounds.height * (1 + padding * 2);
+  const cropSize = Math.min(Math.max(paddedWidth, paddedHeight), Math.max(sourceCanvas.width, sourceCanvas.height));
+  const centerX = bounds.x + bounds.width / 2;
+  const centerY = bounds.y + bounds.height / 2;
+  const sourceX = clamp(centerX - cropSize / 2, 0, Math.max(0, sourceCanvas.width - cropSize));
+  const sourceY = clamp(centerY - cropSize / 2, 0, Math.max(0, sourceCanvas.height - cropSize));
+
+  context.canvas.width = 512;
+  context.canvas.height = 512;
+  context.clearRect(0, 0, 512, 512);
+  context.drawImage(sourceCanvas, sourceX, sourceY, cropSize, cropSize, 0, 0, 512, 512);
+}
+
+function visiblePixelBounds(context: CanvasRenderingContext2D, width: number, height: number) {
+  const data = context.getImageData(0, 0, width, height).data;
+  let minX = width;
+  let minY = height;
+  let maxX = -1;
+  let maxY = -1;
+
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const alpha = data[(y * width + x) * 4 + 3];
+      if (alpha <= 12) continue;
+      minX = Math.min(minX, x);
+      minY = Math.min(minY, y);
+      maxX = Math.max(maxX, x);
+      maxY = Math.max(maxY, y);
+    }
+  }
+
+  if (maxX < minX || maxY < minY) return null;
+  return {
+    x: minX,
+    y: minY,
+    width: maxX - minX + 1,
+    height: maxY - minY + 1,
+  };
 }
 
 function applyOutline(context: CanvasRenderingContext2D, width: number, height: number) {

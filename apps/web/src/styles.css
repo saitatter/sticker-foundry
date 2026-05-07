@@ -833,6 +833,10 @@ select:focus {
   grid-template-columns: minmax(180px, 1.4fr) repeat(7, minmax(96px, 1fr));
 }
 
+.subject-sliders {
+  grid-template-columns: minmax(180px, 1fr);
+}
+
 .text-sliders input[type='color'] {
   min-height: 40px;
   padding: 4px;
