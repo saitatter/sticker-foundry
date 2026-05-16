@@ -3244,12 +3244,10 @@ function ImageEditControls({
   }
 
   function undoBrushStroke() {
-    onChange((current) => {
-      const previousStroke = current.brushStrokes.at(-1);
-      if (!previousStroke) return current;
-      setRedoStrokes((strokes) => [...strokes, previousStroke]);
-      return { ...current, brushStrokes: current.brushStrokes.slice(0, -1) };
-    });
+    const previousStroke = options.brushStrokes.at(-1);
+    if (!previousStroke) return;
+    setRedoStrokes((strokes) => [...strokes, previousStroke]);
+    onChange((current) => ({ ...current, brushStrokes: current.brushStrokes.slice(0, -1) }));
   }
 
   function redoBrushStroke() {

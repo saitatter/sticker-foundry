@@ -1,8 +1,7 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PackRole, Prisma, StickerReviewStatus } from '@prisma/client';
-import { randomBytes } from 'crypto';
-import { v4 as uuidv4 } from 'uuid';
+import { randomBytes, randomUUID } from 'crypto';
 import { AuditService } from '../audit/audit.service';
 import { PrismaService } from '../prisma.service';
 import { BackgroundRemovalService } from './background-removal.service';
@@ -483,7 +482,7 @@ export class PacksService {
     const preparedInput = await this.mediaQueue.enqueue(() => this.prepareStickerInput(file.buffer, pack.isAnimated, dto));
     const processed = await this.mediaQueue.enqueue(() => this.imageService.processSticker(preparedInput, this.stickerProcessingOptions(pack.isAnimated, dto)));
     await this.assertCanInsertSticker(packId, pack.ownerId, processed.sizeBytes, processed.perceptualHash);
-    const fileName = `${uuidv4()}.webp`;
+    const fileName = `${randomUUID()}.webp`;
     await this.storage.writeImage(packId, fileName, processed);
 
     if (pack._count.stickers === 0) {
@@ -860,12 +859,12 @@ export class PacksService {
   }
 
   async copyStickers(userId: string, sourcePackId: string, dto: TransferStickersDto) {
-    const { source, target, stickers } = await this.loadTransfer(userId, sourcePackId, dto);
+    const { target, stickers } = await this.loadTransfer(userId, sourcePackId, dto);
     this.assertTargetCapacity(target, stickers.length);
     await this.enforceStorageQuota(target.ownerId, stickers.reduce((total, sticker) => total + sticker.sizeBytes, 0));
 
     const copies = stickers.map((sticker, index) => ({
-      fileName: `${uuidv4()}.webp`,
+      fileName: `${randomUUID()}.webp`,
       sourceFileName: sticker.fileName,
       position: (target._count?.stickers ?? 0) + index,
       sticker,
@@ -928,7 +927,7 @@ export class PacksService {
     }
 
     const moves = stickers.map((sticker) => ({
-      fileName: `${uuidv4()}.webp`,
+      fileName: `${randomUUID()}.webp`,
       sticker,
     }));
 

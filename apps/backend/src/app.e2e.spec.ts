@@ -220,7 +220,7 @@ class InMemoryPrisma {
       }
       return pack;
     }),
-    findMany: jest.fn(async ({ where, orderBy, include }: { where?: { OR?: Array<{ ownerId?: string; isPublic?: boolean }> }; orderBy?: unknown; include?: unknown }) => {
+    findMany: jest.fn(async ({ where, orderBy: _orderBy, include }: { where?: { OR?: Array<{ ownerId?: string; isPublic?: boolean }> }; orderBy?: unknown; include?: unknown }) => {
       const visible = this.packs.filter((pack) => {
         if (!where?.OR) return true;
         return where.OR.some((condition) => condition.ownerId === pack.ownerId || condition.isPublic === pack.isPublic);

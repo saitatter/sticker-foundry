@@ -14,25 +14,25 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
           persist-credentials: false
 
       - name: Set up Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
-          node-version: "20"
+          node-version: "24"
           cache: npm
 
       - name: Set up JDK
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: "17"
 
       - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+        uses: android-actions/setup-android@v4
 
       - name: Install dependencies
         run: npm ci
@@ -43,8 +43,26 @@ jobs:
       - name: Build backend
         run: npm run build:backend
 
+      - name: Lint backend
+        run: npm run lint:backend
+
+      - name: Test backend
+        run: npm run test:backend
+
+      - name: Test backend e2e
+        run: npm run test:e2e:backend
+
       - name: Build web
         run: npm run build:web
+
+      - name: Lint web
+        run: npm run lint:web
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Test web smoke flows
+        run: npm run test:web
 
       - name: Build shared types
         run: npm --workspace packages/shared-types run build
@@ -52,6 +70,21 @@ jobs:
       - name: Build Android debug APK
         working-directory: apps/android
         run: ./gradlew :app:assembleDebug
+
+      - name: Build Android signed release APK
+        if: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' && secrets.ANDROID_KEYSTORE_PASSWORD != '' && secrets.ANDROID_KEY_ALIAS != '' && secrets.ANDROID_KEY_PASSWORD != '' }}
+        working-directory: apps/android
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 --decode > "$RUNNER_TEMP/sticker-foundry-release.keystore"
+          echo "ANDROID_KEYSTORE_PATH=$RUNNER_TEMP/sticker-foundry-release.keystore" >> "$GITHUB_ENV"
+          ANDROID_KEYSTORE_PATH="$RUNNER_TEMP/sticker-foundry-release.keystore" ./gradlew :app:assembleRelease
+
+      - name: Prepare release assets
+        run: npm run package:release
 
       - name: Semantic release
         env:

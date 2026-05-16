@@ -2,7 +2,10 @@ import { BadRequestException, ConflictException, ForbiddenException } from '@nes
 import { PackRole, StickerReviewStatus } from '@prisma/client';
 import { PacksService } from './packs.service';
 
-jest.mock('uuid', () => ({ v4: () => 'generated-sticker-id' }));
+jest.mock('crypto', () => ({
+  ...jest.requireActual('crypto'),
+  randomUUID: () => 'generated-sticker-id',
+}));
 
 function createService() {
   const prisma: any = {
@@ -150,7 +153,7 @@ describe(PacksService, () => {
   });
 
   it('creates packs inside editable teams', async () => {
-    const { service, prisma, storage } = createService();
+    const { service, prisma } = createService();
     prisma.team.findUnique.mockResolvedValue({
       id: 'team-1',
       ownerId: 'other-user',
@@ -382,7 +385,7 @@ describe(PacksService, () => {
   });
 
   it('allows editors to upload stickers but blocks viewers from mutating sticker metadata', async () => {
-    const { service, prisma, imageService, storage } = createService();
+    const { service, prisma, imageService } = createService();
 
     prisma.pack.findUnique
       .mockResolvedValueOnce({

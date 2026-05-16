@@ -65,8 +65,12 @@ module.exports = {
       {
         assets: [
           {
-            path: 'apps/android/app/build/outputs/apk/debug/app-debug.apk',
-            label: 'StickerFoundry Android debug APK',
+            path: 'dist/sticker-foundry-android.apk',
+            label: 'StickerFoundry Android APK',
+          },
+          {
+            path: 'dist/sticker-foundry-server-package.tar.gz',
+            label: 'StickerFoundry server package for Docker/Unraid',
           },
         ],
       },

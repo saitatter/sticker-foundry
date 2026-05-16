@@ -21,9 +21,11 @@
     "test:backend": "npm --workspace apps/backend run test",
     "test:e2e:backend": "npm --workspace apps/backend run test:e2e",
     "test:web": "playwright test",
+    "lint:backend": "npm --workspace apps/backend run lint",
     "lint:web": "npm --workspace apps/web run lint",
     "format:web": "npm --workspace apps/web run format",
     "verify:backup": "node scripts/verify-backup.mjs",
+    "package:release": "node scripts/prepare-release-assets.mjs",
     "build:shared-types": "npm --workspace packages/shared-types run build",
     "release:dry-run": "semantic-release --dry-run"
   },
@@ -33,13 +35,13 @@
   "devDependencies": {
     "@playwright/test": "^1.59.1",
     "@semantic-release/changelog": "^6.0.3",
-    "@semantic-release/commit-analyzer": "^12.0.0",
+    "@semantic-release/commit-analyzer": "^13.0.1",
     "@semantic-release/exec": "^7.1.0",
     "@semantic-release/git": "^10.0.1",
-    "@semantic-release/github": "^11.0.6",
-    "@semantic-release/release-notes-generator": "^13.0.0",
+    "@semantic-release/github": "^12.0.8",
+    "@semantic-release/release-notes-generator": "^14.1.1",
     "concurrently": "^9.2.1",
-    "conventional-changelog-conventionalcommits": "^8.0.0",
-    "semantic-release": "^24.2.9"
+    "conventional-changelog-conventionalcommits": "^9.3.1",
+    "semantic-release": "^25.0.3"
   }
 }
