@@ -2,6 +2,11 @@ FROM node:20-bookworm-slim AS build
 
 WORKDIR /app
 
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends openssl \
+  && apt-get clean \
+  && rm -rf /var/lib/apt/lists/*
+
 COPY package.json package-lock.json ./
 COPY apps/backend/package.json apps/backend/package.json
 COPY apps/web/package.json apps/web/package.json
