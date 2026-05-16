@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.1.1](https://github.com/saitatter/sticker-foundry/compare/v1.1.0...v1.1.1) (2026-05-16)
+
+### 🧰 CI & Build
+
+* make release workflow manual ([fb117ec](https://github.com/saitatter/sticker-foundry/commit/fb117ec26917dc9692494ddccaab824459cfe24c))
+* **release:** guard optional android signing ([a6f83f5](https://github.com/saitatter/sticker-foundry/commit/a6f83f5292d4dcdaa8840727dc50ddf992a2fb8f))
+* **release:** prepare packaged GitHub release ([b9c208f](https://github.com/saitatter/sticker-foundry/commit/b9c208fc5e0f9a0d9fb794ec80f356e074c546a7))
+
 ## [1.1.0](https://github.com/saitatter/sticker-foundry/compare/v1.0.0...v1.1.0) (2026-05-07)
 
 ### ✨ Features
