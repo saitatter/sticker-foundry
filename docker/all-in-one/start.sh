@@ -8,8 +8,13 @@ POSTGRES_DATA_DIR="${POSTGRES_DATA_DIR:-/data/postgres}"
 DATA_DIR="${DATA_DIR:-/data/app}"
 EXPORT_CACHE_DIR="${EXPORT_CACHE_DIR:-$DATA_DIR/export-cache}"
 BACKGROUND_REMOVAL_COMMAND="${BACKGROUND_REMOVAL_COMMAND:-rembg i {input} {output}}"
-DATABASE_URL="${DATABASE_URL:-postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@127.0.0.1:5432/${POSTGRES_DB}?schema=public}"
 PG_BIN="${PG_BIN:-/usr/lib/postgresql/15/bin}"
+
+database_url() {
+  node -e 'const [user, password, db] = process.argv.slice(1); console.log(`postgresql://${encodeURIComponent(user)}:${encodeURIComponent(password)}@127.0.0.1:5432/${encodeURIComponent(db)}?schema=public`);' "$POSTGRES_USER" "$POSTGRES_PASSWORD" "$POSTGRES_DB"
+}
+
+DATABASE_URL="${DATABASE_URL:-$(database_url)}"
 
 export BACKGROUND_REMOVAL_COMMAND
 export DATABASE_URL

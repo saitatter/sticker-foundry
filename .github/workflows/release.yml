@@ -22,14 +22,14 @@ jobs:
       - name: Set up Node
         uses: actions/setup-node@v6
         with:
-          node-version: "24"
+          node-version: '24'
           cache: npm
 
       - name: Set up JDK
         uses: actions/setup-java@v5
         with:
           distribution: temurin
-          java-version: "17"
+          java-version: '17'
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v4
@@ -71,8 +71,7 @@ jobs:
         working-directory: apps/android
         run: ./gradlew :app:assembleDebug
 
-      - name: Build Android signed release APK
-        working-directory: apps/android
+      - name: Configure Android signing
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
@@ -85,13 +84,12 @@ jobs:
           fi
           echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/sticker-foundry-release.keystore"
           echo "ANDROID_KEYSTORE_PATH=$RUNNER_TEMP/sticker-foundry-release.keystore" >> "$GITHUB_ENV"
-          ANDROID_KEYSTORE_PATH="$RUNNER_TEMP/sticker-foundry-release.keystore" ./gradlew :app:assembleRelease
-
-      - name: Prepare release assets
-        run: npm run package:release
 
       - name: Semantic release
         env:
           GITHUB_TOKEN: ${{ secrets.RELEASE_PAT || github.token }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: npx semantic-release

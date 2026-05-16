@@ -7,7 +7,7 @@ ARG OCI_VERSION=""
 LABEL org.opencontainers.image.source="${OCI_SOURCE}" \
   org.opencontainers.image.revision="${OCI_REVISION}" \
   org.opencontainers.image.version="${OCI_VERSION}" \
-  org.opencontainers.image.title="StickerFoundry Backend"
+  org.opencontainers.image.title="Sticker Foundry Backend"
 
 RUN apk add --no-cache openssl
 

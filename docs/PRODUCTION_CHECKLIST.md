@@ -1,6 +1,6 @@
-# StickerFoundry HTTPS-First Production Checklist
+# Sticker Foundry HTTPS-First Production Checklist
 
-Use this before exposing StickerFoundry outside your LAN.
+Use this before exposing Sticker Foundry outside your LAN.
 
 ## Network
 

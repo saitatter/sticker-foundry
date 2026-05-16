@@ -10,7 +10,13 @@ async function bootstrap() {
   const config = app.get(ConfigService);
   const corsOrigin = config.get<string>('CORS_ORIGIN', '*');
   app.enableCors({
-    origin: corsOrigin === '*' ? true : corsOrigin.split(',').map((origin) => origin.trim()).filter(Boolean),
+    origin:
+      corsOrigin === '*'
+        ? true
+        : corsOrigin
+            .split(',')
+            .map((origin) => origin.trim())
+            .filter(Boolean),
   });
   app.setGlobalPrefix('api');
   app.useGlobalFilters(new RetryAfterExceptionFilter());
@@ -23,7 +29,7 @@ async function bootstrap() {
   );
 
   const openApiConfig = new DocumentBuilder()
-    .setTitle('StickerFoundry API')
+    .setTitle('Sticker Foundry API')
     .setDescription('Self-hosted collaborative WhatsApp sticker pack management API.')
     .setVersion('1.0.0')
     .addBearerAuth()

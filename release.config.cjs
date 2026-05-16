@@ -44,7 +44,7 @@ module.exports = {
         changelogTitle: '# Changelog',
       },
     ],
-    ['@semantic-release/exec', { prepareCmd: 'node scripts/set-version.cjs ${nextRelease.version}' }],
+    ['@semantic-release/exec', { prepareCmd: 'node scripts/prepare-semantic-release.cjs ${nextRelease.version}' }],
     [
       '@semantic-release/git',
       {
@@ -66,11 +66,11 @@ module.exports = {
         assets: [
           {
             path: 'dist/sticker-foundry-android.apk',
-            label: 'StickerFoundry Android APK',
+            label: 'Sticker Foundry Android APK',
           },
           {
             path: 'dist/sticker-foundry-server-package.tar.gz',
-            label: 'StickerFoundry server package for Docker/Unraid',
+            label: 'Sticker Foundry server package for Docker/Unraid',
           },
         ],
       },

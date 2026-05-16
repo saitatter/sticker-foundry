@@ -21,11 +21,11 @@ export class MailerService {
     await this.transport().sendMail({
       from,
       to: email,
-      subject: 'Reset your StickerFoundry password',
+      subject: 'Reset your Sticker Foundry password',
       text: [
         `Hi ${displayName},`,
         '',
-        'Use this link to reset your StickerFoundry password:',
+        'Use this link to reset your Sticker Foundry password:',
         resetUrl,
         '',
         `This link expires at ${expiresAt.toISOString()}.`,

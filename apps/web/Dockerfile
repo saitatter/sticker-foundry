@@ -19,7 +19,7 @@ ARG OCI_VERSION=""
 LABEL org.opencontainers.image.source="${OCI_SOURCE}" \
   org.opencontainers.image.revision="${OCI_REVISION}" \
   org.opencontainers.image.version="${OCI_VERSION}" \
-  org.opencontainers.image.title="StickerFoundry Web"
+  org.opencontainers.image.title="Sticker Foundry Web"
 
 COPY apps/web/nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /app/apps/web/dist /usr/share/nginx/html

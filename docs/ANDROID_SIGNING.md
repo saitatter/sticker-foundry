@@ -1,6 +1,6 @@
 # Android Release Signing
 
-StickerFoundry can build a signed release APK when signing environment variables are provided.
+Sticker Foundry can build a signed release APK when signing environment variables are provided.
 
 The Android package identity is:
 

@@ -30,8 +30,8 @@ ARG OCI_VERSION=""
 LABEL org.opencontainers.image.source="${OCI_SOURCE}" \
   org.opencontainers.image.revision="${OCI_REVISION}" \
   org.opencontainers.image.version="${OCI_VERSION}" \
-  org.opencontainers.image.title="StickerFoundry" \
-  org.opencontainers.image.description="All-in-one StickerFoundry server with web UI, API, PostgreSQL, and AI background removal"
+  org.opencontainers.image.title="Sticker Foundry" \
+  org.opencontainers.image.description="All-in-one Sticker Foundry server with web UI, API, PostgreSQL, and AI background removal"
 
 RUN apt-get update \
   && apt-get install -y --no-install-recommends \

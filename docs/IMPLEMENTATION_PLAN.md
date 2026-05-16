@@ -1,4 +1,4 @@
-# StickerFoundry Implementation Plan
+# Sticker Foundry Implementation Plan
 
 This document tracks what is still meaningful to validate or decide. Implemented product work has been removed from this plan so it does not drift.
 
@@ -82,5 +82,5 @@ Acceptance criteria:
 - Server remains the source of truth.
 - Android remains a cache and WhatsApp bridge.
 - `ContentProvider` is required because WhatsApp imports pack metadata and sticker files by querying the sticker app.
-- `contentHash` is preferred for StickerFoundry sync decisions; `imageDataVersion` remains for WhatsApp compatibility.
+- `contentHash` is preferred for Sticker Foundry sync decisions; `imageDataVersion` remains for WhatsApp compatibility.
 - Static and animated packs stay separate because WhatsApp validation rules differ.

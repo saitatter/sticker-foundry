@@ -1,7 +1,7 @@
 <table>
   <tr>
     <td width="104">
-      <img src="assets/brand/sticker-foundry-icon.png" alt="Sticker Foundry app icon" width="88" height="88" />
+      <img src="assets/brand/sticker-foundry-logo.svg" alt="Sticker Foundry logo" width="88" height="88" />
     </td>
     <td>
       <h1>Sticker Foundry</h1>
@@ -17,33 +17,95 @@
   </tr>
 </table>
 
-Sticker Foundry is a self-hosted collaborative WhatsApp sticker pack manager: web users manage packs on a server, the backend normalizes and exports WhatsApp-compatible media, and the Android app syncs packs locally so WhatsApp can import them.
+Sticker Foundry turns image drops into WhatsApp-ready sticker packs. The web app manages packs and collaboration, the backend normalizes and exports media, and the Android app syncs packs locally so WhatsApp can import them.
 
-## Brand
+## Highlights
 
-Sticker Foundry uses the **Sticker Press** mark: a deep-teal rounded-square icon with a compact press silhouette, a white sticker sheet, a folded-corner cue, and a small amber forge spark. It reads as "sticker creation" at launcher size without borrowing WhatsApp's logo or brand shape.
+| Area    | What is included                                                                                                                        |
+| ------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| Web     | Album-style pack library, tabbed pack details, upload flow, review state, comments, bulk actions, and a compact overlay sticker editor. |
+| Backend | NestJS API, PostgreSQL/Prisma, JWT auth, teams, invites, audit logs, storage, ZIP exports, metrics, and media processing.               |
+| Editor  | Crop/normalize, erase/restore brush, text layer, cleanup tools, animated options, optimizer, presets, and before/after compare.         |
+| Android | Server connection checks, Room cache, ZIP sync, local WhatsApp provider, WhatsApp/Business import intents, and edit/upload helpers.     |
+| Deploy  | Source Compose stack plus a GHCR all-in-one image for Unraid-style installs with web, API, PostgreSQL, and CPU AI background removal.   |
 
-Suggested palette:
+## Quick Start
 
-- Deep teal: `#08786f`
-- Ink: `#192124`
-- Paper: `#f7faf9`
-- Forge accent: `#f59e0b`
-- Soft mint surface: `#edf3f1`
+```bash
+npm install
+cp .env.example .env
+docker compose up -d postgres
+npm run prisma:migrate
+npm run prisma:seed
+npm run dev
+```
 
-## ✨ What Works
+| Service | URL                              |
+| ------- | -------------------------------- |
+| Web     | `http://localhost:5173`          |
+| API     | `http://localhost:3000/api`      |
+| OpenAPI | `http://localhost:3000/api/docs` |
 
-- NestJS API with PostgreSQL, Prisma, JWT auth, refresh sessions, password reset, audit logs, teams, roles, invites, and admin settings.
-- Sticker upload pipeline with WebP conversion, 512x512 normalization, static/animated validation, animated trim/FPS resampling, duplicate detection, image bomb safeguards, and queued media processing.
-- Disk storage by default, optional S3-compatible storage, cached ZIP exports, manifest/ETag sync, and Prometheus metrics.
-- Web UI for album-style pack browsing, tabbed pack details, drawer-based create/join tools, collaboration, public share pages, review status, comments, compact sticker cards, bulk actions, keyboard shortcuts, and responsive sticker grids.
-- Sticker editor with brush erase/restore, undo/redo, background cleanup, text layer, auto-fit subject, color tools, size optimizer, animated controls, batch presets, and before/after compare.
-- Background removal can run in-browser, on the backend threshold pipeline, or through an optional self-hosted AI command with threshold fallback.
-- Android Kotlin app with Retrofit, Room cache, retry-safe ZIP extraction, local extraction status, upload-time crop/color/text/brush editing with rendered preview, quick presets, server background-removal controls, animated upload controls, WhatsApp and WhatsApp Business import intents, and stale-edit conflict handling.
-- Docker Compose stack for source builds, plus a prebuilt all-in-one Unraid/GHCR image with web, API, PostgreSQL, and CPU AI background removal included.
-- Semantic-release with emoji changelog sections and Android debug APK release asset.
+Demo login: `demo@stickerfoundry.local` / `stickerfoundry123`
 
-## 🧱 Monorepo
+## Docker / Unraid
+
+For a pull-only deployment, use the packaged all-in-one image:
+
+```bash
+docker compose -f docker-compose.packages.yml --env-file .env up -d
+```
+
+Image: `ghcr.io/saitatter/sticker-foundry:latest`
+
+The package serves web and API on one port, with the API under `/api`. For Android on LAN, set the server URL to:
+
+```text
+http://YOUR_UNRAID_IP:WEB_PORT/api/
+```
+
+Set strong `POSTGRES_PASSWORD` and `JWT_SECRET` before exposing the app outside your LAN.
+
+## Android
+
+```bash
+cd apps/android
+./gradlew :app:assembleDebug
+```
+
+Tester flow:
+
+1. Install the APK.
+2. Set the API URL in Android settings.
+3. Log in and sync packs.
+4. Import a pack with at least 3 exportable stickers into WhatsApp.
+
+WhatsApp requires local files exposed through a `ContentProvider`; remote sticker URLs are not enough. Sticker Foundry downloads exports to app-private storage before handing them to WhatsApp.
+
+## AI Background Removal
+
+Server-side AI cleanup can call any local command that writes a transparent PNG to `{output}`:
+
+```env
+BACKGROUND_REMOVAL_COMMAND="rembg i {input} {output}"
+```
+
+If the command is empty or fails, Sticker Foundry falls back to the backend threshold remover.
+
+## Useful Commands
+
+| Task            | Command                                                          |
+| --------------- | ---------------------------------------------------------------- |
+| Backend build   | `npm run build:backend`                                          |
+| Backend tests   | `npm run test:backend`                                           |
+| Web build       | `npm run build:web`                                              |
+| Web tests       | `npm run test:web`                                               |
+| Web lint        | `npm run lint:web`                                               |
+| Shared types    | `npm run build:shared-types`                                     |
+| Release dry run | `npm run release:dry-run`                                        |
+| Android debug   | `cd apps/android && ./gradlew :app:lintDebug :app:assembleDebug` |
+
+## Repository Map
 
 ```text
 apps/backend        NestJS API, Prisma schema, image processing, exports
@@ -55,150 +117,18 @@ scripts             Operational helpers
 docker-compose.yml
 ```
 
-The backend is the source of truth. Android is a local cache and WhatsApp bridge.
+## Docs
 
-## 🚀 Local Development
-
-Requirements:
-
-- Node.js 20+
-- PostgreSQL or Docker for the local database
-- Android Studio/JDK 17 for Android work
-
-```bash
-npm install
-cp .env.example .env
-docker compose up -d postgres
-npm run prisma:migrate
-npm run prisma:seed
-npm run dev
-```
-
-Local URLs:
-
-- Web: `http://localhost:5173`
-- API: `http://localhost:3000/api`
-- OpenAPI: `http://localhost:3000/api/docs`
-
-Seeded demo login:
-
-- Email: `demo@stickerfoundry.local`
-- Password: `stickerfoundry123`
-
-## 🐳 Docker
-
-Run the source stack:
-
-```bash
-cp .env.example .env
-docker compose up -d --build
-```
-
-Services:
-
-- Web: `http://localhost:8080`
-- API: `http://localhost:3000/api`
-- PostgreSQL: internal service `postgres`
-
-Set strong `POSTGRES_PASSWORD` and `JWT_SECRET` before exposing anything outside your LAN.
-
-For Unraid or a pull-only deployment, use the all-in-one package:
-
-```bash
-docker compose -f docker-compose.packages.yml --env-file .env up -d
-```
-
-Package image:
-
-- `ghcr.io/saitatter/sticker-foundry:latest`
-
-The package exposes both web and API on `http://localhost:8080`, with the API under `/api`, and includes PostgreSQL plus CPU AI background removal inside the same container. For a LAN install, set Android's server URL to `http://YOUR_UNRAID_IP:WEB_PORT/api/`.
-
-### 🖼️ AI Background Removal
-
-The backend can call a local self-hosted remover command for `Server bg: AI/fallback` uploads. The command must write a transparent PNG to `{output}`:
-
-```env
-BACKGROUND_REMOVAL_COMMAND="rembg i {input} {output}"
-```
-
-Any compatible local tool works here, including a Python ONNX/RMBG/U²-Net/MODNet script. If the command is empty or fails, Sticker Foundry automatically uses the backend threshold remover instead.
-
-For a bundled CPU AI image using `rembg`, run Compose with the override:
-
-```bash
-docker compose -f docker-compose.yml -f docker-compose.ai.yml up -d --build
-```
-
-## 📱 Android
-
-Build debug APK:
-
-```bash
-cd apps/android
-./gradlew :app:assembleDebug
-```
-
-Basic tester flow:
-
-1. Install the debug APK.
-2. Set the API URL in Android settings.
-3. Log in and sync packs.
-4. Tap `WhatsApp` or `Business` on a pack with at least 3 exportable stickers.
-5. Confirm the import in WhatsApp.
-
-WhatsApp requires sticker apps to expose pack metadata and local files through a `ContentProvider`; remote URLs are not enough. Sticker Foundry therefore downloads ZIP exports to app-private storage and exposes local files to WhatsApp during import.
-
-## 🧪 Useful Commands
-
-```bash
-npm run build:backend
-npm run test:backend
-npm run build:web
-npm run test:web
-npm run lint:web
-npm run build:shared-types
-npm run release:dry-run
-npm run verify:backup -- --postgres stickers.sql --data foundry-data.tgz
-```
-
-Android:
-
-```bash
-cd apps/android
-./gradlew :app:lintDebug :app:assembleDebug
-./gradlew :app:assembleRelease
-```
-
-## 🔌 API Pointers
-
-- `POST /api/auth/register`
-- `POST /api/auth/login`
-- `GET /api/packs`
-- `POST /api/packs`
-- `POST /api/packs/:id/stickers`
-- `PUT /api/packs/:id/stickers/:stickerId/file`
-- `GET /api/packs/:id/export`
-- `GET /api/packs/:id/manifest`
-- `GET /api/public/packs`
-- `GET /api/public/packs/:id`
-- `GET /api/health`
-- `GET /api/metrics?format=prometheus`
-
-Use OpenAPI at `/api/docs` for the full contract.
-
-## 📚 Docs
-
-- [Implementation plan](docs/IMPLEMENTATION_PLAN.md)
-- [Feature backlog](docs/FEATURES_TO_ADD.md)
-- [Real WhatsApp validation](docs/WHATSAPP_VALIDATION.md)
-- [Docker validation](docs/DOCKER_VALIDATION.md)
-- [Reverse proxy examples](docs/REVERSE_PROXY.md)
 - [Production checklist](docs/PRODUCTION_CHECKLIST.md)
 - [Unraid notes](docs/UNRAID.md)
+- [Reverse proxy examples](docs/REVERSE_PROXY.md)
 - [Android signing](docs/ANDROID_SIGNING.md)
+- [WhatsApp validation](docs/WHATSAPP_VALIDATION.md)
+- [Feature backlog](docs/FEATURES_TO_ADD.md)
 - [Release notes guide](docs/RELEASE_NOTES.md)
 
-## 🚧 Remaining Work
+## Brand
 
-The main open items are real-device WhatsApp validation, Docker stack validation on a host with Docker installed, Android signing validation, Docker-host validation for the optional AI remover, and the remaining Android editor parity items. See [docs/FEATURES_TO_ADD.md](docs/FEATURES_TO_ADD.md).
+The repository logo is a transparent SVG: [assets/brand/sticker-foundry-logo.svg](assets/brand/sticker-foundry-logo.svg). Android launcher and web favicon assets use the rounded-square PNG app icon for better platform fit.
+
+Palette: deep teal `#08786f`, ink `#192124`, paper `#f7faf9`, forge accent `#f59e0b`, soft mint `#edf3f1`.

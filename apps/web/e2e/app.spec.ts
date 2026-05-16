@@ -210,7 +210,7 @@ function createMockState() {
     {
       id: 'pack-ready',
       name: 'Smoke Ready',
-      publisher: 'StickerFoundry',
+      publisher: 'Sticker Foundry',
       description: null,
       isPublic: false,
       requiresApproval: false,

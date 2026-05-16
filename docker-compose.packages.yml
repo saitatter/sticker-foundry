@@ -16,7 +16,7 @@ services:
       PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost:8080/api}
       PASSWORD_RESET_PUBLIC_URL: ${PASSWORD_RESET_PUBLIC_URL:-http://localhost:8080}
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:8080}
-      INSTANCE_NAME: ${INSTANCE_NAME:-StickerFoundry}
+      INSTANCE_NAME: ${INSTANCE_NAME:-Sticker Foundry}
       INSTANCE_DESCRIPTION: ${INSTANCE_DESCRIPTION:-Self-hosted sticker pack management}
       REGISTRATION_MODE: ${REGISTRATION_MODE:-open}
       REGISTRATION_INVITE_CODE: ${REGISTRATION_INVITE_CODE:-}
@@ -51,9 +51,9 @@ services:
     volumes:
       - ${UNRAID_APPDATA:-/mnt/user/appdata/sticker-foundry}/data:/data
     ports:
-      - "${WEB_PORT:-8080}:80"
+      - '${WEB_PORT:-8080}:80'
     healthcheck:
-      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1/api/health || exit 1"]
+      test: ['CMD-SHELL', 'wget -q --spider http://127.0.0.1/api/health || exit 1']
       interval: 30s
       timeout: 5s
       retries: 3

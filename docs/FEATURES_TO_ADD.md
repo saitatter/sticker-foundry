@@ -1,4 +1,4 @@
-# StickerFoundry Features To Add
+# Sticker Foundry Features To Add
 
 This backlog intentionally contains only work that is not implemented yet or cannot be validated in the current environment.
 

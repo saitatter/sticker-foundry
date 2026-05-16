@@ -89,29 +89,38 @@ class InMemoryPrisma {
 
   user = {
     count: jest.fn(async () => this.users.length),
-    findUnique: jest.fn(async ({ where }: { where: { email?: string; id?: string } }) =>
-      this.users.find((user) => user.email === where.email || user.id === where.id) ?? null,
+    findUnique: jest.fn(
+      async ({ where }: { where: { email?: string; id?: string } }) =>
+        this.users.find((user) => user.email === where.email || user.id === where.id) ?? null,
     ),
-    findUniqueOrThrow: jest.fn(async ({ where, select }: { where: { id: string }; select?: Record<string, boolean> }) => {
-      const user = this.users.find((item) => item.id === where.id);
-      if (!user) throw new Error('User not found');
-      if (!select) return user;
-      return Object.fromEntries(Object.entries(select).filter(([, enabled]) => enabled).map(([key]) => [key, user[key as keyof UserRecord]]));
-    }),
-    create: jest.fn(async ({ data }: { data: { email: string; displayName: string; passwordHash: string; isAdmin?: boolean } }) => {
-      const now = new Date();
-      const user: UserRecord = {
-        id: `user-${this.userSeq++}`,
-        email: data.email,
-        displayName: data.displayName,
-        passwordHash: data.passwordHash,
-        isAdmin: data.isAdmin ?? false,
-        createdAt: now,
-        updatedAt: now,
-      };
-      this.users.push(user);
-      return user;
-    }),
+    findUniqueOrThrow: jest.fn(
+      async ({ where, select }: { where: { id: string }; select?: Record<string, boolean> }) => {
+        const user = this.users.find((item) => item.id === where.id);
+        if (!user) throw new Error('User not found');
+        if (!select) return user;
+        return Object.fromEntries(
+          Object.entries(select)
+            .filter(([, enabled]) => enabled)
+            .map(([key]) => [key, user[key as keyof UserRecord]]),
+        );
+      },
+    ),
+    create: jest.fn(
+      async ({ data }: { data: { email: string; displayName: string; passwordHash: string; isAdmin?: boolean } }) => {
+        const now = new Date();
+        const user: UserRecord = {
+          id: `user-${this.userSeq++}`,
+          email: data.email,
+          displayName: data.displayName,
+          passwordHash: data.passwordHash,
+          isAdmin: data.isAdmin ?? false,
+          createdAt: now,
+          updatedAt: now,
+        };
+        this.users.push(user);
+        return user;
+      },
+    ),
     update: jest.fn(async ({ where, data }: { where: { id: string }; data: Partial<UserRecord> }) => {
       const user = this.users.find((item) => item.id === where.id);
       if (!user) throw new Error('User not found');
@@ -121,19 +130,32 @@ class InMemoryPrisma {
   };
 
   appSetting = {
-    findUnique: jest.fn(async ({ where }: { where: { key: string } }) => this.appSettings.find((setting) => setting.key === where.key) ?? null),
+    findUnique: jest.fn(
+      async ({ where }: { where: { key: string } }) =>
+        this.appSettings.find((setting) => setting.key === where.key) ?? null,
+    ),
     findMany: jest.fn(async () => this.appSettings),
-    upsert: jest.fn(async ({ where, create, update }: { where: { key: string }; create: { key: string; value: string }; update: { value: string } }) => {
-      const now = new Date();
-      const existing = this.appSettings.find((setting) => setting.key === where.key);
-      if (existing) {
-        Object.assign(existing, update, { updatedAt: now });
-        return existing;
-      }
-      const setting = { ...create, updatedAt: now };
-      this.appSettings.push(setting);
-      return setting;
-    }),
+    upsert: jest.fn(
+      async ({
+        where,
+        create,
+        update,
+      }: {
+        where: { key: string };
+        create: { key: string; value: string };
+        update: { value: string };
+      }) => {
+        const now = new Date();
+        const existing = this.appSettings.find((setting) => setting.key === where.key);
+        if (existing) {
+          Object.assign(existing, update, { updatedAt: now });
+          return existing;
+        }
+        const setting = { ...create, updatedAt: now };
+        this.appSettings.push(setting);
+        return setting;
+      },
+    ),
   };
 
   auditLog = {
@@ -158,7 +180,7 @@ class InMemoryPrisma {
         .slice(0, take)
         .map((log) => ({
           ...log,
-          actor: log.actorId ? this.users.find((user) => user.id === log.actorId) ?? null : null,
+          actor: log.actorId ? (this.users.find((user) => user.id === log.actorId) ?? null) : null,
         })),
     ),
   };
@@ -176,26 +198,32 @@ class InMemoryPrisma {
       this.sessions.push(session);
       return session;
     }),
-    findUnique: jest.fn(async ({ where, include }: { where: { refreshTokenHash: string }; include?: { user?: unknown } }) => {
-      const session = this.sessions.find((item) => item.refreshTokenHash === where.refreshTokenHash);
-      if (!session) return null;
-      const user = this.users.find((item) => item.id === session.userId);
-      return { ...session, ...(include?.user && user ? { user } : {}) };
-    }),
-    findMany: jest.fn(async ({ where }: { where: { userId: string } }) => this.sessions.filter((session) => session.userId === where.userId)),
+    findUnique: jest.fn(
+      async ({ where, include }: { where: { refreshTokenHash: string }; include?: { user?: unknown } }) => {
+        const session = this.sessions.find((item) => item.refreshTokenHash === where.refreshTokenHash);
+        if (!session) return null;
+        const user = this.users.find((item) => item.id === session.userId);
+        return { ...session, ...(include?.user && user ? { user } : {}) };
+      },
+    ),
+    findMany: jest.fn(async ({ where }: { where: { userId: string } }) =>
+      this.sessions.filter((session) => session.userId === where.userId),
+    ),
     update: jest.fn(async ({ where, data }: { where: { id: string }; data: Partial<UserSessionRecord> }) => {
       const session = this.sessions.find((item) => item.id === where.id);
       if (!session) throw new Error('Session not found');
       Object.assign(session, data);
       return session;
     }),
-    updateMany: jest.fn(async ({ where, data }: { where: Partial<UserSessionRecord>; data: Partial<UserSessionRecord> }) => {
-      const matches = this.sessions.filter((session) =>
-        Object.entries(where).every(([key, value]) => session[key as keyof UserSessionRecord] === value),
-      );
-      matches.forEach((session) => Object.assign(session, data));
-      return { count: matches.length };
-    }),
+    updateMany: jest.fn(
+      async ({ where, data }: { where: Partial<UserSessionRecord>; data: Partial<UserSessionRecord> }) => {
+        const matches = this.sessions.filter((session) =>
+          Object.entries(where).every(([key, value]) => session[key as keyof UserSessionRecord] === value),
+        );
+        matches.forEach((session) => Object.assign(session, data));
+        return { count: matches.length };
+      },
+    ),
   };
 
   pack = {
@@ -205,7 +233,7 @@ class InMemoryPrisma {
         id: `pack-${this.packSeq++}`,
         ownerId: data.ownerId ?? 'user-unknown',
         name: data.name ?? 'Untitled',
-        publisher: data.publisher ?? 'StickerFoundry',
+        publisher: data.publisher ?? 'Sticker Foundry',
         description: data.description ?? null,
         isPublic: data.isPublic ?? false,
         requiresApproval: data.requiresApproval ?? false,
@@ -220,14 +248,28 @@ class InMemoryPrisma {
       }
       return pack;
     }),
-    findMany: jest.fn(async ({ where, orderBy: _orderBy, include }: { where?: { OR?: Array<{ ownerId?: string; isPublic?: boolean }> }; orderBy?: unknown; include?: unknown }) => {
-      const visible = this.packs.filter((pack) => {
-        if (!where?.OR) return true;
-        return where.OR.some((condition) => condition.ownerId === pack.ownerId || condition.isPublic === pack.isPublic);
-      });
-      const sorted = [...visible].sort((left, right) => right.updatedAt.getTime() - left.updatedAt.getTime() || left.name.localeCompare(right.name));
-      return sorted.map((pack) => this.decoratePack(pack, include));
-    }),
+    findMany: jest.fn(
+      async ({
+        where,
+        orderBy: _orderBy,
+        include,
+      }: {
+        where?: { OR?: Array<{ ownerId?: string; isPublic?: boolean }> };
+        orderBy?: unknown;
+        include?: unknown;
+      }) => {
+        const visible = this.packs.filter((pack) => {
+          if (!where?.OR) return true;
+          return where.OR.some(
+            (condition) => condition.ownerId === pack.ownerId || condition.isPublic === pack.isPublic,
+          );
+        });
+        const sorted = [...visible].sort(
+          (left, right) => right.updatedAt.getTime() - left.updatedAt.getTime() || left.name.localeCompare(right.name),
+        );
+        return sorted.map((pack) => this.decoratePack(pack, include));
+      },
+    ),
     findUnique: jest.fn(async ({ where, include }: { where: { id: string }; include?: unknown }) => {
       const pack = this.packs.find((item) => item.id === where.id);
       return pack ? this.decoratePack(pack, include) : null;
@@ -259,22 +301,19 @@ class InMemoryPrisma {
     }),
     aggregate: jest.fn(async ({ where }: { where?: { pack?: { ownerId?: string } } }) => {
       const ownerId = where?.pack?.ownerId;
-      const packIds = ownerId ? this.packs.filter((pack) => pack.ownerId === ownerId).map((pack) => pack.id) : this.packs.map((pack) => pack.id);
+      const packIds = ownerId
+        ? this.packs.filter((pack) => pack.ownerId === ownerId).map((pack) => pack.id)
+        : this.packs.map((pack) => pack.id);
       const sizeBytes = this.stickers
         .filter((sticker) => packIds.includes(sticker.packId))
         .reduce((total, sticker) => total + sticker.sizeBytes, 0);
       return { _sum: { sizeBytes } };
     }),
     findFirst: jest.fn(
-      async ({
-        where,
-      }: {
-        where: { id?: string | { not?: string }; packId?: string; perceptualHash?: string };
-      }) =>
+      async ({ where }: { where: { id?: string | { not?: string }; packId?: string; perceptualHash?: string } }) =>
         this.stickers.find((sticker) => {
           const idMatches =
-            !where.id ||
-            (typeof where.id === 'string' ? sticker.id === where.id : sticker.id !== where.id.not);
+            !where.id || (typeof where.id === 'string' ? sticker.id === where.id : sticker.id !== where.id.not);
           return (
             idMatches &&
             (!where.packId || sticker.packId === where.packId) &&
@@ -309,7 +348,9 @@ class InMemoryPrisma {
     return {
       ...pack,
       ...(includeObject?.stickers ? { stickers: this.sortedStickers(pack.id) } : {}),
-      ...(includeObject?._count ? { _count: { stickers: this.stickers.filter((sticker) => sticker.packId === pack.id).length } } : {}),
+      ...(includeObject?._count
+        ? { _count: { stickers: this.stickers.filter((sticker) => sticker.packId === pack.id).length } }
+        : {}),
     };
   }
 
@@ -415,7 +456,12 @@ describe('StickerFoundry API e2e', () => {
     await request(server)
       .patch('/api/admin/settings')
       .set('Authorization', `Bearer ${token}`)
-      .send({ registrationMode: 'open', registrationInviteCode: null, storageQuotaBytes: null, auditRetentionDays: null })
+      .send({
+        registrationMode: 'open',
+        registrationInviteCode: null,
+        storageQuotaBytes: null,
+        auditRetentionDays: null,
+      })
       .expect(200);
 
     await request(server)
@@ -458,7 +504,7 @@ describe('StickerFoundry API e2e', () => {
     const createdPack = await request(server)
       .post('/api/packs')
       .set('Authorization', `Bearer ${token}`)
-      .send({ name: 'E2E Pack', publisher: 'StickerFoundry', isPublic: true })
+      .send({ name: 'E2E Pack', publisher: 'Sticker Foundry', isPublic: true })
       .expect(201);
     const packId = createdPack.body.id as string;
 
@@ -513,7 +559,7 @@ describe('StickerFoundry API e2e', () => {
       expect.objectContaining({
         identifier: packId,
         name: 'E2E Pack',
-        publisher: 'StickerFoundry',
+        publisher: 'Sticker Foundry',
         tray_image_file: 'tray_icon.webp',
         image_data_version: expect.any(String),
         animated_sticker_pack: false,

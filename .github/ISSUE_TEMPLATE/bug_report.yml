@@ -1,6 +1,6 @@
 name: Bug report
-description: Report something that is broken in StickerFoundry.
-title: "fix: "
+description: Report something that is broken in Sticker Foundry.
+title: 'fix: '
 labels:
   - bug
 body:

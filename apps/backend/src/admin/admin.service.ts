@@ -43,7 +43,8 @@ export class AdminService {
   async publicSettings(existingSettings?: Map<string, string>) {
     const settings = existingSettings ?? (await this.settingMap());
     return {
-      instanceName: settings.get(SETTING_KEYS.instanceName) ?? this.config.get<string>('INSTANCE_NAME', 'StickerFoundry'),
+      instanceName:
+        settings.get(SETTING_KEYS.instanceName) ?? this.config.get<string>('INSTANCE_NAME', 'Sticker Foundry'),
       instanceDescription:
         settings.get(SETTING_KEYS.instanceDescription) ??
         this.config.get<string>('INSTANCE_DESCRIPTION', 'Self-hosted sticker pack management'),

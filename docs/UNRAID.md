@@ -1,4 +1,4 @@
-# StickerFoundry On Unraid
+# Sticker Foundry On Unraid
 
 The Unraid package uses one all-in-one application image:
 

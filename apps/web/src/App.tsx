@@ -72,7 +72,7 @@ const TOKEN_KEY = 'stickerfoundry.token';
 const REFRESH_TOKEN_KEY = 'stickerfoundry.refreshToken';
 const DEMO_EMAIL = 'demo@stickerfoundry.local';
 const DEMO_PASSWORD = 'stickerfoundry123';
-const APP_ICON_SRC = '/sticker-foundry-icon.png';
+const APP_LOGO_SRC = '/logo.svg';
 const DEFAULT_INSTANCE_SETTINGS: InstanceSettings = {
   instanceName: 'Sticker Foundry',
   instanceDescription: 'Self-hosted sticker pack management',
@@ -92,7 +92,7 @@ type ImageEditPanel = 'basics' | 'text' | 'background' | 'output';
 function BrandMark() {
   return (
     <span className="brand-mark" aria-hidden="true">
-      <img src={APP_ICON_SRC} alt="" />
+      <img src={APP_LOGO_SRC} alt="" />
     </span>
   );
 }

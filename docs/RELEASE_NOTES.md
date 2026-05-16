@@ -17,13 +17,13 @@ Keep screenshots focused on the feature, with test data only.
 
 ## APK Install Notes
 
-GitHub Releases attach `StickerFoundry Android debug APK` as an early tester artifact.
+GitHub Releases attach `Sticker Foundry Android debug APK` as an early tester artifact.
 
 Tester flow:
 
 1. Download `app-debug.apk` from the GitHub Release assets.
 2. Install it on an Android device that has WhatsApp or WhatsApp Business installed.
-3. Open StickerFoundry and set the API URL to the deployed backend.
+3. Open Sticker Foundry and set the API URL to the deployed backend.
 4. Log in, sync packs, then use `WhatsApp` or `Business` from a synced pack card.
 5. Accept WhatsApp's import confirmation.
 
