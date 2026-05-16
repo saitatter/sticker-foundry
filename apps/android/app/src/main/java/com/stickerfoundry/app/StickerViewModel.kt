@@ -19,6 +19,7 @@ import retrofit2.HttpException
 import java.io.IOException
 import java.net.ConnectException
 import java.net.UnknownHostException
+import java.net.UnknownServiceException
 import java.net.SocketTimeoutException
 import java.util.Locale
 import javax.net.ssl.SSLHandshakeException
@@ -39,6 +40,8 @@ class StickerViewModel(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
 
     val status = MutableStateFlow(AppStatus())
+    val serverStatus = MutableStateFlow(AppStatus())
+    val checkingServer = MutableStateFlow(false)
     val serverUrl = MutableStateFlow(repository.serverUrl())
     val account = MutableStateFlow(repository.accountLabel())
     val cacheUsage = MutableStateFlow(formatBytes(repository.cacheSizeBytes()))
@@ -83,9 +86,30 @@ class StickerViewModel(
             runCatching { repository.saveServerUrl(url) }
                 .onSuccess {
                     serverUrl.value = repository.serverUrl()
+                    serverStatus.value = AppStatus("Saved ${serverUrl.value}")
                     setInfo("Server URL saved")
                 }
-                .onFailure { setError(it, "Server URL update failed") }
+                .onFailure {
+                    serverStatus.value = AppStatus(friendlyError(it, "Server URL update failed"), isError = true)
+                    setError(it, "Server URL update failed")
+                }
+        }
+    }
+
+    fun checkServerUrl(url: String) {
+        viewModelScope.launch {
+            checkingServer.value = true
+            serverStatus.value = AppStatus("Checking server")
+            runCatching { repository.checkServerUrl(url) }
+                .onSuccess { health ->
+                    serverStatus.value = AppStatus("Connected: ${health.status}")
+                    setInfo("Server connection OK")
+                }
+                .onFailure {
+                    serverStatus.value = AppStatus(friendlyError(it, "Server check failed"), isError = true)
+                    setError(it, "Server check failed")
+                }
+            checkingServer.value = false
         }
     }
 
@@ -156,6 +180,7 @@ class StickerViewModel(
         is IllegalArgumentException -> error.message ?: fallback
         is UnknownHostException -> "Could not find that server. Check the URL or DNS."
         is ConnectException -> "Could not reach the server. Check that StickerFoundry is running and the URL is correct."
+        is UnknownServiceException -> "HTTP is blocked by Android for this URL. Use HTTPS or allow local HTTP in the app build."
         is SocketTimeoutException -> "The server took too long to respond. Try again or check your network."
         is SSLHandshakeException -> "Secure connection failed. Check the HTTPS certificate or use HTTP for local testing."
         is HttpException -> httpErrorMessage(error, fallback)

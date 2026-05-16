@@ -89,7 +89,7 @@ test('supports brush editing undo redo and before after compare', async ({ page 
   await login(page);
 
   await chooseUploadImage(page, 'brush.png', 'image/png', png1x1);
-  const editor = page.locator('.image-edit-controls').first();
+  const editor = await openUploadEditor(page);
   const canvas = editor.getByLabel('Edited preview canvas');
   await expect(canvas).toBeVisible();
   await expect(editor.getByRole('button', { name: 'Undo brush' })).toBeDisabled();
@@ -114,11 +114,12 @@ test('submits optimizer and server background removal options', async ({ page })
   await login(page);
 
   await chooseUploadImage(page, 'server-bg.png', 'image/png', png1x1);
-  const editor = page.locator('.image-edit-controls').first();
+  const editor = await openUploadEditor(page);
   await editor.getByLabel('Optimize under 100KB').check();
   await editor.getByLabel('Server bg').selectOption('ai');
   await expect(editor.locator('.optimizer-panel')).toContainText(/Output/);
   await expect(editor.getByText('Server AI command is configured')).toBeVisible();
+  await page.locator('.image-editor-modal').getByRole('button', { name: 'Apply edits' }).click();
 
   await page.locator('.upload-panel').getByRole('button', { name: 'Upload' }).click();
   await expect.poll(() => state.uploads.length).toBe(1);
@@ -140,11 +141,12 @@ test('submits animated trim and frame rate upload options', async ({ page }) => 
   await expect(page.locator('.stats-grid')).toContainText('Animated');
 
   await chooseUploadImage(page, 'motion.gif', 'image/gif', gif1x1);
-  const editor = page.locator('.image-edit-controls').first();
+  const editor = await openUploadEditor(page);
   await expect(editor.locator('.animated-panel')).toBeVisible();
   await editor.getByLabel('Trim start').fill('1');
   await editor.getByLabel('Trim end').fill('5');
   await editor.getByLabel('Frame rate').fill('12');
+  await page.locator('.image-editor-modal').getByRole('button', { name: 'Apply edits' }).click();
 
   await page.locator('.upload-panel').getByRole('button', { name: 'Upload' }).click();
   await expect.poll(() => state.uploads.length).toBe(1);
@@ -386,6 +388,13 @@ async function login(page: Page) {
 
 async function chooseUploadImage(page: Page, name: string, mimeType: string, buffer: Buffer) {
   await page.locator('.upload-panel input[type=file]').setInputFiles({ name, mimeType, buffer });
+}
+
+async function openUploadEditor(page: Page) {
+  await page.locator('.upload-panel').getByRole('button', { name: 'Edit' }).click();
+  const editor = page.locator('.image-editor-modal .image-edit-controls').first();
+  await expect(editor).toBeVisible();
+  return editor;
 }
 
 async function drawOnCanvas(canvas: Locator) {

@@ -35,6 +35,8 @@ class SessionStore(context: Context) {
         prefs.edit().putString("serverUrl", normalizeServerUrl(url)).apply()
     }
 
+    fun normalizedServerUrl(url: String): String = normalizeServerUrl(url)
+
     fun clearToken() {
         prefs.edit().remove("token").remove("refreshToken").remove("accountLabel").apply()
     }
@@ -42,16 +44,22 @@ class SessionStore(context: Context) {
     private fun normalizeServerUrl(url: String): String {
         val trimmed = url.trim()
         if (trimmed.isBlank()) {
-            throw IllegalArgumentException("Enter a server URL, for example http://10.0.2.2:3000/api/")
+            throw IllegalArgumentException("Enter a server URL, for example http://HomeDockers:8095/api/")
         }
 
-        val parsed = trimmed.toHttpUrlOrNull()
+        val urlWithScheme = if (trimmed.contains("://")) trimmed else "http://$trimmed"
+        val parsed = urlWithScheme.toHttpUrlOrNull()
             ?: throw IllegalArgumentException("Enter a valid HTTP or HTTPS server URL")
         if (parsed.query != null || parsed.fragment != null) {
             throw IllegalArgumentException("Server URL must not include query parameters or fragments")
         }
 
-        val normalized = parsed.toString()
+        val withApiPath = if (parsed.encodedPath == "/") {
+            parsed.newBuilder().addPathSegment("api").build()
+        } else {
+            parsed
+        }
+        val normalized = withApiPath.toString()
         return if (normalized.endsWith("/")) normalized else "$normalized/"
     }
 }

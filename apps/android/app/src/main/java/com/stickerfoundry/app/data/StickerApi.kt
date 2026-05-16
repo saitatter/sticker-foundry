@@ -13,6 +13,9 @@ import retrofit2.http.Path
 import retrofit2.http.Streaming
 
 interface StickerApi {
+    @GET("health")
+    suspend fun health(): HealthResponse
+
     @POST("auth/login")
     suspend fun login(@Body request: LoginRequest): AuthResponse
 

@@ -21,9 +21,12 @@ import androidx.compose.ui.unit.dp
 @Composable
 fun SettingsDialog(
     serverUrl: String,
+    serverStatus: AppStatus,
+    checkingServer: Boolean,
     account: String,
     cacheUsage: String,
     onSaveServerUrl: (String) -> Unit,
+    onCheckServerUrl: (String) -> Unit,
     onLogout: () -> Unit,
     onClearCache: () -> Unit,
     onTroubleshooting: () -> Unit,
@@ -40,8 +43,28 @@ fun SettingsDialog(
                     value = editedServerUrl,
                     onValueChange = { editedServerUrl = it },
                     label = { Text("Server URL") },
+                    supportingText = { Text("Use http://HomeDockers:8095/api/; hostname:port also works.") },
                     modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
                 )
+                if (serverStatus.message.isNotBlank()) {
+                    Text(
+                        serverStatus.message,
+                        color = if (serverStatus.isError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(onClick = { onSaveServerUrl(editedServerUrl) }) {
+                        Text("Save URL")
+                    }
+                    TextButton(
+                        enabled = !checkingServer,
+                        onClick = { onCheckServerUrl(editedServerUrl) },
+                    ) {
+                        Text(if (checkingServer) "Checking..." else "Test server")
+                    }
+                }
                 Text("Account: $account", style = MaterialTheme.typography.bodySmall)
                 Text("Cache usage: $cacheUsage", style = MaterialTheme.typography.bodySmall)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -58,9 +81,7 @@ fun SettingsDialog(
             }
         },
         confirmButton = {
-            Button(onClick = { onSaveServerUrl(editedServerUrl) }) {
-                Text("Save")
-            }
+            Button(onClick = onDismiss) { Text("Done") }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {

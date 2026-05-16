@@ -45,6 +45,8 @@ private fun StickerApp(viewModel: StickerViewModel = viewModel(factory = Sticker
     val packs by viewModel.packs.collectAsState()
     val stickersByPack by viewModel.stickersByPack.collectAsState()
     val status by viewModel.status.collectAsState()
+    val serverStatus by viewModel.serverStatus.collectAsState()
+    val checkingServer by viewModel.checkingServer.collectAsState()
     val serverUrl by viewModel.serverUrl.collectAsState()
     val account by viewModel.account.collectAsState()
     val cacheUsage by viewModel.cacheUsage.collectAsState()
@@ -118,9 +120,12 @@ private fun StickerApp(viewModel: StickerViewModel = viewModel(factory = Sticker
     if (showSettings) {
         SettingsDialog(
             serverUrl = serverUrl,
+            serverStatus = serverStatus,
+            checkingServer = checkingServer,
             account = account,
             cacheUsage = cacheUsage,
             onSaveServerUrl = { viewModel.saveServerUrl(it) },
+            onCheckServerUrl = { viewModel.checkServerUrl(it) },
             onLogout = { viewModel.logout() },
             onClearCache = { viewModel.clearCache() },
             onTroubleshooting = { showTroubleshooting = true },

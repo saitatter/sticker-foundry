@@ -228,6 +228,7 @@ select:focus {
 
 .primary-button,
 .secondary-button,
+.ghost-button,
 .icon-button {
   border: 1px solid transparent;
   border-radius: 8px;
@@ -255,6 +256,19 @@ select:focus {
   border-color: var(--border);
   padding: 0 14px;
   font-weight: 700;
+}
+
+.ghost-button {
+  color: var(--muted);
+  background: transparent;
+  border-color: transparent;
+  padding: 0 12px;
+  font-weight: 700;
+}
+
+.ghost-button:hover:not(:disabled) {
+  color: var(--text);
+  background: var(--surface-muted);
 }
 
 .danger-button {
@@ -295,6 +309,49 @@ select:focus {
   border-radius: 8px;
   background: var(--surface);
   box-shadow: var(--shadow);
+}
+
+.image-editor-backdrop {
+  align-items: stretch;
+}
+
+.image-editor-modal {
+  width: min(1180px, 100%);
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  gap: 16px;
+}
+
+.image-editor-header,
+.image-editor-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.image-editor-header h3,
+.image-editor-header p {
+  margin: 0;
+}
+
+.image-editor-header p {
+  max-width: min(640px, 70vw);
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.image-editor-footer {
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.image-editor-footer div {
+  display: flex;
+  gap: 8px;
 }
 
 .pack-list {
@@ -772,6 +829,76 @@ select:focus {
   font-size: 12px;
 }
 
+.upload-edit-summary {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 12px;
+  margin-top: 12px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #f9fbfb;
+}
+
+.upload-edit-preview {
+  width: 72px;
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background:
+    linear-gradient(45deg, #e7eeec 25%, transparent 25%),
+    linear-gradient(-45deg, #e7eeec 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #e7eeec 75%),
+    linear-gradient(-45deg, transparent 75%, #e7eeec 75%);
+  background-size: 16px 16px;
+  background-position:
+    0 0,
+    0 8px,
+    8px -8px,
+    -8px 0;
+}
+
+.upload-edit-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.upload-edit-copy {
+  min-width: 0;
+  display: grid;
+  gap: 7px;
+}
+
+.upload-edit-copy strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.upload-edit-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.upload-edit-badges span {
+  min-height: 24px;
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid rgba(11, 127, 117, 0.28);
+  border-radius: 999px;
+  padding: 0 9px;
+  color: var(--primary-strong);
+  background: #e8f5f2;
+  font-size: 11px;
+  font-weight: 800;
+}
+
 .server-bg-note {
   grid-column: 1 / -1;
   margin: 0;
@@ -792,6 +919,17 @@ select:focus {
 
 .image-edit-controls.compare-mode {
   grid-template-columns: 190px 1fr;
+}
+
+.image-edit-controls.modal-editor {
+  grid-template-columns: minmax(320px, 420px) minmax(0, 1fr);
+  align-items: start;
+  gap: 16px;
+  margin-top: 0;
+}
+
+.image-edit-controls.modal-editor.compare-mode {
+  grid-template-columns: minmax(420px, 620px) minmax(0, 1fr);
 }
 
 .image-edit-controls.compact.compare-mode {
@@ -824,6 +962,15 @@ select:focus {
   grid-template-columns: 1fr 1fr;
   gap: 1px;
   background: var(--border);
+}
+
+.image-edit-controls.modal-editor .image-edit-preview {
+  width: 100%;
+  max-width: 420px;
+}
+
+.image-edit-controls.modal-editor .image-edit-preview.compare {
+  max-width: 620px;
 }
 
 .image-edit-controls.compact .image-edit-preview {
@@ -1597,6 +1744,20 @@ select:focus {
     grid-template-columns: 1fr 1fr;
   }
 
+  .upload-edit-summary {
+    grid-template-columns: 72px minmax(0, 1fr) auto;
+  }
+
+  .upload-edit-summary .ghost-button {
+    grid-column: 2 / 4;
+    justify-self: start;
+  }
+
+  .image-edit-controls.modal-editor,
+  .image-edit-controls.modal-editor.compare-mode {
+    grid-template-columns: 1fr;
+  }
+
   .edit-form {
     grid-template-columns: 1fr 1fr;
   }
@@ -1707,6 +1868,7 @@ select:focus {
 
   .stats-grid,
   .upload-form,
+  .upload-edit-summary,
   .edit-form,
   .tray-form,
   .collaboration-grid,
@@ -1720,13 +1882,26 @@ select:focus {
   }
 
   .image-edit-controls.compare-mode,
-  .image-edit-controls.compact.compare-mode {
+  .image-edit-controls.compact.compare-mode,
+  .image-edit-controls.modal-editor.compare-mode {
     grid-template-columns: 1fr;
   }
 
   .image-edit-preview.compare,
-  .image-edit-controls.compact .image-edit-preview.compare {
+  .image-edit-controls.compact .image-edit-preview.compare,
+  .image-edit-controls.modal-editor .image-edit-preview.compare {
     width: min(100%, 220px);
+  }
+
+  .upload-edit-summary .ghost-button {
+    grid-column: auto;
+  }
+
+  .image-editor-header,
+  .image-editor-footer,
+  .image-editor-footer div {
+    align-items: stretch;
+    flex-direction: column;
   }
 
   .image-edit-sliders,

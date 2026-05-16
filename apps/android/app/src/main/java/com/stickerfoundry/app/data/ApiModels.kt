@@ -17,6 +17,10 @@ data class RefreshTokenRequest(
     val refreshToken: String,
 )
 
+data class HealthResponse(
+    val status: String,
+)
+
 data class UserDto(
     val id: String,
     val email: String,

@@ -2454,6 +2454,8 @@ function UploadPanel({
   const [uploading, setUploading] = useState(false);
   const [uploadedCount, setUploadedCount] = useState(0);
   const [isFileDragActive, setIsFileDragActive] = useState(false);
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [editorDraft, setEditorDraft] = useState<ImageEditOptions>(defaultImageEditOptions);
   const disabled = remainingSlots <= 0;
 
   async function submit(event: FormEvent) {
@@ -2491,6 +2493,9 @@ function UploadPanel({
   function chooseFiles(fileList: FileList | null) {
     const selected = Array.from(fileList ?? []).slice(0, remainingSlots);
     setFiles(selected);
+    setEditorOpen(false);
+    setEditOptions(defaultImageEditOptions);
+    setEditorDraft(defaultImageEditOptions);
   }
 
   function dropFiles(event: DragEvent<HTMLLabelElement>) {
@@ -2553,15 +2558,137 @@ function UploadPanel({
         </button>
       </form>
       {files[0] ? (
-        <ImageEditControls
+        <UploadEditSummary
+          file={files[0]}
+          fileCount={files.length}
+          isAnimatedPack={pack.isAnimated}
+          options={editOptions}
+          onEdit={() => {
+            setEditorDraft(cloneImageEditOptions(editOptions));
+            setEditorOpen(true);
+          }}
+          onReset={() => setEditOptions(defaultImageEditOptions)}
+        />
+      ) : null}
+      {editorOpen && files[0] ? (
+        <ImageEditModal
           backgroundRemovalStatus={backgroundRemovalStatus}
           file={files[0]}
-          options={editOptions}
-          onChange={setEditOptions}
+          options={editorDraft}
+          onChange={setEditorDraft}
+          onApply={() => {
+            setEditOptions(cloneImageEditOptions(editorDraft));
+            setEditorOpen(false);
+          }}
+          onClose={() => setEditorOpen(false)}
+          onReset={() => setEditorDraft(defaultImageEditOptions)}
         />
       ) : null}
       {files.length > 1 ? <p className="upload-note">Current edit settings and presets apply to all selected files in upload order.</p> : null}
     </section>
+  );
+}
+
+function UploadEditSummary({
+  file,
+  fileCount,
+  isAnimatedPack,
+  options,
+  onEdit,
+  onReset,
+}: {
+  file: File;
+  fileCount: number;
+  isAnimatedPack: boolean;
+  options: ImageEditOptions;
+  onEdit: () => void;
+  onReset: () => void;
+}) {
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const badges = imageEditBadges(options, file, isAnimatedPack);
+  const hasEdits = badges[0] !== 'Original image';
+
+  useEffect(() => {
+    const objectUrl = URL.createObjectURL(file);
+    setPreviewUrl(objectUrl);
+    return () => URL.revokeObjectURL(objectUrl);
+  }, [file]);
+
+  return (
+    <div className="upload-edit-summary">
+      <div className="upload-edit-preview">
+        {previewUrl ? <img alt="Selected upload preview" src={previewUrl} /> : <ImagePlus size={24} />}
+      </div>
+      <div className="upload-edit-copy">
+        <strong>{fileCount === 1 ? file.name : `${fileCount} images selected`}</strong>
+        <div className="upload-edit-badges">
+          {badges.map((badge) => (
+            <span key={badge}>{badge}</span>
+          ))}
+        </div>
+      </div>
+      <button className="secondary-button" onClick={onEdit} type="button">
+        <Edit3 size={17} />
+        Edit
+      </button>
+      <button className="ghost-button" disabled={!hasEdits} onClick={onReset} type="button">
+        Reset
+      </button>
+    </div>
+  );
+}
+
+function ImageEditModal({
+  backgroundRemovalStatus,
+  file,
+  options,
+  onChange,
+  onApply,
+  onClose,
+  onReset,
+}: {
+  backgroundRemovalStatus?: AdminSettings['backgroundRemoval'];
+  file: File;
+  options: ImageEditOptions;
+  onChange: Dispatch<SetStateAction<ImageEditOptions>>;
+  onApply: () => void;
+  onClose: () => void;
+  onReset: () => void;
+}) {
+  return (
+    <div className="modal-backdrop image-editor-backdrop">
+      <section aria-label="Sticker image editor" aria-modal="true" className="modal-panel image-editor-modal" role="dialog">
+        <header className="image-editor-header">
+          <div>
+            <h3>Edit Sticker</h3>
+            <p>{file.name}</p>
+          </div>
+          <button className="ghost-button" onClick={onClose} type="button">
+            Cancel
+          </button>
+        </header>
+        <ImageEditControls
+          backgroundRemovalStatus={backgroundRemovalStatus}
+          file={file}
+          modal
+          options={options}
+          onChange={onChange}
+        />
+        <footer className="image-editor-footer">
+          <button className="ghost-button" onClick={onReset} type="button">
+            Reset edits
+          </button>
+          <div>
+            <button className="secondary-button" onClick={onClose} type="button">
+              Cancel
+            </button>
+            <button className="primary-button" onClick={onApply} type="button">
+              Apply edits
+            </button>
+          </div>
+        </footer>
+      </section>
+    </div>
   );
 }
 
@@ -3070,6 +3197,42 @@ const defaultImageEditOptions: ImageEditOptions = {
   animatedCompress: true,
 };
 
+function cloneImageEditOptions(options: ImageEditOptions): ImageEditOptions {
+  return {
+    ...options,
+    brushStrokes: options.brushStrokes.map((stroke) => ({
+      ...stroke,
+      points: stroke.points.map((point) => ({ ...point })),
+    })),
+  };
+}
+
+function imageEditBadges(options: ImageEditOptions, file: File, isAnimatedPack: boolean) {
+  const badges: string[] = [];
+  if (options.rotation !== 0 || options.cropSquare || options.normalizeSquare || options.zoom !== 1 || options.offsetX !== 0 || options.offsetY !== 0) {
+    badges.push('Framing');
+  }
+  if (options.removeLightBackground || options.serverBackgroundRemovalMode !== 'none') {
+    badges.push(options.serverBackgroundRemovalMode === 'ai' ? 'AI bg' : 'Background');
+  }
+  if (options.brushStrokes.length > 0) {
+    badges.push(`${options.brushStrokes.length} brush stroke${options.brushStrokes.length === 1 ? '' : 's'}`);
+  }
+  if (options.outline || options.shadow || options.textEnabled) {
+    badges.push('Sticker effects');
+  }
+  if (hasColorAdjustments(options) || options.grayscale) {
+    badges.push('Color');
+  }
+  if (options.optimizeOutput) {
+    badges.push('Optimized');
+  }
+  if (isAnimatedPack && isAnimatedSourceFile(file) && (options.animatedTrimStart > 0 || options.animatedTrimEnd < 10 || options.animatedFrameRate !== 15)) {
+    badges.push('Animation');
+  }
+  return badges.length > 0 ? badges : ['Original image'];
+}
+
 const imageEditPresets: Array<{ name: string; options: Partial<ImageEditOptions> }> = [
   {
     name: 'Meme cutout',
@@ -3115,12 +3278,14 @@ function ImageEditControls({
   options,
   onChange,
   compact = false,
+  modal = false,
 }: {
   backgroundRemovalStatus?: AdminSettings['backgroundRemoval'];
   file: File;
   options: ImageEditOptions;
   onChange: Dispatch<SetStateAction<ImageEditOptions>>;
   compact?: boolean;
+  modal?: boolean;
 }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const previewBoundsRef = useRef({ x: 0, y: 0, width: 1, height: 1 });
@@ -3263,7 +3428,7 @@ function ImageEditControls({
   }
 
   return (
-    <div className={`image-edit-controls ${compact ? 'compact' : ''} ${compareMode ? 'compare-mode' : ''}`}>
+    <div className={`image-edit-controls ${compact ? 'compact' : ''} ${modal ? 'modal-editor' : ''} ${compareMode ? 'compare-mode' : ''}`}>
       <div className={`image-edit-preview ${compareMode ? 'compare' : ''}`}>
         {compareMode && sourcePreviewUrl ? (
           <div className="compare-pane">

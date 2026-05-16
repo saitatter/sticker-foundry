@@ -46,6 +46,17 @@ class StickerRepository private constructor(context: Context) {
         apiClient = null
     }
 
+    suspend fun checkServerUrl(url: String): HealthResponse = withContext(Dispatchers.IO) {
+        val normalizedUrl = session.normalizedServerUrl(url)
+        Retrofit.Builder()
+            .baseUrl(normalizedUrl)
+            .addConverterFactory(MoshiConverterFactory.create(moshi))
+            .client(client)
+            .build()
+            .create(StickerApi::class.java)
+            .health()
+    }
+
     suspend fun login(email: String, password: String) {
         val response = api().login(LoginRequest(email, password))
         session.saveTokens(response.accessToken, response.refreshToken)
