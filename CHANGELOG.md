@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.2.0](https://github.com/saitatter/sticker-foundry/compare/v1.1.1...v1.2.0) (2026-05-16)
+
+### ✨ Features
+
+* **docker:** publish all-in-one unraid image ([36af773](https://github.com/saitatter/sticker-foundry/commit/36af7739b5404536dc1cc3a5468acf99f6b604f0))
+* **docker:** publish ghcr package images ([5e231c5](https://github.com/saitatter/sticker-foundry/commit/5e231c5f08a8501e0ca7b5cab7a9c2aaeb572535))
+* polish web UX and add app branding ([8c9119b](https://github.com/saitatter/sticker-foundry/commit/8c9119bdbf5f5645f764e47b583906d3e207cfe5))
+* **ui:** improve sticker editing and server feedback ([bbe711b](https://github.com/saitatter/sticker-foundry/commit/bbe711b3f83adc02f278d1dc118da4db37b6abb0))
+
+### 🐛 Fixes
+
+* **docker:** include prisma openssl3 engine ([39d10ad](https://github.com/saitatter/sticker-foundry/commit/39d10ad79f4b4d1c27f2547798dd5f7ec1cbc878))
+* tighten branding and release packaging ([b8d8a04](https://github.com/saitatter/sticker-foundry/commit/b8d8a04471741a4de1fbbc0f96339097a845a1e7))
+
 ## [1.1.1](https://github.com/saitatter/sticker-foundry/compare/v1.1.0...v1.1.1) (2026-05-16)
 
 ### 🧰 CI & Build
