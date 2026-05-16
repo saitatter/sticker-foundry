@@ -2,7 +2,7 @@
 
 Docker is not available in the current local workspace, so use this checklist on a Docker host or Unraid box.
 
-## Clean Compose Boot
+## Source Compose Boot
 
 ```bash
 cp .env.example .env
@@ -17,9 +17,25 @@ Expected:
 - `backend` is running.
 - `web` is running.
 
+## Unraid Package Boot
+
+The Unraid package uses one app container with web, API, PostgreSQL, and AI background removal included:
+
+```bash
+docker compose -f docker-compose.packages.yml --env-file .env up -d
+docker compose -f docker-compose.packages.yml ps
+docker compose -f docker-compose.packages.yml exec sticker-foundry rembg --help
+```
+
+Expected:
+
+- `sticker-foundry` is healthy.
+- Admin settings show AI background removal as configured.
+- PostgreSQL data persists under `/data/postgres`.
+
 ## Optional AI Background Removal Boot
 
-The AI override builds a backend image with `rembg[cpu]` and sets `BACKGROUND_REMOVAL_COMMAND` automatically:
+For source builds, the AI override builds a backend image with `rembg[cpu]` and sets `BACKGROUND_REMOVAL_COMMAND` automatically:
 
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.ai.yml up -d --build
@@ -40,6 +56,14 @@ curl -fsS http://localhost:3000/api/docs-json >/tmp/stickerfoundry-openapi.json
 curl -fsS "http://localhost:3000/api/metrics?format=prometheus" | head
 ```
 
+For the all-in-one package, use port `8080`:
+
+```bash
+curl -fsS http://localhost:8080/api/health
+curl -fsS http://localhost:8080/api/docs-json >/tmp/stickerfoundry-openapi.json
+curl -fsS "http://localhost:8080/api/metrics?format=prometheus" | head
+```
+
 Expected:
 
 - health returns OK JSON.
@@ -58,8 +82,8 @@ Expected:
 
 ## Unraid Notes
 
-- Bind `postgres-data` to `/mnt/user/appdata/sticker-foundry/postgres`.
-- Bind `foundry-data` to `/mnt/user/appdata/sticker-foundry/data`.
-- Keep PostgreSQL private on the Docker network.
+- Use `ghcr.io/saitatter/sticker-foundry:latest`.
+- Bind `/data` to `/mnt/user/appdata/sticker-foundry/data`.
+- Keep PostgreSQL internal to the all-in-one container.
 - Put the web UI behind HTTPS before remote access.
-- Route `/api/*` to backend port `3000` and all other paths to web port `8080`.
+- Route all traffic to web port `8080`; `/api/*` is routed internally.

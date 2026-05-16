@@ -17,7 +17,7 @@ StickerFoundry is a self-hosted collaborative WhatsApp sticker pack manager: web
 - Sticker editor with brush erase/restore, undo/redo, background cleanup, text layer, auto-fit subject, color tools, size optimizer, animated controls, batch presets, and before/after compare.
 - Background removal can run in-browser, on the backend threshold pipeline, or through an optional self-hosted AI command with threshold fallback.
 - Android Kotlin app with Retrofit, Room cache, retry-safe ZIP extraction, local extraction status, upload-time crop/color/text/brush editing with rendered preview, quick presets, server background-removal controls, animated upload controls, WhatsApp and WhatsApp Business import intents, and stale-edit conflict handling.
-- Docker Compose stack for PostgreSQL, backend, and web.
+- Docker Compose stack for source builds, plus a prebuilt all-in-one Unraid/GHCR image with AI included.
 - Semantic-release with emoji changelog sections and Android debug APK release asset.
 
 ## 🧱 Monorepo
@@ -64,7 +64,7 @@ Seeded demo login:
 
 ## 🐳 Docker
 
-Run the stack:
+Run the source stack:
 
 ```bash
 cp .env.example .env
@@ -78,6 +78,18 @@ Services:
 - PostgreSQL: internal service `postgres`
 
 Set strong `POSTGRES_PASSWORD` and `JWT_SECRET` before exposing anything outside your LAN.
+
+For Unraid or a pull-only deployment, use the all-in-one package:
+
+```bash
+docker compose -f docker-compose.packages.yml --env-file .env up -d
+```
+
+Package image:
+
+- `ghcr.io/saitatter/sticker-foundry:latest`
+
+The package exposes both web and API on `http://localhost:8080`, with the API under `/api`, and includes PostgreSQL plus CPU AI background removal inside the same container.
 
 ### 🖼️ AI Background Removal
 

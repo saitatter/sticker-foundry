@@ -15,19 +15,6 @@ permissions:
 jobs:
   publish:
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - image: sticker-foundry-backend
-            title: StickerFoundry Backend
-            dockerfile: apps/backend/Dockerfile
-          - image: sticker-foundry-web
-            title: StickerFoundry Web
-            dockerfile: apps/web/Dockerfile
-          - image: sticker-foundry-backend-ai
-            title: StickerFoundry Backend AI
-            dockerfile: apps/backend/Dockerfile.ai
 
     steps:
       - name: Checkout
@@ -47,10 +34,10 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ghcr.io/${{ github.repository_owner }}/${{ matrix.image }}
+          images: ghcr.io/${{ github.repository_owner }}/sticker-foundry
           labels: |
-            org.opencontainers.image.title=${{ matrix.title }}
-            org.opencontainers.image.description=Self-hosted collaborative WhatsApp sticker pack manager
+            org.opencontainers.image.title=StickerFoundry
+            org.opencontainers.image.description=All-in-one StickerFoundry server with web UI, API, PostgreSQL, and AI background removal
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
           tags: |
             type=raw,value=latest,enable={{is_default_branch}}
@@ -64,7 +51,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: ${{ matrix.dockerfile }}
+          file: Dockerfile
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}

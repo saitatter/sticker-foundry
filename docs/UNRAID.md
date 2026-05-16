@@ -1,52 +1,35 @@
 # StickerFoundry On Unraid
 
-This project ships a Compose setup with three services: PostgreSQL, backend API, and web UI.
+The Unraid package uses one all-in-one application image:
 
-The easiest Unraid path is to use the prebuilt GitHub Container Registry images:
+- `ghcr.io/saitatter/sticker-foundry:latest`
 
-- `ghcr.io/saitatter/sticker-foundry-backend:latest`
-- `ghcr.io/saitatter/sticker-foundry-web:latest`
-- Optional AI remover: `ghcr.io/saitatter/sticker-foundry-backend-ai:latest`
+That single container includes:
 
-Use `docker-compose.packages.yml` for Unraid so the server pulls images instead of building them locally.
+- Web UI through Nginx.
+- Backend API on the same public port under `/api`.
+- PostgreSQL stored inside `/data/postgres`.
+- AI background removal through `rembg[cpu]`.
 
-## Recommended Shares
+Use `docker-compose.packages.yml` for Unraid so the server pulls the prebuilt image instead of building locally.
 
-- `appdata/sticker-foundry/postgres`: PostgreSQL data.
-- `appdata/sticker-foundry/data`: sticker packs, tray icons, exports, and export cache.
-- `appdata/sticker-foundry/env`: private `.env` file if you manage Compose outside the Unraid template UI.
+## Recommended Share
 
-## Volume Mapping
+Map one durable appdata directory:
 
-`docker-compose.packages.yml` already maps durable host paths using `UNRAID_APPDATA`:
+- `/mnt/user/appdata/sticker-foundry/data`: PostgreSQL database, sticker files, exports, cache, and AI model cache.
+
+The Compose file already maps it through:
 
 ```env
 UNRAID_APPDATA=/mnt/user/appdata/sticker-foundry
 ```
 
-If you use the build-from-source `docker-compose.yml`, map the Compose volumes to durable Unraid paths:
-
-```yaml
-volumes:
-  postgres-data:
-    driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: /mnt/user/appdata/sticker-foundry/postgres
-  foundry-data:
-    driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: /mnt/user/appdata/sticker-foundry/data
-```
-
 ## Ports
 
-- Web UI: `8080:80`
-- Backend API: `3000:3000`
-- PostgreSQL: keep internal only when possible. If you expose `5432`, restrict it to trusted hosts.
+- Web UI and API: `8080:80`.
+- API path: `http://YOUR_UNRAID_IP:8080/api`.
+- PostgreSQL is internal to the container and is not exposed.
 
 ## Required Environment
 
@@ -62,13 +45,21 @@ REGISTRATION_MODE=invite-only
 REGISTRATION_INVITE_CODE=replace-with-private-invite-code
 ```
 
-Optional image settings:
+Optional package settings:
 
 ```env
+STICKER_FOUNDRY_IMAGE=ghcr.io/saitatter/sticker-foundry
 STICKER_FOUNDRY_IMAGE_TAG=latest
 WEB_PORT=8080
-BACKEND_PORT=3000
 ```
+
+AI background removal is enabled by default in the package image:
+
+```env
+BACKGROUND_REMOVAL_COMMAND=rembg i {input} {output}
+```
+
+Leave `BACKGROUND_REMOVAL_COMMAND` empty in `.env` if you want the Compose default to fill it in.
 
 ## Compose Manager Quick Start
 
@@ -85,48 +76,53 @@ cd /mnt/user/appdata/sticker-foundry
 docker compose -f docker-compose.packages.yml --env-file .env up -d
 ```
 
-For AI background removal:
+Update to the latest package:
 
 ```bash
-docker compose -f docker-compose.packages.yml -f docker-compose.packages.ai.yml --env-file .env up -d
+docker compose -f docker-compose.packages.yml --env-file .env pull
+docker compose -f docker-compose.packages.yml --env-file .env up -d
 ```
 
-## Unraid Docker UI Images
+## Unraid Docker UI
 
-If you prefer creating containers manually in the Unraid Docker UI, use:
+If you prefer creating the container manually in the Unraid Docker UI, use:
 
-- Backend repository: `ghcr.io/saitatter/sticker-foundry-backend:latest`
-- Web repository: `ghcr.io/saitatter/sticker-foundry-web:latest`
-- PostgreSQL repository: `postgres:16-alpine`
-
-Backend mappings:
-
-- Container port `3000` to host port `3000`.
-- Container path `/data` to `/mnt/user/appdata/sticker-foundry/data`.
-- `DATABASE_URL=postgresql://stickers:<password>@postgres:5432/stickers?schema=public`.
-
-Web mapping:
-
+- Repository: `ghcr.io/saitatter/sticker-foundry:latest`
 - Container port `80` to host port `8080`.
+- Container path `/data` to `/mnt/user/appdata/sticker-foundry/data`.
+
+Required variables:
+
+- `POSTGRES_PASSWORD`
+- `JWT_SECRET`
+- `PUBLIC_BASE_URL`
+- `PASSWORD_RESET_PUBLIC_URL`
+- `CORS_ORIGIN`
+
+Recommended values for local LAN testing:
+
+```env
+PUBLIC_BASE_URL=http://YOUR_UNRAID_IP:8080/api
+PASSWORD_RESET_PUBLIC_URL=http://YOUR_UNRAID_IP:8080
+CORS_ORIGIN=http://YOUR_UNRAID_IP:8080
+```
 
 ## Reverse Proxy
 
 Use HTTPS through Nginx Proxy Manager, Caddy, Traefik, or the Unraid reverse proxy setup you already trust.
 
-- Route `/api/*` to backend port `3000`.
-- Route all other paths to web port `8080`.
-- Enable WebSocket support only if your proxy requires it for long-lived HTTP streams.
+- Forward all traffic to container port `80` / host port `8080`.
+- Keep `/api/*` on the same domain; the all-in-one image routes it internally.
 
-See [REVERSE_PROXY.md](REVERSE_PROXY.md) for concrete examples.
+See [REVERSE_PROXY.md](REVERSE_PROXY.md) for examples.
 
 ## Backups
 
-Back up both PostgreSQL and `/data` together:
+Back up `/data` while the container is stopped, or dump PostgreSQL first and then archive `/data/app`:
 
 ```bash
-docker compose exec -T postgres pg_dump -U stickers stickers > stickers.sql
-docker run --rm -v sticker-foundry_foundry-data:/data -v "$PWD:/backup" alpine tar czf /backup/foundry-data.tgz -C /data .
-npm run verify:backup -- --postgres stickers.sql --data foundry-data.tgz
+docker compose -f docker-compose.packages.yml exec -T sticker-foundry pg_dump -U stickers stickers > stickers.sql
+docker run --rm -v /mnt/user/appdata/sticker-foundry/data:/data -v "$PWD:/backup" alpine tar czf /backup/sticker-foundry-data.tgz -C /data .
 ```
 
 Store backups outside the array or sync them to another machine.
