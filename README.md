@@ -1,23 +1,46 @@
-# StickerFoundry
+<table>
+  <tr>
+    <td width="104">
+      <img src="assets/brand/sticker-foundry-icon.png" alt="Sticker Foundry app icon" width="88" height="88" />
+    </td>
+    <td>
+      <h1>Sticker Foundry</h1>
+      <p><strong>Self-hosted collaborative WhatsApp sticker pack manager.</strong></p>
+      <p>
+        <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/License-MIT-yellow.svg" /></a>
+        <img alt="GitHub Release" src="https://img.shields.io/github/v/release/saitatter/sticker-foundry" />
+        <img alt="NestJS backend" src="https://img.shields.io/badge/NestJS-Backend-E0234E?logo=nestjs&logoColor=white" />
+        <img alt="Kotlin Android" src="https://img.shields.io/badge/Kotlin-Android-7F52FF?logo=kotlin&logoColor=white" />
+        <img alt="Docker self-hosted" src="https://img.shields.io/badge/Docker-Self--hosted-2496ED?logo=docker&logoColor=white" />
+      </p>
+    </td>
+  </tr>
+</table>
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-![GitHub Release](https://img.shields.io/github/v/release/saitatter/sticker-foundry)
-![NestJS](https://img.shields.io/badge/NestJS-Backend-E0234E?logo=nestjs&logoColor=white)
-![Kotlin](https://img.shields.io/badge/Kotlin-Android-7F52FF?logo=kotlin&logoColor=white)
-![Docker](https://img.shields.io/badge/Docker-Self--hosted-2496ED?logo=docker&logoColor=white)
+Sticker Foundry is a self-hosted collaborative WhatsApp sticker pack manager: web users manage packs on a server, the backend normalizes and exports WhatsApp-compatible media, and the Android app syncs packs locally so WhatsApp can import them.
 
-StickerFoundry is a self-hosted collaborative WhatsApp sticker pack manager: web users manage packs on a server, the backend normalizes and exports WhatsApp-compatible media, and the Android app syncs packs locally so WhatsApp can import them.
+## Brand
+
+Sticker Foundry uses the **Sticker Press** mark: a deep-teal rounded-square icon with a compact press silhouette, a white sticker sheet, a folded-corner cue, and a small amber forge spark. It reads as "sticker creation" at launcher size without borrowing WhatsApp's logo or brand shape.
+
+Suggested palette:
+
+- Deep teal: `#08786f`
+- Ink: `#192124`
+- Paper: `#f7faf9`
+- Forge accent: `#f59e0b`
+- Soft mint surface: `#edf3f1`
 
 ## ✨ What Works
 
 - NestJS API with PostgreSQL, Prisma, JWT auth, refresh sessions, password reset, audit logs, teams, roles, invites, and admin settings.
 - Sticker upload pipeline with WebP conversion, 512x512 normalization, static/animated validation, animated trim/FPS resampling, duplicate detection, image bomb safeguards, and queued media processing.
 - Disk storage by default, optional S3-compatible storage, cached ZIP exports, manifest/ETag sync, and Prometheus metrics.
-- Web UI for pack management, collaboration, public share pages, review status, comments, bulk actions, keyboard shortcuts, and responsive sticker grids.
+- Web UI for album-style pack browsing, tabbed pack details, drawer-based create/join tools, collaboration, public share pages, review status, comments, compact sticker cards, bulk actions, keyboard shortcuts, and responsive sticker grids.
 - Sticker editor with brush erase/restore, undo/redo, background cleanup, text layer, auto-fit subject, color tools, size optimizer, animated controls, batch presets, and before/after compare.
 - Background removal can run in-browser, on the backend threshold pipeline, or through an optional self-hosted AI command with threshold fallback.
 - Android Kotlin app with Retrofit, Room cache, retry-safe ZIP extraction, local extraction status, upload-time crop/color/text/brush editing with rendered preview, quick presets, server background-removal controls, animated upload controls, WhatsApp and WhatsApp Business import intents, and stale-edit conflict handling.
-- Docker Compose stack for source builds, plus a prebuilt all-in-one Unraid/GHCR image with AI included.
+- Docker Compose stack for source builds, plus a prebuilt all-in-one Unraid/GHCR image with web, API, PostgreSQL, and CPU AI background removal included.
 - Semantic-release with emoji changelog sections and Android debug APK release asset.
 
 ## 🧱 Monorepo
@@ -89,7 +112,7 @@ Package image:
 
 - `ghcr.io/saitatter/sticker-foundry:latest`
 
-The package exposes both web and API on `http://localhost:8080`, with the API under `/api`, and includes PostgreSQL plus CPU AI background removal inside the same container.
+The package exposes both web and API on `http://localhost:8080`, with the API under `/api`, and includes PostgreSQL plus CPU AI background removal inside the same container. For a LAN install, set Android's server URL to `http://YOUR_UNRAID_IP:WEB_PORT/api/`.
 
 ### 🖼️ AI Background Removal
 
@@ -99,7 +122,7 @@ The backend can call a local self-hosted remover command for `Server bg: AI/fall
 BACKGROUND_REMOVAL_COMMAND="rembg i {input} {output}"
 ```
 
-Any compatible local tool works here, including a Python ONNX/RMBG/U²-Net/MODNet script. If the command is empty or fails, StickerFoundry automatically uses the backend threshold remover instead.
+Any compatible local tool works here, including a Python ONNX/RMBG/U²-Net/MODNet script. If the command is empty or fails, Sticker Foundry automatically uses the backend threshold remover instead.
 
 For a bundled CPU AI image using `rembg`, run Compose with the override:
 
@@ -124,7 +147,7 @@ Basic tester flow:
 4. Tap `WhatsApp` or `Business` on a pack with at least 3 exportable stickers.
 5. Confirm the import in WhatsApp.
 
-WhatsApp requires sticker apps to expose pack metadata and local files through a `ContentProvider`; remote URLs are not enough. StickerFoundry therefore downloads ZIP exports to app-private storage and exposes local files to WhatsApp during import.
+WhatsApp requires sticker apps to expose pack metadata and local files through a `ContentProvider`; remote URLs are not enough. Sticker Foundry therefore downloads ZIP exports to app-private storage and exposes local files to WhatsApp during import.
 
 ## 🧪 Useful Commands
 

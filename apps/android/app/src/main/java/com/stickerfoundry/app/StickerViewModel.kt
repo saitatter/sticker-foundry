@@ -179,7 +179,7 @@ class StickerViewModel(
     private fun friendlyError(error: Throwable, fallback: String): String = when (error) {
         is IllegalArgumentException -> error.message ?: fallback
         is UnknownHostException -> "Could not find that server. Check the URL or DNS."
-        is ConnectException -> "Could not reach the server. Check that StickerFoundry is running and the URL is correct."
+        is ConnectException -> "Could not reach the server. Check that Sticker Foundry is running and the URL is correct."
         is UnknownServiceException -> "HTTP is blocked by Android for this URL. Use HTTPS or allow local HTTP in the app build."
         is SocketTimeoutException -> "The server took too long to respond. Try again or check your network."
         is SSLHandshakeException -> "Secure connection failed. Check the HTTPS certificate or use HTTP for local testing."
@@ -193,7 +193,7 @@ class StickerViewModel(
         401 -> "Session expired. Log in again."
         403 -> "This account does not have permission for that action."
         404 -> "The server endpoint was not found. Check that the URL includes /api/."
-        in 500..599 -> "StickerFoundry server error (${error.code()}). Check the backend logs."
+        in 500..599 -> "Sticker Foundry server error (${error.code()}). Check the backend logs."
         else -> "$fallback (${error.code()})"
     }
 

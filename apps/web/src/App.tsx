@@ -33,7 +33,18 @@ import {
   UserPlus,
   Users,
 } from 'lucide-react';
-import { type Dispatch, type DragEvent, type FormEvent, type PointerEvent, type SetStateAction, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  type Dispatch,
+  type DragEvent,
+  type FormEvent,
+  type PointerEvent,
+  type SetStateAction,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import {
   AdminSettings,
   AnimatedStickerOptions,
@@ -61,8 +72,9 @@ const TOKEN_KEY = 'stickerfoundry.token';
 const REFRESH_TOKEN_KEY = 'stickerfoundry.refreshToken';
 const DEMO_EMAIL = 'demo@stickerfoundry.local';
 const DEMO_PASSWORD = 'stickerfoundry123';
+const APP_ICON_SRC = '/sticker-foundry-icon.png';
 const DEFAULT_INSTANCE_SETTINGS: InstanceSettings = {
-  instanceName: 'StickerFoundry',
+  instanceName: 'Sticker Foundry',
   instanceDescription: 'Self-hosted sticker pack management',
 };
 
@@ -71,8 +83,19 @@ type Notice = {
   text: string;
 };
 
+type WorkspaceView = 'packs' | 'pack';
+type PackDetailTab = 'overview' | 'stickers' | 'collaboration' | 'settings';
 type PackFilter = 'all' | 'public' | 'private' | 'ready' | 'needs-work';
 type PackSort = 'updated' | 'name' | 'stickers';
+type ImageEditPanel = 'basics' | 'text' | 'background' | 'output';
+
+function BrandMark() {
+  return (
+    <span className="brand-mark" aria-hidden="true">
+      <img src={APP_ICON_SRC} alt="" />
+    </span>
+  );
+}
 
 export function App() {
   const [token, setToken] = useState(() => localStorage.getItem(TOKEN_KEY));
@@ -83,10 +106,14 @@ export function App() {
   const [teams, setTeams] = useState<Team[]>([]);
   const [selectedPackId, setSelectedPackId] = useState<string | null>(null);
   const [selectedPack, setSelectedPack] = useState<Pack | null>(null);
-  const [backgroundRemovalStatus, setBackgroundRemovalStatus] = useState<AdminSettings['backgroundRemoval'] | undefined>(undefined);
+  const [workspaceView, setWorkspaceView] = useState<WorkspaceView>('packs');
+  const [backgroundRemovalStatus, setBackgroundRemovalStatus] = useState<
+    AdminSettings['backgroundRemoval'] | undefined
+  >(undefined);
   const [notice, setNotice] = useState<Notice | null>(null);
   const [loading, setLoading] = useState(false);
   const [showAccountDialog, setShowAccountDialog] = useState(false);
+  const [showMobileTools, setShowMobileTools] = useState(false);
   const passwordResetToken = useMemo(() => {
     const params = new URLSearchParams(window.location.search);
     return window.location.pathname === '/reset-password' ? params.get('token') : null;
@@ -109,7 +136,15 @@ export function App() {
     setUser(auth.user);
   }, []);
 
-  const api = useMemo(() => new StickerFoundryApi(() => token, () => refreshToken, saveAuth), [refreshToken, saveAuth, token]);
+  const api = useMemo(
+    () =>
+      new StickerFoundryApi(
+        () => token,
+        () => refreshToken,
+        saveAuth,
+      ),
+    [refreshToken, saveAuth, token],
+  );
 
   const reportError = useCallback((error: unknown) => {
     const text = error instanceof ApiError || error instanceof Error ? error.message : 'Something went wrong';
@@ -123,7 +158,7 @@ export function App() {
       const [nextPacks, nextTeams] = await Promise.all([api.packs(), api.teams()]);
       setPacks(nextPacks);
       setTeams(nextTeams);
-      setSelectedPackId((current) => current ?? nextPacks[0]?.id ?? null);
+      setSelectedPackId((current) => (current && nextPacks.some((pack) => pack.id === current) ? current : null));
     } catch (error) {
       reportError(error);
     } finally {
@@ -144,7 +179,10 @@ export function App() {
   }, [api, reportError, selectedPackId]);
 
   useEffect(() => {
-    api.instanceSettings().then(setInstanceSettings).catch(() => undefined);
+    api
+      .instanceSettings()
+      .then(setInstanceSettings)
+      .catch(() => undefined);
   }, [api]);
 
   useEffect(() => {
@@ -169,7 +207,10 @@ export function App() {
       setBackgroundRemovalStatus(undefined);
       return;
     }
-    api.adminSettings().then((settings) => setBackgroundRemovalStatus(settings.backgroundRemoval)).catch(reportError);
+    api
+      .adminSettings()
+      .then((settings) => setBackgroundRemovalStatus(settings.backgroundRemoval))
+      .catch(reportError);
   }, [api, reportError, user?.isAdmin]);
 
   useEffect(() => {
@@ -178,7 +219,15 @@ export function App() {
 
   const sharePackId = sharePackIdFromPath();
   if (sharePackId) {
-    return <SharePage api={api} instanceSettings={instanceSettings} packId={sharePackId} onError={reportError} notice={notice} />;
+    return (
+      <SharePage
+        api={api}
+        instanceSettings={instanceSettings}
+        packId={sharePackId}
+        onError={reportError}
+        notice={notice}
+      />
+    );
   }
 
   const saveSession = (auth: AuthResponse) => {
@@ -199,8 +248,22 @@ export function App() {
     setPacks([]);
     setSelectedPack(null);
     setSelectedPackId(null);
+    setWorkspaceView('packs');
     setBackgroundRemovalStatus(undefined);
   };
+
+  const openPacksView = () => {
+    setWorkspaceView('packs');
+    setShowMobileTools(false);
+  };
+
+  const openPack = (packId: string) => {
+    setSelectedPackId(packId);
+    setWorkspaceView('pack');
+    setShowMobileTools(false);
+  };
+
+  const selectedPackSummary = packs.find((pack) => pack.id === selectedPackId) ?? selectedPack;
 
   if (!token) {
     if (passwordResetToken) {
@@ -235,7 +298,7 @@ export function App() {
     <div className="app-shell">
       <header className="topbar">
         <div className="brand">
-          <span className="brand-mark">SF</span>
+          <BrandMark />
           <div>
             <h1>{instanceSettings.instanceName}</h1>
             <p>{user?.email ?? 'Signed in'}</p>
@@ -256,55 +319,39 @@ export function App() {
 
       <div className="workspace">
         <aside className="sidebar">
-          <PackCreateForm
-            api={api}
-            teams={teams}
-            onCreated={(pack) => {
-              setPacks((current) => [pack, ...current]);
-              setSelectedPackId(pack.id);
-              setNotice({ tone: 'success', text: 'Pack created' });
+          <WorkspaceNav
+            activeView={workspaceView}
+            packCount={packs.length}
+            selectedPack={selectedPackSummary}
+            onOpenPack={() => {
+              if (selectedPackId) openPack(selectedPackId);
             }}
-            onError={reportError}
+            onOpenPacks={openPacksView}
           />
 
-          <TeamCreateForm
-            api={api}
-            onCreated={async (team) => {
-              setTeams((current) => [team, ...current].sort((left, right) => left.name.localeCompare(right.name)));
-              setNotice({ tone: 'success', text: 'Team created' });
-            }}
-            onError={reportError}
-          />
-
-          <TeamWorkspacePanel
-            api={api}
-            teams={teams}
-            onChanged={refreshPacks}
-            onError={reportError}
-            onNotice={(message) => setNotice({ tone: 'success', text: message })}
-          />
-
-          <AcceptInviteForm
-            api={api}
-            onAccepted={async (pack) => {
-              await refreshPacks();
-              setSelectedPackId(pack.id);
-              setNotice({ tone: 'success', text: 'Invite accepted' });
-            }}
-            onError={reportError}
-          />
-
-          <PackList
-            packs={packs}
-            selectedPackId={selectedPackId}
-            loading={loading}
-            onSelect={setSelectedPackId}
-          />
+          <button
+            aria-controls="workspace-tools"
+            aria-expanded={showMobileTools}
+            className="secondary-button workspace-tools-trigger"
+            onClick={() => setShowMobileTools((visible) => !visible)}
+            type="button"
+          >
+            <Plus size={17} />
+            Create or join
+          </button>
         </aside>
 
         <main className="content">
           {notice ? <NoticeBar notice={notice} onClose={() => setNotice(null)} /> : null}
-          {selectedPack ? (
+          {workspaceView === 'packs' ? (
+            <PackLibrary
+              api={api}
+              packs={packs}
+              selectedPackId={selectedPackId}
+              loading={loading}
+              onSelect={openPack}
+            />
+          ) : selectedPack ? (
             <PackDetail
               api={api}
               backgroundRemovalStatus={backgroundRemovalStatus}
@@ -319,11 +366,12 @@ export function App() {
                 setPacks((current) => current.filter((pack) => pack.id !== selectedPack.id));
                 setSelectedPackId(packs.find((pack) => pack.id !== selectedPack.id)?.id ?? null);
                 setSelectedPack(null);
+                setWorkspaceView('packs');
                 setNotice({ tone: 'success', text: 'Pack deleted' });
               }}
               onCloned={(pack) => {
                 setPacks((current) => [pack, ...current]);
-                setSelectedPackId(pack.id);
+                openPack(pack.id);
                 setNotice({ tone: 'success', text: 'Pack cloned' });
               }}
               onError={reportError}
@@ -334,6 +382,30 @@ export function App() {
           )}
         </main>
       </div>
+      {showMobileTools ? (
+        <WorkspaceToolsDrawer
+          api={api}
+          teams={teams}
+          onAccepted={async (pack) => {
+            await refreshPacks();
+            openPack(pack.id);
+            setNotice({ tone: 'success', text: 'Invite accepted' });
+          }}
+          onChanged={refreshPacks}
+          onClose={() => setShowMobileTools(false)}
+          onError={reportError}
+          onNotice={(message) => setNotice({ tone: 'success', text: message })}
+          onPackCreated={(pack) => {
+            setPacks((current) => [pack, ...current]);
+            openPack(pack.id);
+            setNotice({ tone: 'success', text: 'Pack created' });
+          }}
+          onTeamCreated={async (team) => {
+            setTeams((current) => [team, ...current].sort((left, right) => left.name.localeCompare(right.name)));
+            setNotice({ tone: 'success', text: 'Team created' });
+          }}
+        />
+      ) : null}
       {showAccountDialog ? (
         <AccountDialog
           api={api}
@@ -388,7 +460,7 @@ function SharePage({
     <main className="share-layout">
       <section className="share-panel">
         <div className="brand share-brand">
-          <span className="brand-mark">SF</span>
+          <BrandMark />
           <div>
             <h1>{instanceSettings.instanceName}</h1>
             <p>{instanceSettings.instanceDescription}</p>
@@ -410,10 +482,15 @@ function SharePage({
             </div>
             <div className="share-steps">
               <span>Download the ZIP from this page.</span>
-              <span>Import through the StickerFoundry Android app for WhatsApp.</span>
+              <span>Import through the Sticker Foundry Android app for WhatsApp.</span>
               <span>WhatsApp will ask for confirmation before adding the pack.</span>
             </div>
-            <button className="primary-button" disabled={!pack.canExport || downloading} onClick={() => void download()} type="button">
+            <button
+              className="primary-button"
+              disabled={!pack.canExport || downloading}
+              onClick={() => void download()}
+              type="button"
+            >
               <Download size={17} />
               {downloading ? 'Downloading' : 'Download ZIP'}
             </button>
@@ -471,7 +548,9 @@ function AccountDialog({
         setAdminSettings(settings);
         setRegistrationMode(settings.registrationMode);
         setRegistrationInviteCode(settings.registrationInviteCode ?? '');
-        setStorageQuotaMb(settings.storageQuotaBytes ? String(Math.round(settings.storageQuotaBytes / 1024 / 1024)) : '');
+        setStorageQuotaMb(
+          settings.storageQuotaBytes ? String(Math.round(settings.storageQuotaBytes / 1024 / 1024)) : '',
+        );
         setAuditRetentionDays(settings.auditRetentionDays ? String(settings.auditRetentionDays) : '');
         setInstanceName(settings.instanceName);
         setInstanceDescription(settings.instanceDescription);
@@ -497,7 +576,9 @@ function AccountDialog({
   async function revokeSession(id: string) {
     try {
       await api.revokeSession(id);
-      setSessions((current) => current.map((session) => (session.id === id ? { ...session, revokedAt: new Date().toISOString() } : session)));
+      setSessions((current) =>
+        current.map((session) => (session.id === id ? { ...session, revokedAt: new Date().toISOString() } : session)),
+      );
     } catch (error) {
       onError(error);
     }
@@ -649,23 +730,21 @@ function AccountDialog({
                   <strong>Background removal</strong>
                   <small>
                     Threshold ready ·{' '}
-                    {adminSettings.backgroundRemoval.aiCommandConfigured
-                      ? 'AI command configured'
-                      : 'AI fallback only'}
+                    {adminSettings.backgroundRemoval.aiCommandConfigured ? 'AI command configured' : 'AI fallback only'}
                   </small>
                 </span>
-                <span className={adminSettings.backgroundRemoval.aiCommandConfigured ? 'status-pill ready' : 'status-pill warning'}>
+                <span
+                  className={
+                    adminSettings.backgroundRemoval.aiCommandConfigured ? 'status-pill ready' : 'status-pill warning'
+                  }
+                >
                   {adminSettings.backgroundRemoval.aiCommandConfigured ? 'AI ready' : 'Threshold fallback'}
                 </span>
               </div>
             ) : null}
             <label>
               Instance name
-              <input
-                maxLength={80}
-                value={instanceName}
-                onChange={(event) => setInstanceName(event.target.value)}
-              />
+              <input maxLength={80} value={instanceName} onChange={(event) => setInstanceName(event.target.value)} />
             </label>
             <label>
               Instance description
@@ -677,7 +756,10 @@ function AccountDialog({
             </label>
             <label>
               Registration
-              <select value={registrationMode} onChange={(event) => setRegistrationMode(event.target.value as RegistrationMode)}>
+              <select
+                value={registrationMode}
+                onChange={(event) => setRegistrationMode(event.target.value as RegistrationMode)}
+              >
                 <option value="open">Open</option>
                 <option value="invite-only">Invite only</option>
                 <option value="disabled">Disabled</option>
@@ -721,7 +803,12 @@ function AccountDialog({
           <div className="audit-list">
             <div className="section-heading">
               <h3>Audit log</h3>
-              <button className="secondary-button" disabled={exportingAudit} onClick={() => void exportAuditLog()} type="button">
+              <button
+                className="secondary-button"
+                disabled={exportingAudit}
+                onClick={() => void exportAuditLog()}
+                type="button"
+              >
                 <Download size={17} />
                 {exportingAudit ? 'Exporting' : 'Export CSV'}
               </button>
@@ -734,7 +821,9 @@ function AccountDialog({
               <div className="audit-row" key={entry.id}>
                 <span>
                   <strong>{auditActionLabel(entry.action)}</strong>
-                  <small>{entry.actor?.email ?? 'System'} · {new Date(entry.createdAt).toLocaleString()}</small>
+                  <small>
+                    {entry.actor?.email ?? 'System'} · {new Date(entry.createdAt).toLocaleString()}
+                  </small>
                 </span>
                 <small>{entry.entityType}</small>
               </div>
@@ -829,7 +918,7 @@ function AuthScreen({
     <main className="auth-layout">
       <section className="auth-panel">
         <div className="brand auth-brand">
-          <span className="brand-mark">SF</span>
+          <BrandMark />
           <div>
             <h1>{instanceSettings.instanceName}</h1>
             <p>{instanceSettings.instanceDescription}</p>
@@ -879,7 +968,10 @@ function AuthScreen({
                 minLength={8}
                 required
               />
-              <IconButton label={showPassword ? 'Hide password' : 'Show password'} onClick={() => setShowPassword((value) => !value)}>
+              <IconButton
+                label={showPassword ? 'Hide password' : 'Show password'}
+                onClick={() => setShowPassword((value) => !value)}
+              >
                 {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
               </IconButton>
             </span>
@@ -889,14 +981,24 @@ function AuthScreen({
             {mode === 'register' ? 'Create account' : 'Login'}
           </button>
           {mode === 'login' ? (
-            <button className="secondary-button" disabled={requestingReset} onClick={() => void requestPasswordReset()} type="button">
+            <button
+              className="secondary-button"
+              disabled={requestingReset}
+              onClick={() => void requestPasswordReset()}
+              type="button"
+            >
               <KeyRound size={17} />
               {requestingReset ? 'Sending reset' : 'Email reset link'}
             </button>
           ) : null}
         </form>
         <div className="public-pack-browser">
-          <button className="secondary-button" disabled={loadingPublicPacks} onClick={() => void browsePublicPacks()} type="button">
+          <button
+            className="secondary-button"
+            disabled={loadingPublicPacks}
+            onClick={() => void browsePublicPacks()}
+            type="button"
+          >
             <Globe2 size={17} />
             {loadingPublicPacks ? 'Loading public packs' : 'Browse public packs'}
           </button>
@@ -961,7 +1063,7 @@ function ResetPasswordScreen({
     <main className="auth-layout">
       <section className="auth-panel">
         <div className="brand auth-brand">
-          <span className="brand-mark">SF</span>
+          <BrandMark />
           <div>
             <h1>{instanceSettings.instanceName}</h1>
             <p>Choose a new password</p>
@@ -973,7 +1075,13 @@ function ResetPasswordScreen({
         <form className="form-grid" onSubmit={submit}>
           <label>
             New password
-            <input value={password} onChange={(event) => setPassword(event.target.value)} type="password" minLength={8} required />
+            <input
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              type="password"
+              minLength={8}
+              required
+            />
           </label>
           <button className="primary-button" disabled={submitting} type="submit">
             <Lock size={17} />
@@ -1008,7 +1116,14 @@ function PackCreateForm({
     event.preventDefault();
     setSubmitting(true);
     try {
-      const pack = await api.createPack({ name, publisher, isPublic, requiresApproval, isAnimated, teamId: teamId || undefined });
+      const pack = await api.createPack({
+        name,
+        publisher,
+        isPublic,
+        requiresApproval,
+        isAnimated,
+        teamId: teamId || undefined,
+      });
       setName('');
       setPublisher('');
       setIsPublic(false);
@@ -1240,7 +1355,9 @@ function TeamWorkspacePanel({
           >
             <span>
               <strong>{team.name}</strong>
-              <small>{team.memberCount} members · {team.packCount} packs</small>
+              <small>
+                {team.memberCount} members · {team.packCount} packs
+              </small>
             </span>
             <span className="status-pill">{roleLabel(team.role)}</span>
           </button>
@@ -1280,7 +1397,9 @@ function TeamWorkspacePanel({
                     <select
                       aria-label={`Role for ${member.user.email}`}
                       value={member.role}
-                      onChange={(event) => void changeMemberRole(member.id, event.target.value as Exclude<PackRole, 'OWNER'>)}
+                      onChange={(event) =>
+                        void changeMemberRole(member.id, event.target.value as Exclude<PackRole, 'OWNER'>)
+                      }
                     >
                       <option value="EDITOR">Editor</option>
                       <option value="VIEWER">Viewer</option>
@@ -1350,12 +1469,135 @@ function AcceptInviteForm({
   );
 }
 
-function PackList({
+function WorkspaceToolsDrawer({
+  api,
+  teams,
+  onAccepted,
+  onChanged,
+  onClose,
+  onError,
+  onNotice,
+  onPackCreated,
+  onTeamCreated,
+}: {
+  api: StickerFoundryApi;
+  teams: Team[];
+  onAccepted: (pack: Pack) => Promise<void>;
+  onChanged: () => Promise<void>;
+  onClose: () => void;
+  onError: (error: unknown) => void;
+  onNotice: (message: string) => void;
+  onPackCreated: (pack: Pack) => void;
+  onTeamCreated: (team: Team) => Promise<void>;
+}) {
+  return (
+    <div className="modal-backdrop tools-drawer-backdrop" role="presentation">
+      <aside
+        aria-label="Create and join"
+        aria-modal="true"
+        className="modal-panel tools-drawer"
+        id="workspace-tools"
+        role="dialog"
+      >
+        <header className="tools-drawer-header">
+          <div>
+            <p className="eyebrow">Workspace</p>
+            <h2>Create or join</h2>
+          </div>
+          <button className="ghost-button" onClick={onClose} type="button">
+            Close
+          </button>
+        </header>
+        <div className="tools-drawer-content">
+          <PackCreateForm
+            api={api}
+            teams={teams}
+            onCreated={(pack) => {
+              onPackCreated(pack);
+              onClose();
+            }}
+            onError={onError}
+          />
+
+          <TeamCreateForm
+            api={api}
+            onCreated={async (team) => {
+              await onTeamCreated(team);
+            }}
+            onError={onError}
+          />
+
+          <TeamWorkspacePanel api={api} teams={teams} onChanged={onChanged} onError={onError} onNotice={onNotice} />
+
+          <AcceptInviteForm
+            api={api}
+            onAccepted={async (pack) => {
+              await onAccepted(pack);
+              onClose();
+            }}
+            onError={onError}
+          />
+        </div>
+      </aside>
+    </div>
+  );
+}
+
+function WorkspaceNav({
+  activeView,
+  packCount,
+  selectedPack,
+  onOpenPack,
+  onOpenPacks,
+}: {
+  activeView: WorkspaceView;
+  packCount: number;
+  selectedPack?: Pack | null;
+  onOpenPack: () => void;
+  onOpenPacks: () => void;
+}) {
+  return (
+    <nav className="workspace-nav" aria-label="Workspace">
+      <button
+        aria-label="Open packs"
+        className={`workspace-nav-row ${activeView === 'packs' ? 'active' : ''}`}
+        onClick={onOpenPacks}
+        type="button"
+      >
+        <Archive size={18} />
+        <span>
+          <strong>Packs</strong>
+          <small>{packCount} total</small>
+        </span>
+      </button>
+      {selectedPack ? (
+        <button
+          aria-label={`Open current pack ${selectedPack.name}`}
+          className={`workspace-nav-row ${activeView === 'pack' ? 'active' : ''}`}
+          onClick={onOpenPack}
+          type="button"
+        >
+          <ImagePlus size={18} />
+          <span>
+            <strong>{selectedPack.name}</strong>
+            <small>
+              {selectedPack.stickerCount}/30 · {roleLabel(selectedPack.role)}
+            </small>
+          </span>
+        </button>
+      ) : null}
+    </nav>
+  );
+}
+
+function PackLibrary({
+  api,
   packs,
   selectedPackId,
   loading,
   onSelect,
 }: {
+  api: StickerFoundryApi;
   packs: Pack[];
   selectedPackId: string | null;
   loading: boolean;
@@ -1364,6 +1606,9 @@ function PackList({
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<PackFilter>('all');
   const [sort, setSort] = useState<PackSort>('updated');
+  const readyCount = packs.filter((pack) => pack.stickerCount >= 3).length;
+  const publicCount = packs.filter((pack) => pack.isPublic).length;
+  const privateCount = packs.length - publicCount;
   const visiblePacks = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
     return packs
@@ -1386,12 +1631,21 @@ function PackList({
   }, [filter, packs, query, sort]);
 
   return (
-    <section className="pack-list" aria-label="Sticker packs">
-      <div className="section-heading">
-        <h2>Packs</h2>
+    <section className="pack-library" aria-label="Sticker packs">
+      <div className="pack-library-header">
+        <div>
+          <p className="eyebrow">Library</p>
+          <h2>Packs</h2>
+        </div>
         <span className="counter">{loading ? '...' : visiblePacks.length}</span>
       </div>
-      <div className="pack-list-tools">
+      <div className="pack-library-metrics">
+        <Metric label="Total" value={String(packs.length)} />
+        <Metric label="Ready" value={String(readyCount)} />
+        <Metric label="Public" value={String(publicCount)} />
+        <Metric label="Private" value={String(privateCount)} />
+      </div>
+      <div className="pack-library-toolbar">
         <label className="search-field">
           <Search size={15} />
           <input
@@ -1401,8 +1655,12 @@ function PackList({
             onChange={(event) => setQuery(event.target.value)}
           />
         </label>
-        <div className="pack-list-selects">
-          <select aria-label="Filter packs" value={filter} onChange={(event) => setFilter(event.target.value as PackFilter)}>
+        <div className="pack-library-selects">
+          <select
+            aria-label="Filter packs"
+            value={filter}
+            onChange={(event) => setFilter(event.target.value as PackFilter)}
+          >
             <option value="all">All</option>
             <option value="public">Public</option>
             <option value="private">Private</option>
@@ -1416,7 +1674,7 @@ function PackList({
           </select>
         </div>
       </div>
-      <div className="pack-list-scroll">
+      <div className="pack-album-grid">
         {visiblePacks.length === 0 && !loading ? (
           <div className="empty-pack-list">
             <Archive size={22} />
@@ -1425,17 +1683,19 @@ function PackList({
         ) : null}
         {visiblePacks.map((pack) => (
           <button
-            className={`pack-row ${pack.id === selectedPackId ? 'selected' : ''}`}
+            aria-label={`Open pack ${pack.name}`}
+            className={`pack-album-card ${pack.id === selectedPackId ? 'selected' : ''}`}
             key={pack.id}
             onClick={() => onSelect(pack.id)}
             type="button"
           >
-            <span className="pack-row-main">
+            <PackCover api={api} pack={pack} />
+            <span className="pack-album-copy">
               <strong>{pack.name}</strong>
-              <span>{pack.publisher}</span>
-              {pack.teamName ? <span>{pack.teamName}</span> : null}
+              <small>{pack.publisher}</small>
+              {pack.description ? <span>{pack.description}</span> : pack.teamName ? <span>{pack.teamName}</span> : null}
             </span>
-            <span className="pack-row-meta">
+            <span className="pack-album-meta">
               <span className={`status-pill ${pack.isPublic ? 'public' : 'private'}`}>
                 {pack.isPublic ? <Globe2 size={13} /> : <Lock size={13} />}
                 {pack.isPublic ? 'Public' : 'Private'}
@@ -1456,6 +1716,68 @@ function PackList({
         ))}
       </div>
     </section>
+  );
+}
+
+function PackCover({ api, pack }: { api: StickerFoundryApi; pack: Pack }) {
+  const [coverUrl, setCoverUrl] = useState<string | null>(null);
+  const [loadingCover, setLoadingCover] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    let objectUrl: string | null = null;
+    setCoverUrl(null);
+    setLoadingCover(true);
+
+    async function loadCover() {
+      try {
+        const blob = await api.trayIconBlob(pack.id);
+        if (!alive) return;
+        objectUrl = URL.createObjectURL(blob);
+        setCoverUrl(objectUrl);
+        setLoadingCover(false);
+        return;
+      } catch {
+        // The tray icon can be missing on older packs; fall back to the first sticker preview.
+      }
+
+      try {
+        const detailedPack = pack.stickers?.length ? pack : await api.pack(pack.id);
+        const firstSticker = detailedPack.stickers?.[0];
+        if (!firstSticker) return;
+
+        const blob = await api.stickerBlob(pack.id, firstSticker.id);
+        if (!alive) return;
+        objectUrl = URL.createObjectURL(blob);
+        setCoverUrl(objectUrl);
+      } catch {
+        if (alive) setCoverUrl(null);
+      } finally {
+        if (alive) setLoadingCover(false);
+      }
+    }
+
+    void loadCover();
+
+    return () => {
+      alive = false;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [api, pack.id, pack.imageDataVersion]);
+
+  return (
+    <span className={`pack-cover ${coverUrl ? 'has-image' : ''} ${loadingCover ? 'loading' : ''}`}>
+      {loadingCover ? (
+        <span className="pack-cover-skeleton" />
+      ) : coverUrl ? (
+        <img alt="" src={coverUrl} />
+      ) : (
+        <span className="pack-cover-initials">{packInitials(pack.name)}</span>
+      )}
+      <span className={`pack-cover-privacy ${pack.isPublic ? 'public' : 'private'}`}>
+        {pack.isPublic ? <Globe2 size={14} /> : <Lock size={14} />}
+      </span>
+    </span>
   );
 }
 
@@ -1482,11 +1804,14 @@ function PackDetail({
 }) {
   const [optimisticStickers, setOptimisticStickers] = useState<Sticker[] | null>(null);
   const stickers = optimisticStickers ?? pack.stickers ?? [];
-  const exportStickerCount =
-    pack.requiresApproval ? stickers.filter((sticker) => sticker.reviewStatus === 'APPROVED').length : stickers.length;
+  const exportStickerCount = pack.requiresApproval
+    ? stickers.filter((sticker) => sticker.reviewStatus === 'APPROVED').length
+    : stickers.length;
   const canEdit = pack.canEdit ?? true;
   const canManage = pack.canManage ?? false;
   const canExport = exportStickerCount >= 3 && exportStickerCount <= 30;
+  const exportStatusText = exportReadinessMessage(exportStickerCount, pack.requiresApproval, pack.isAnimated);
+  const exportActionHintId = `export-actions-${pack.id}`;
   const [exporting, setExporting] = useState(false);
   const [contentsPreview, setContentsPreview] = useState<string | null>(null);
   const [loadingContents, setLoadingContents] = useState(false);
@@ -1495,19 +1820,41 @@ function PackDetail({
   const [bulkEmojis, setBulkEmojis] = useState('');
   const [bulkTargetPackId, setBulkTargetPackId] = useState('');
   const [bulkSaving, setBulkSaving] = useState(false);
+  const [activeTab, setActiveTab] = useState<PackDetailTab>('overview');
   const selectedStickerSet = useMemo(() => new Set(selectedStickerIds), [selectedStickerIds]);
+  const hasBulkSelection = selectedStickerIds.length > 0;
   const transferTargets = packs.filter((item) => item.canEdit && item.id !== pack.id);
+  const detailTabs = useMemo<Array<{ id: PackDetailTab; label: string }>>(() => {
+    const tabs: Array<{ id: PackDetailTab; label: string }> = [
+      { id: 'overview', label: 'Overview' },
+      { id: 'stickers', label: `Stickers (${stickers.length})` },
+    ];
+
+    if (canManage) tabs.push({ id: 'collaboration', label: 'Collaboration' });
+    if (canEdit || canManage) tabs.push({ id: 'settings', label: 'Settings' });
+    return tabs;
+  }, [canEdit, canManage, stickers.length]);
+  const tabButtonId = (tab: PackDetailTab) => `pack-${pack.id}-${tab}-tab`;
+  const tabPanelId = (tab: PackDetailTab) => `pack-${pack.id}-${tab}-panel`;
 
   useEffect(() => {
     setSelectedStickerIds([]);
     setBulkEmojis('');
     setBulkTargetPackId('');
     setOptimisticStickers(null);
+    setContentsPreview(null);
+    setActiveTab('overview');
   }, [pack.id]);
 
   useEffect(() => {
     setOptimisticStickers(null);
   }, [pack.imageDataVersion]);
+
+  useEffect(() => {
+    if (!detailTabs.some((tab) => tab.id === activeTab)) {
+      setActiveTab('overview');
+    }
+  }, [activeTab, detailTabs]);
 
   async function exportPack() {
     setExporting(true);
@@ -1553,6 +1900,7 @@ function PackDetail({
       return;
     }
 
+    setActiveTab('overview');
     setLoadingContents(true);
     try {
       const contents = await api.exportContents(pack.id);
@@ -1742,7 +2090,7 @@ function PackDetail({
   }
 
   useEffect(() => {
-    if (!canEdit) return;
+    if (!canEdit || activeTab !== 'stickers') return;
 
     function handleKeyDown(event: KeyboardEvent) {
       if (isTypingTarget(event.target)) return;
@@ -1803,14 +2151,37 @@ function PackDetail({
           <p>{pack.publisher}</p>
         </div>
         <div className="detail-actions">
-          <button className="secondary-button" disabled={!canExport || loadingContents} onClick={() => void previewContents()} type="button">
-            <FileJson size={17} />
-            {contentsPreview ? 'Hide JSON' : 'Preview JSON'}
-          </button>
-          <button className="secondary-button" disabled={!canExport || exporting} onClick={() => void exportPack()} type="button">
-            <Download size={17} />
-            {exporting ? 'Exporting' : 'Download ZIP'}
-          </button>
+          <div className="detail-export-actions">
+            <div className="detail-export-buttons">
+              <button
+                aria-describedby={!canExport ? exportActionHintId : undefined}
+                className="secondary-button"
+                disabled={!canExport || loadingContents}
+                onClick={() => void previewContents()}
+                title={!canExport ? exportStatusText : undefined}
+                type="button"
+              >
+                <FileJson size={17} />
+                {contentsPreview ? 'Hide JSON' : 'Preview JSON'}
+              </button>
+              <button
+                aria-describedby={!canExport ? exportActionHintId : undefined}
+                className="secondary-button"
+                disabled={!canExport || exporting}
+                onClick={() => void exportPack()}
+                title={!canExport ? exportStatusText : undefined}
+                type="button"
+              >
+                <Download size={17} />
+                {exporting ? 'Exporting' : 'Download ZIP'}
+              </button>
+            </div>
+            {!canExport ? (
+              <span className="detail-action-hint" id={exportActionHintId}>
+                {exportStatusText}
+              </span>
+            ) : null}
+          </div>
           <button className="secondary-button" onClick={() => void clonePack()} type="button">
             <Copy size={17} />
             Clone
@@ -1823,158 +2194,222 @@ function PackDetail({
         </div>
       </div>
 
-      <div className="stats-grid">
-        <Metric label="Stickers" value={`${stickers.length}/30`} />
-        <Metric label="Export" value={`${exportStickerCount}/30`} />
-        <Metric label="Format" value={pack.isAnimated ? 'Animated' : 'Static'} />
-        <Metric label="Role" value={roleLabel(pack.role)} />
-        <Metric label="Version" value={pack.imageDataVersion} />
-        <Metric label="Updated" value={new Date(pack.updatedAt).toLocaleDateString()} />
+      <div className="detail-tabs" role="tablist" aria-label="Pack sections">
+        {detailTabs.map((tab) => (
+          <button
+            aria-controls={tabPanelId(tab.id)}
+            aria-selected={activeTab === tab.id}
+            className={activeTab === tab.id ? 'active' : undefined}
+            id={tabButtonId(tab.id)}
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            role="tab"
+            type="button"
+          >
+            {tab.label}
+          </button>
+        ))}
       </div>
 
-      <ExportReadiness
-        stickerCount={exportStickerCount}
-        canExport={canExport}
-        requiresApproval={pack.requiresApproval}
-        isAnimated={pack.isAnimated}
-      />
+      {activeTab === 'overview' ? (
+        <div
+          aria-labelledby={tabButtonId('overview')}
+          className="detail-tab-panel"
+          id={tabPanelId('overview')}
+          role="tabpanel"
+        >
+          <div className="stats-grid">
+            <Metric label="Stickers" value={`${stickers.length}/30`} />
+            <Metric label="Export" value={`${exportStickerCount}/30`} />
+            <Metric label="Format" value={pack.isAnimated ? 'Animated' : 'Static'} />
+            <Metric label="Role" value={roleLabel(pack.role)} />
+            <Metric label="Version" value={pack.imageDataVersion} />
+            <Metric label="Updated" value={new Date(pack.updatedAt).toLocaleDateString()} />
+          </div>
 
-      {contentsPreview ? <pre className="contents-preview">{contentsPreview}</pre> : null}
+          <ExportReadiness
+            stickerCount={exportStickerCount}
+            canExport={canExport}
+            requiresApproval={pack.requiresApproval}
+            isAnimated={pack.isAnimated}
+          />
 
-      {canManage ? <CollaborationPanel api={api} pack={pack} onChanged={onChanged} onError={onError} onNotice={onNotice} /> : null}
+          {contentsPreview ? <pre className="contents-preview">{contentsPreview}</pre> : null}
 
-      <ActivityPanel api={api} pack={pack} onError={onError} />
-
-      {canManage ? <PackEditForm api={api} pack={pack} onChanged={onChanged} onError={onError} /> : null}
-
-      {canEdit ? <TrayIconPanel api={api} pack={pack} onChanged={onChanged} onError={onError} /> : null}
-
-      {canEdit ? (
-        <UploadPanel
-          api={api}
-          backgroundRemovalStatus={backgroundRemovalStatus}
-          pack={pack}
-          remainingSlots={Math.max(0, 30 - stickers.length)}
-          onChanged={onChanged}
-          onError={onError}
-        />
+          <ActivityPanel api={api} pack={pack} onError={onError} />
+        </div>
       ) : null}
 
-      <section className="stickers-section">
-        <div className="section-heading">
-          <h3>Stickers</h3>
-          <Archive size={18} />
-        </div>
-        {canEdit && stickers.length > 0 ? (
-          <div className="bulk-toolbar">
-            <span className="counter">{selectedStickerIds.length}</span>
-            <button className="secondary-button" disabled={bulkSaving} onClick={selectAllStickers} type="button">
-              Select all
-            </button>
-            <button
-              className="secondary-button"
-              disabled={selectedStickerIds.length === 0 || bulkSaving}
-              onClick={() => setSelectedStickerIds([])}
-              type="button"
-            >
-              Clear
-            </button>
-            <label>
-              Emojis
-              <input value={bulkEmojis} onChange={(event) => setBulkEmojis(event.target.value)} placeholder="smile,laugh" />
-            </label>
-            <button
-              className="secondary-button"
-              disabled={selectedStickerIds.length === 0 || !bulkEmojis.trim() || bulkSaving}
-              onClick={() => void bulkApplyEmojis()}
-              type="button"
-            >
-              Apply emoji
-            </button>
-            <button
-              className="secondary-button"
-              disabled={selectedStickerIds.length === 0 || bulkSaving}
-              onClick={() => void bulkGenerateAltText()}
-              type="button"
-            >
-              Generate alt
-            </button>
-            <button
-              className="secondary-button danger-button"
-              disabled={selectedStickerIds.length === 0 || bulkSaving}
-              onClick={() => void bulkDeleteStickers()}
-              type="button"
-            >
-              Delete selected
-            </button>
-            <label>
-              Target
-              <select
-                disabled={transferTargets.length === 0}
-                value={bulkTargetPackId}
-                onChange={(event) => setBulkTargetPackId(event.target.value)}
-              >
-                <option value="">Choose pack</option>
-                {transferTargets.map((target) => (
-                  <option key={target.id} value={target.id}>
-                    {target.name} ({target.stickerCount}/30)
-                  </option>
+      {activeTab === 'stickers' ? (
+        <div
+          aria-labelledby={tabButtonId('stickers')}
+          className="detail-tab-panel"
+          id={tabPanelId('stickers')}
+          role="tabpanel"
+        >
+          {canEdit ? (
+            <UploadPanel
+              api={api}
+              backgroundRemovalStatus={backgroundRemovalStatus}
+              pack={pack}
+              remainingSlots={Math.max(0, 30 - stickers.length)}
+              onChanged={onChanged}
+              onError={onError}
+            />
+          ) : null}
+
+          <section className="stickers-section">
+            <div className="section-heading">
+              <h3>Stickers</h3>
+              <Archive size={18} />
+            </div>
+            {canEdit && stickers.length > 0 ? (
+              <div className={`bulk-toolbar ${hasBulkSelection ? 'active' : 'idle'}`}>
+                <span className="counter">{selectedStickerIds.length}</span>
+                <button className="secondary-button" disabled={bulkSaving} onClick={selectAllStickers} type="button">
+                  Select all
+                </button>
+                {hasBulkSelection ? (
+                  <>
+                    <button
+                      className="secondary-button"
+                      disabled={bulkSaving}
+                      onClick={() => setSelectedStickerIds([])}
+                      type="button"
+                    >
+                      Clear
+                    </button>
+                    <label>
+                      Emojis
+                      <input
+                        value={bulkEmojis}
+                        onChange={(event) => setBulkEmojis(event.target.value)}
+                        placeholder="smile,laugh"
+                      />
+                    </label>
+                    <button
+                      className="secondary-button"
+                      disabled={!bulkEmojis.trim() || bulkSaving}
+                      onClick={() => void bulkApplyEmojis()}
+                      type="button"
+                    >
+                      Apply emoji
+                    </button>
+                    <button
+                      className="secondary-button"
+                      disabled={bulkSaving}
+                      onClick={() => void bulkGenerateAltText()}
+                      type="button"
+                    >
+                      Generate alt
+                    </button>
+                    <button
+                      className="secondary-button danger-button"
+                      disabled={bulkSaving}
+                      onClick={() => void bulkDeleteStickers()}
+                      type="button"
+                    >
+                      Delete selected
+                    </button>
+                    <label>
+                      Target
+                      <select
+                        disabled={transferTargets.length === 0}
+                        value={bulkTargetPackId}
+                        onChange={(event) => setBulkTargetPackId(event.target.value)}
+                      >
+                        <option value="">Choose pack</option>
+                        {transferTargets.map((target) => (
+                          <option key={target.id} value={target.id}>
+                            {target.name} ({target.stickerCount}/30)
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <button
+                      className="secondary-button"
+                      disabled={!bulkTargetPackId || bulkSaving}
+                      onClick={() => void bulkTransferStickers('copy')}
+                      type="button"
+                    >
+                      Copy
+                    </button>
+                    <button
+                      className="secondary-button"
+                      disabled={!bulkTargetPackId || bulkSaving}
+                      onClick={() => void bulkTransferStickers('move')}
+                      type="button"
+                    >
+                      Move
+                    </button>
+                  </>
+                ) : (
+                  <span className="bulk-toolbar-note">Select stickers to show bulk actions</span>
+                )}
+              </div>
+            ) : null}
+            {stickers.length > 0 ? (
+              <div className="sticker-grid">
+                {stickers.map((sticker, index) => (
+                  <StickerTile
+                    api={api}
+                    backgroundRemovalStatus={backgroundRemovalStatus}
+                    isAnimatedPack={pack.isAnimated}
+                    key={sticker.id}
+                    packId={pack.id}
+                    transferTargets={transferTargets}
+                    sticker={sticker}
+                    version={pack.imageDataVersion}
+                    canEdit={canEdit}
+                    canMoveDown={index < stickers.length - 1}
+                    canMoveUp={index > 0}
+                    isDragging={draggingStickerId === sticker.id}
+                    isSelected={selectedStickerSet.has(sticker.id)}
+                    onChanged={() => onChanged('Sticker updated')}
+                    onDeleted={() => onChanged('Sticker deleted')}
+                    onDragEnd={() => setDraggingStickerId(null)}
+                    onDragStart={() => setDraggingStickerId(sticker.id)}
+                    onDrop={() => void reorderStickerTo(sticker.id)}
+                    onError={onError}
+                    onMoveDown={() => moveSticker(sticker.id, 1)}
+                    onMoveUp={() => moveSticker(sticker.id, -1)}
+                    onSelectedChange={(selected) => toggleStickerSelection(sticker.id, selected)}
+                  />
                 ))}
-              </select>
-            </label>
-            <button
-              className="secondary-button"
-              disabled={selectedStickerIds.length === 0 || !bulkTargetPackId || bulkSaving}
-              onClick={() => void bulkTransferStickers('copy')}
-              type="button"
-            >
-              Copy
-            </button>
-            <button
-              className="secondary-button"
-              disabled={selectedStickerIds.length === 0 || !bulkTargetPackId || bulkSaving}
-              onClick={() => void bulkTransferStickers('move')}
-              type="button"
-            >
-              Move
-            </button>
-          </div>
-        ) : null}
-        {stickers.length > 0 ? (
-          <div className="sticker-grid">
-            {stickers.map((sticker, index) => (
-              <StickerTile
-                api={api}
-                isAnimatedPack={pack.isAnimated}
-                key={sticker.id}
-                packId={pack.id}
-                transferTargets={transferTargets}
-                sticker={sticker}
-                version={pack.imageDataVersion}
-                canEdit={canEdit}
-                canMoveDown={index < stickers.length - 1}
-                canMoveUp={index > 0}
-                isDragging={draggingStickerId === sticker.id}
-                isSelected={selectedStickerSet.has(sticker.id)}
-                onChanged={() => onChanged('Sticker updated')}
-                onDeleted={() => onChanged('Sticker deleted')}
-                onDragEnd={() => setDraggingStickerId(null)}
-                onDragStart={() => setDraggingStickerId(sticker.id)}
-                onDrop={() => void reorderStickerTo(sticker.id)}
-                onError={onError}
-                onMoveDown={() => moveSticker(sticker.id, 1)}
-                onMoveUp={() => moveSticker(sticker.id, -1)}
-                onSelectedChange={(selected) => toggleStickerSelection(sticker.id, selected)}
-              />
-            ))}
-          </div>
-        ) : (
-          <div className="empty-inline">
-            <ImagePlus size={22} />
-            <span>No stickers yet</span>
-          </div>
-        )}
-      </section>
+              </div>
+            ) : (
+              <div className="empty-inline">
+                <ImagePlus size={22} />
+                <span>No stickers yet</span>
+              </div>
+            )}
+          </section>
+        </div>
+      ) : null}
+
+      {activeTab === 'collaboration' && canManage ? (
+        <div
+          aria-labelledby={tabButtonId('collaboration')}
+          className="detail-tab-panel"
+          id={tabPanelId('collaboration')}
+          role="tabpanel"
+        >
+          <CollaborationPanel api={api} pack={pack} onChanged={onChanged} onError={onError} onNotice={onNotice} />
+        </div>
+      ) : null}
+
+      {activeTab === 'settings' && (canEdit || canManage) ? (
+        <div
+          aria-labelledby={tabButtonId('settings')}
+          className="detail-tab-panel"
+          id={tabPanelId('settings')}
+          role="tabpanel"
+        >
+          {canManage ? <PackEditForm api={api} pack={pack} onChanged={onChanged} onError={onError} /> : null}
+
+          {canEdit ? <TrayIconPanel api={api} pack={pack} onChanged={onChanged} onError={onError} /> : null}
+        </div>
+      ) : null}
     </section>
   );
 }
@@ -2021,7 +2456,9 @@ function ActivityPanel({
           <div className="activity-row" key={entry.id}>
             <span>
               <strong>{auditActionLabel(entry.action)}</strong>
-              <small>{entry.actor?.email ?? 'System'} · {new Date(entry.createdAt).toLocaleString()}</small>
+              <small>
+                {entry.actor?.email ?? 'System'} · {new Date(entry.createdAt).toLocaleString()}
+              </small>
             </span>
             <small>{entry.entityType}</small>
           </div>
@@ -2043,7 +2480,7 @@ function ExportReadiness({
   requiresApproval: boolean;
   isAnimated: boolean;
 }) {
-  const missing = Math.max(0, 3 - stickerCount);
+  const message = exportReadinessMessage(stickerCount, requiresApproval, isAnimated);
 
   return (
     <section className={`export-panel ${canExport ? 'ready' : 'blocked'}`}>
@@ -2054,13 +2491,24 @@ function ExportReadiness({
           <p>
             {canExport
               ? `${requiresApproval ? 'Approved stickers' : 'Ordered stickers'} are included in the ${isAnimated ? 'animated' : 'static'} contents.json and ZIP.`
-              : `${missing} more ${requiresApproval ? 'approved ' : ''}sticker${missing === 1 ? '' : 's'} needed for this ${isAnimated ? 'animated' : 'static'} pack.`}
+              : message}
           </p>
         </div>
       </div>
       <span className="export-count">{stickerCount}/30</span>
     </section>
   );
+}
+
+function exportReadinessMessage(stickerCount: number, requiresApproval: boolean, isAnimated: boolean) {
+  if (stickerCount < 3) {
+    const missing = 3 - stickerCount;
+    return `${missing} more ${requiresApproval ? 'approved ' : ''}sticker${missing === 1 ? '' : 's'} needed for this ${isAnimated ? 'animated' : 'static'} pack.`;
+  }
+  if (stickerCount > 30) {
+    return `Remove ${stickerCount - 30} sticker${stickerCount - 30 === 1 ? '' : 's'} to stay under the WhatsApp 30 sticker limit.`;
+  }
+  return 'Export is blocked until this pack meets the WhatsApp sticker rules.';
 }
 
 function CollaborationPanel({
@@ -2187,7 +2635,9 @@ function CollaborationPanel({
                 <select
                   aria-label={`Role for ${member.user.email}`}
                   value={member.role}
-                  onChange={(event) => void changeMemberRole(member.id, event.target.value as Exclude<PackRole, 'OWNER'>)}
+                  onChange={(event) =>
+                    void changeMemberRole(member.id, event.target.value as Exclude<PackRole, 'OWNER'>)
+                  }
                 >
                   <option value="EDITOR">Editor</option>
                   <option value="VIEWER">Viewer</option>
@@ -2198,12 +2648,19 @@ function CollaborationPanel({
               </span>
             </div>
           ))}
-          {!loading && members.length === 0 ? <span className="muted-row">Only the owner has access right now.</span> : null}
+          {!loading && members.length === 0 ? (
+            <span className="muted-row">Only the owner has access right now.</span>
+          ) : null}
         </div>
         <form className="invite-form" onSubmit={createInvite}>
           <label>
             Email
-            <input value={email} onChange={(event) => setEmail(event.target.value)} placeholder="optional@email.com" type="email" />
+            <input
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              placeholder="optional@email.com"
+              type="email"
+            />
           </label>
           <label>
             Role
@@ -2228,7 +2685,10 @@ function CollaborationPanel({
         </form>
         <div className="invite-list">
           <div className="invite-filter-row">
-            <select value={inviteFilter} onChange={(event) => setInviteFilter(event.target.value as typeof inviteFilter)}>
+            <select
+              value={inviteFilter}
+              onChange={(event) => setInviteFilter(event.target.value as typeof inviteFilter)}
+            >
               <option value="all">All invites</option>
               <option value="pending">Pending</option>
               <option value="accepted">Accepted</option>
@@ -2253,7 +2713,9 @@ function CollaborationPanel({
               )}
             </div>
           ))}
-          {!loading && visibleInvites.length === 0 ? <span className="muted-row">No invites match this filter.</span> : null}
+          {!loading && visibleInvites.length === 0 ? (
+            <span className="muted-row">No invites match this filter.</span>
+          ) : null}
         </div>
       </div>
     </section>
@@ -2472,7 +2934,13 @@ function UploadPanel({
 
       for (const [index, file] of files.entries()) {
         const uploadFile = await editableUploadFile(file, pack.isAnimated, editOptions);
-        await api.uploadSticker(pack.id, uploadFile, uploadEmojis, accessibilityText, stickerUploadOptionsFromEdit(file, pack.isAnimated, editOptions));
+        await api.uploadSticker(
+          pack.id,
+          uploadFile,
+          uploadEmojis,
+          accessibilityText,
+          stickerUploadOptionsFromEdit(file, pack.isAnimated, editOptions),
+        );
         setUploadedCount(index + 1);
       }
 
@@ -2545,12 +3013,17 @@ function UploadPanel({
           <span>{fileLabel}</span>
         </label>
         <label>
-          Emojis
-          <input value={emojis} onChange={(event) => setEmojis(event.target.value)} placeholder="smile,laugh" />
+          Default emojis
+          <input value={emojis} onChange={(event) => setEmojis(event.target.value)} placeholder="smile,laugh,heart" />
         </label>
         <label>
-          Alt text
-          <input value={accessibilityText} onChange={(event) => setAccessibilityText(event.target.value)} maxLength={125} />
+          Default alt text
+          <input
+            value={accessibilityText}
+            onChange={(event) => setAccessibilityText(event.target.value)}
+            maxLength={125}
+            placeholder="Short sticker description"
+          />
         </label>
         <button className="primary-button" disabled={files.length === 0 || disabled || uploading} type="submit">
           <Upload size={17} />
@@ -2584,7 +3057,9 @@ function UploadPanel({
           onReset={() => setEditorDraft(defaultImageEditOptions)}
         />
       ) : null}
-      {files.length > 1 ? <p className="upload-note">Current edit settings and presets apply to all selected files in upload order.</p> : null}
+      {files.length > 1 ? (
+        <p className="upload-note">Current edit settings and presets apply to all selected files in upload order.</p>
+      ) : null}
     </section>
   );
 }
@@ -2657,7 +3132,12 @@ function ImageEditModal({
 }) {
   return (
     <div className="modal-backdrop image-editor-backdrop">
-      <section aria-label="Sticker image editor" aria-modal="true" className="modal-panel image-editor-modal" role="dialog">
+      <section
+        aria-label="Sticker image editor"
+        aria-modal="true"
+        className="modal-panel image-editor-modal"
+        role="dialog"
+      >
         <header className="image-editor-header">
           <div>
             <h3>Edit Sticker</h3>
@@ -2694,6 +3174,7 @@ function ImageEditModal({
 
 function StickerTile({
   api,
+  backgroundRemovalStatus,
   isAnimatedPack,
   packId,
   transferTargets,
@@ -2715,6 +3196,7 @@ function StickerTile({
   onSelectedChange,
 }: {
   api: StickerFoundryApi;
+  backgroundRemovalStatus?: AdminSettings['backgroundRemoval'];
   isAnimatedPack: boolean;
   packId: string;
   transferTargets: Pack[];
@@ -2742,6 +3224,8 @@ function StickerTile({
   const [saving, setSaving] = useState(false);
   const [replacementFile, setReplacementFile] = useState<File | null>(null);
   const [replacementEditOptions, setReplacementEditOptions] = useState<ImageEditOptions>(defaultImageEditOptions);
+  const [replacementEditorOpen, setReplacementEditorOpen] = useState(false);
+  const [replacementEditorDraft, setReplacementEditorDraft] = useState<ImageEditOptions>(defaultImageEditOptions);
   const [replacing, setReplacing] = useState(false);
   const [commentsOpen, setCommentsOpen] = useState(false);
   const [comments, setComments] = useState<StickerComment[]>([]);
@@ -2825,6 +3309,8 @@ function StickerTile({
       );
       setReplacementFile(null);
       setReplacementEditOptions(defaultImageEditOptions);
+      setReplacementEditorDraft(defaultImageEditOptions);
+      setReplacementEditorOpen(false);
       await onChanged();
     } catch (error) {
       onError(error);
@@ -2902,11 +3388,21 @@ function StickerTile({
             ))}
           </select>
         </label>
-        <button className="secondary-button" disabled={!transferTargetPackId} onClick={() => void transferSticker('copy')} type="button">
+        <button
+          className="secondary-button"
+          disabled={!transferTargetPackId}
+          onClick={() => void transferSticker('copy')}
+          type="button"
+        >
           <Copy size={16} />
           Copy
         </button>
-        <button className="secondary-button" disabled={!transferTargetPackId} onClick={() => void transferSticker('move')} type="button">
+        <button
+          className="secondary-button"
+          disabled={!transferTargetPackId}
+          onClick={() => void transferSticker('move')}
+          type="button"
+        >
           <MoveRight size={16} />
           Move
         </button>
@@ -2929,7 +3425,7 @@ function StickerTile({
       onDrop={onDrop}
     >
       {canEdit ? (
-        <>
+        <div className="sticker-tile-toolbar">
           <span className="sticker-drag-handle" aria-hidden="true">
             <GripVertical size={16} />
           </span>
@@ -2941,13 +3437,14 @@ function StickerTile({
               <ArrowDown size={15} />
             </IconButton>
           </div>
-        </>
-      ) : null}
-      {canEdit ? (
-        <label className="sticker-select">
-          <input checked={isSelected} onChange={(event) => onSelectedChange(event.target.checked)} type="checkbox" />
-          Select
-        </label>
+          <label className="sticker-select">
+            <input checked={isSelected} onChange={(event) => onSelectedChange(event.target.checked)} type="checkbox" />
+            <span>Select</span>
+          </label>
+          <IconButton label="Delete sticker" onClick={() => void deleteSticker()} danger>
+            <Trash2 size={16} />
+          </IconButton>
+        </div>
       ) : null}
       <button className="sticker-preview sticker-preview-button" onClick={() => setDetailOpen(true)} type="button">
         {url ? <img alt={sticker.accessibilityText ?? sticker.fileName} src={url} /> : null}
@@ -2959,11 +3456,23 @@ function StickerTile({
         <span>{formatBytes(sticker.sizeBytes)}</span>
         <span>{sticker.emojis.join(' ') || 'No emoji'}</span>
       </div>
-      <span className={`status-pill ${reviewStatusClass(sticker.reviewStatus)}`}>{reviewStatusLabel(sticker.reviewStatus)}</span>
-      <button className="secondary-button sticker-comments-toggle" onClick={() => void toggleComments()} type="button">
-        <MessageSquare size={16} />
-        Comments
-      </button>
+      <span className={`status-pill ${reviewStatusClass(sticker.reviewStatus)}`}>
+        {reviewStatusLabel(sticker.reviewStatus)}
+      </span>
+      <div className="sticker-tile-actions">
+        <button className="secondary-button" onClick={() => setDetailOpen(true)} type="button">
+          <Edit3 size={16} />
+          Edit
+        </button>
+        <button
+          className="secondary-button sticker-comments-toggle"
+          onClick={() => void toggleComments()}
+          type="button"
+        >
+          <MessageSquare size={16} />
+          Comments
+        </button>
+      </div>
       {commentsOpen ? (
         <div className="sticker-comments">
           {commentsLoading ? <span className="muted-row">Loading comments</span> : null}
@@ -2994,51 +3503,14 @@ function StickerTile({
           </form>
         </div>
       ) : null}
-      {canEdit ? (
-        <>
-          <form className="sticker-edit-form" onSubmit={saveMetadata}>
-            <label>
-              Emojis
-              <input value={emojis} onChange={(event) => setEmojis(event.target.value)} placeholder="smile,laugh" />
-            </label>
-            <label>
-              Alt text
-              <input value={accessibilityText} onChange={(event) => setAccessibilityText(event.target.value)} maxLength={125} />
-            </label>
-            <label>
-              Review
-              <select value={reviewStatus} onChange={(event) => setReviewStatus(event.target.value as Sticker['reviewStatus'])}>
-                <option value="PENDING">Pending</option>
-                <option value="APPROVED">Approved</option>
-                <option value="NEEDS_WORK">Needs work</option>
-              </select>
-            </label>
-            <button className="secondary-button sticker-save" disabled={!dirty || saving} type="submit">
-              Save
-            </button>
-          </form>
-          <form className="sticker-replace-form" onSubmit={replaceImage}>
-            <label className="file-drop sticker-replace-drop">
-              <input accept="image/*" onChange={(event) => setReplacementFile(event.target.files?.[0] ?? null)} type="file" />
-              <ImagePlus size={18} />
-              <span>{replacementFile ? replacementFile.name : 'Replace image'}</span>
-            </label>
-            <button className="secondary-button sticker-save" disabled={!replacementFile || replacing} type="submit">
-              {replacing ? 'Replacing' : 'Replace'}
-            </button>
-          </form>
-          {replacementFile ? (
-            <ImageEditControls file={replacementFile} options={replacementEditOptions} onChange={setReplacementEditOptions} compact />
-          ) : null}
-          {renderTransferControls()}
-          <IconButton label="Delete sticker" onClick={() => void deleteSticker()} danger>
-            <Trash2 size={16} />
-          </IconButton>
-        </>
-      ) : null}
       {detailOpen ? (
         <div className="modal-backdrop" role="presentation">
-          <div className="modal-panel sticker-detail-dialog">
+          <div
+            aria-label="Sticker detail"
+            aria-modal="true"
+            className="modal-panel sticker-detail-dialog"
+            role="dialog"
+          >
             <div className="section-heading">
               <h2>Sticker detail</h2>
               <button className="secondary-button" onClick={() => setDetailOpen(false)} type="button">
@@ -3059,7 +3531,11 @@ function StickerTile({
                 <form className="form-grid" onSubmit={saveMetadata}>
                   <label>
                     Emojis
-                    <input value={emojis} onChange={(event) => setEmojis(event.target.value)} placeholder="smile,laugh" />
+                    <input
+                      value={emojis}
+                      onChange={(event) => setEmojis(event.target.value)}
+                      placeholder="smile,laugh"
+                    />
                   </label>
                   <label>
                     Alt text
@@ -3085,6 +3561,58 @@ function StickerTile({
                     Save metadata
                   </button>
                 </form>
+              ) : null}
+              {canEdit ? (
+                <form className="sticker-replace-form" onSubmit={replaceImage}>
+                  <label className="file-drop sticker-replace-drop">
+                    <input
+                      accept="image/*"
+                      onChange={(event) => {
+                        setReplacementFile(event.target.files?.[0] ?? null);
+                        setReplacementEditOptions(defaultImageEditOptions);
+                        setReplacementEditorDraft(defaultImageEditOptions);
+                        setReplacementEditorOpen(false);
+                      }}
+                      type="file"
+                    />
+                    <ImagePlus size={18} />
+                    <span>{replacementFile ? replacementFile.name : 'Replace image'}</span>
+                  </label>
+                  <button
+                    className="secondary-button sticker-save"
+                    disabled={!replacementFile || replacing}
+                    type="submit"
+                  >
+                    {replacing ? 'Replacing' : 'Replace'}
+                  </button>
+                </form>
+              ) : null}
+              {replacementFile ? (
+                <UploadEditSummary
+                  file={replacementFile}
+                  fileCount={1}
+                  isAnimatedPack={isAnimatedPack}
+                  options={replacementEditOptions}
+                  onEdit={() => {
+                    setReplacementEditorDraft(cloneImageEditOptions(replacementEditOptions));
+                    setReplacementEditorOpen(true);
+                  }}
+                  onReset={() => setReplacementEditOptions(defaultImageEditOptions)}
+                />
+              ) : null}
+              {replacementEditorOpen && replacementFile ? (
+                <ImageEditModal
+                  backgroundRemovalStatus={backgroundRemovalStatus}
+                  file={replacementFile}
+                  options={replacementEditorDraft}
+                  onChange={setReplacementEditorDraft}
+                  onApply={() => {
+                    setReplacementEditOptions(cloneImageEditOptions(replacementEditorDraft));
+                    setReplacementEditorOpen(false);
+                  }}
+                  onClose={() => setReplacementEditorOpen(false)}
+                  onReset={() => setReplacementEditorDraft(defaultImageEditOptions)}
+                />
               ) : null}
               {renderTransferControls()}
             </div>
@@ -3209,7 +3737,14 @@ function cloneImageEditOptions(options: ImageEditOptions): ImageEditOptions {
 
 function imageEditBadges(options: ImageEditOptions, file: File, isAnimatedPack: boolean) {
   const badges: string[] = [];
-  if (options.rotation !== 0 || options.cropSquare || options.normalizeSquare || options.zoom !== 1 || options.offsetX !== 0 || options.offsetY !== 0) {
+  if (
+    options.rotation !== 0 ||
+    options.cropSquare ||
+    options.normalizeSquare ||
+    options.zoom !== 1 ||
+    options.offsetX !== 0 ||
+    options.offsetY !== 0
+  ) {
     badges.push('Framing');
   }
   if (options.removeLightBackground || options.serverBackgroundRemovalMode !== 'none') {
@@ -3227,7 +3762,11 @@ function imageEditBadges(options: ImageEditOptions, file: File, isAnimatedPack: 
   if (options.optimizeOutput) {
     badges.push('Optimized');
   }
-  if (isAnimatedPack && isAnimatedSourceFile(file) && (options.animatedTrimStart > 0 || options.animatedTrimEnd < 10 || options.animatedFrameRate !== 15)) {
+  if (
+    isAnimatedPack &&
+    isAnimatedSourceFile(file) &&
+    (options.animatedTrimStart > 0 || options.animatedTrimEnd < 10 || options.animatedFrameRate !== 15)
+  ) {
     badges.push('Animation');
   }
   return badges.length > 0 ? badges : ['Original image'];
@@ -3292,10 +3831,16 @@ function ImageEditControls({
   const activeStrokeIdRef = useRef<string | null>(null);
   const [redoStrokes, setRedoStrokes] = useState<BrushStroke[]>([]);
   const [outputSize, setOutputSize] = useState<number | null>(null);
+  const [sourceImage, setSourceImage] = useState<HTMLImageElement | null>(null);
   const [sourcePreviewUrl, setSourcePreviewUrl] = useState<string | null>(null);
   const [compareMode, setCompareMode] = useState(false);
+  const [activePanel, setActivePanel] = useState<ImageEditPanel>('basics');
   const isPossiblyAnimated = /\.(gif|webp)$/i.test(file.name);
   const showBackgroundControls = options.removeLightBackground || options.serverBackgroundRemovalMode !== 'none';
+  const showBasicsPanel = !modal || activePanel === 'basics';
+  const showTextPanel = !modal || activePanel === 'text';
+  const showBackgroundPanel = !modal || activePanel === 'background';
+  const showOutputPanel = !modal || activePanel === 'output';
   const animatedDuration = Math.max(0, options.animatedTrimEnd - options.animatedTrimStart);
   const animatedFrameDuration = 1000 / Math.max(1, options.animatedFrameRate);
 
@@ -3307,52 +3852,63 @@ function ImageEditControls({
 
   useEffect(() => {
     let alive = true;
-    let objectUrl: string | null = null;
-    const canvas = canvasRef.current;
-    if (!canvas) return undefined;
-    canvas.width = 512;
-    canvas.height = 512;
-    const context = canvas.getContext('2d');
-    if (!context) return undefined;
-
     setOutputSize(null);
-    drawCheckerboard(context, canvas.width, canvas.height, 16);
-    editImageFile(file, options)
-      .then((editedFile) => {
-        setOutputSize(editedFile.size);
-        objectUrl = URL.createObjectURL(editedFile);
-        return loadImageFromUrl(objectUrl);
-      })
+    setSourceImage(null);
+    const canvas = canvasRef.current;
+    if (canvas) {
+      ensurePreviewCanvasSize(canvas);
+      const context = canvas.getContext('2d');
+      if (context) drawCheckerboard(context, canvas.width, canvas.height, 16);
+    }
+    loadImage(file)
       .then((image) => {
-        if (!alive || !image) return;
-        drawCheckerboard(context, canvas.width, canvas.height, 16);
-        const scale = Math.min(canvas.width / image.naturalWidth, canvas.height / image.naturalHeight);
-        const width = image.naturalWidth * scale;
-        const height = image.naturalHeight * scale;
-        const x = (canvas.width - width) / 2;
-        const y = (canvas.height - height) / 2;
-        previewBoundsRef.current = {
-          x: x / canvas.width,
-          y: y / canvas.height,
-          width: width / canvas.width,
-          height: height / canvas.height,
-        };
-        context.drawImage(image, x, y, width, height);
+        if (alive) setSourceImage(image);
       })
-      .catch(() => drawCheckerboard(context, canvas.width, canvas.height, 16));
+      .catch(() => {
+        if (alive) setSourceImage(null);
+      });
 
     return () => {
       alive = false;
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [file, options]);
+  }, [file]);
+
+  useEffect(() => {
+    let alive = true;
+    let animationFrame = 0;
+    const canvas = canvasRef.current;
+    if (!canvas || !sourceImage) return undefined;
+    ensurePreviewCanvasSize(canvas);
+
+    const previewCanvas = renderImageEditCanvas(sourceImage, options);
+    if (!previewCanvas) return undefined;
+
+    animationFrame = window.requestAnimationFrame(() => {
+      if (!alive) return;
+      const nextBounds = drawEditedPreview(canvas, previewCanvas);
+      if (nextBounds) previewBoundsRef.current = nextBounds;
+    });
+
+    imageEditOutputSize(file, previewCanvas, options)
+      .then((size) => {
+        if (alive) setOutputSize(size);
+      })
+      .catch(() => {
+        if (alive) setOutputSize(file.size);
+      });
+
+    return () => {
+      alive = false;
+      window.cancelAnimationFrame(animationFrame);
+    };
+  }, [file, options, sourceImage]);
 
   useEffect(() => {
     setRedoStrokes([]);
   }, [file]);
 
   function rotate(delta: 90 | -90) {
-    const nextRotation = (((options.rotation + delta + 360) % 360) as ImageEditOptions['rotation']);
+    const nextRotation = ((options.rotation + delta + 360) % 360) as ImageEditOptions['rotation'];
     onChange({ ...options, rotation: nextRotation });
   }
 
@@ -3424,11 +3980,19 @@ function ImageEditControls({
 
   function applyPreset(preset: Partial<ImageEditOptions>) {
     setRedoStrokes([]);
-    onChange((current) => ({ ...current, ...preset, brushStrokes: [], brushMode: current.brushMode, brushSize: current.brushSize }));
+    onChange((current) => ({
+      ...current,
+      ...preset,
+      brushStrokes: [],
+      brushMode: current.brushMode,
+      brushSize: current.brushSize,
+    }));
   }
 
   return (
-    <div className={`image-edit-controls ${compact ? 'compact' : ''} ${modal ? 'modal-editor' : ''} ${compareMode ? 'compare-mode' : ''}`}>
+    <div
+      className={`image-edit-controls ${compact ? 'compact' : ''} ${modal ? 'modal-editor' : ''} ${compareMode ? 'compare-mode' : ''}`}
+    >
       <div className={`image-edit-preview ${compareMode ? 'compare' : ''}`}>
         {compareMode && sourcePreviewUrl ? (
           <div className="compare-pane">
@@ -3449,326 +4013,398 @@ function ImageEditControls({
           />
         </div>
       </div>
-      <div className="image-edit-actions">
-        <IconButton label="Rotate left" onClick={() => rotate(-90)}>
-          <RotateCcw size={16} />
-        </IconButton>
-        <IconButton label="Rotate right" onClick={() => rotate(90)}>
-          <RotateCw size={16} />
-        </IconButton>
-        <IconButton label="Undo brush" disabled={options.brushStrokes.length === 0} onClick={undoBrushStroke}>
-          <Undo2 size={16} />
-        </IconButton>
-        <IconButton label="Redo brush" disabled={redoStrokes.length === 0} onClick={redoBrushStroke}>
-          <Redo2 size={16} />
-        </IconButton>
-        <IconButton label="Erase brush" onClick={() => setBrushMode('erase')}>
-          <Eraser size={16} />
-        </IconButton>
-        <IconButton label="Restore brush" onClick={() => setBrushMode('restore')}>
-          <RefreshCw size={16} />
-        </IconButton>
-        <IconButton label="Compare before after" onClick={() => setCompareMode((enabled) => !enabled)}>
-          <Eye size={16} />
-        </IconButton>
-        <IconButton
-          label="Center subject"
-          onClick={() => onChange((current) => ({ ...current, autoFitSubject: true, normalizeSquare: true }))}
-        >
-          <MoveRight size={16} />
-        </IconButton>
-        <label className="checkbox-row image-edit-toggle">
-          <input
-            checked={options.cropSquare}
-            onChange={(event) =>
-              onChange({
-                ...options,
-                cropSquare: event.target.checked,
-                zoom: event.target.checked ? options.zoom : 1,
-                offsetX: event.target.checked ? options.offsetX : 0,
-                offsetY: event.target.checked ? options.offsetY : 0,
-              })
-            }
-            type="checkbox"
-          />
-          Square crop
-        </label>
-        <label className="checkbox-row image-edit-toggle">
-          <input
-            checked={options.normalizeSquare}
-            onChange={(event) => onChange({ ...options, normalizeSquare: event.target.checked })}
-            type="checkbox"
-          />
-          Normalize square
-        </label>
-        <label className="checkbox-row image-edit-toggle">
-          <input
-            checked={options.removeLightBackground}
-            onChange={(event) => onChange({ ...options, removeLightBackground: event.target.checked })}
-            type="checkbox"
-          />
-          Remove light background
-        </label>
-        <label>
-          Server bg
-          <select
-            onChange={(event) =>
-              onChange((current) => ({
-                ...current,
-                serverBackgroundRemovalMode: event.target.value as ImageEditOptions['serverBackgroundRemovalMode'],
-              }))
-            }
-            value={options.serverBackgroundRemovalMode}
+      {modal ? (
+        <div className="editor-panel-tabs" role="tablist" aria-label="Editor panels">
+          {[
+            ['basics', 'Basics'],
+            ['text', 'Text'],
+            ['background', 'Background'],
+            ['output', 'Output'],
+          ].map(([panel, label]) => (
+            <button
+              aria-selected={activePanel === panel}
+              className={activePanel === panel ? 'active' : ''}
+              key={panel}
+              onClick={() => setActivePanel(panel as ImageEditPanel)}
+              role="tab"
+              type="button"
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      ) : null}
+      {showBasicsPanel ? (
+        <div className="image-edit-actions">
+          <IconButton label="Rotate left" onClick={() => rotate(-90)}>
+            <RotateCcw size={16} />
+          </IconButton>
+          <IconButton label="Rotate right" onClick={() => rotate(90)}>
+            <RotateCw size={16} />
+          </IconButton>
+          <IconButton label="Undo brush" disabled={options.brushStrokes.length === 0} onClick={undoBrushStroke}>
+            <Undo2 size={16} />
+          </IconButton>
+          <IconButton label="Redo brush" disabled={redoStrokes.length === 0} onClick={redoBrushStroke}>
+            <Redo2 size={16} />
+          </IconButton>
+          <IconButton label="Erase brush" onClick={() => setBrushMode('erase')}>
+            <Eraser size={16} />
+          </IconButton>
+          <IconButton label="Restore brush" onClick={() => setBrushMode('restore')}>
+            <RefreshCw size={16} />
+          </IconButton>
+          <IconButton label="Compare before after" onClick={() => setCompareMode((enabled) => !enabled)}>
+            <Eye size={16} />
+          </IconButton>
+          <IconButton
+            label="Center subject"
+            onClick={() => onChange((current) => ({ ...current, autoFitSubject: true, normalizeSquare: true }))}
           >
-            <option value="none">Off</option>
-            <option value="threshold">Threshold</option>
-            <option value="ai">AI/fallback</option>
-          </select>
-        </label>
-        <label className="checkbox-row image-edit-toggle">
-          <input checked={options.outline} onChange={(event) => onChange({ ...options, outline: event.target.checked })} type="checkbox" />
-          Outline
-        </label>
-        <label className="checkbox-row image-edit-toggle">
-          <input checked={options.shadow} onChange={(event) => onChange({ ...options, shadow: event.target.checked })} type="checkbox" />
-          Shadow
-        </label>
-        <label className="checkbox-row image-edit-toggle">
-          <input
-            checked={options.textEnabled}
-            onChange={(event) => onChange((current) => ({ ...current, textEnabled: event.target.checked }))}
-            type="checkbox"
-          />
-          Text
-        </label>
-        <label className="checkbox-row image-edit-toggle">
-          <input
-            checked={options.autoFitSubject}
-            onChange={(event) => onChange((current) => ({ ...current, autoFitSubject: event.target.checked, normalizeSquare: event.target.checked || current.normalizeSquare }))}
-            type="checkbox"
-          />
-          Auto-fit
-        </label>
-        <label className="checkbox-row image-edit-toggle">
-          <input
-            checked={options.grayscale}
-            onChange={(event) => onChange((current) => ({ ...current, grayscale: event.target.checked }))}
-            type="checkbox"
-          />
-          Grayscale
-        </label>
-      </div>
-      <div className="preset-row" aria-label="Image edit presets">
-        {imageEditPresets.map((preset) => (
-          <button className="secondary-button" key={preset.name} onClick={() => applyPreset(preset.options)} type="button">
-            {preset.name}
-          </button>
-        ))}
-      </div>
-      <div className="layer-strip" aria-label="Canvas layers">
-        <span>Transparent bg</span>
-        <span>Sticker</span>
-        <span className={options.outline || options.shadow ? 'active' : ''}>Effects</span>
-        <span className={options.textEnabled ? 'active' : ''}>Text</span>
-      </div>
-      <div className="image-edit-sliders brush-sliders">
-        <label>
-          Brush size
-          <input
-            max="120"
-            min="4"
-            onChange={(event) => onChange((current) => ({ ...current, brushSize: Number(event.target.value) }))}
-            step="1"
-            type="range"
-          value={options.brushSize}
-          />
-        </label>
-        <span className="brush-status">{options.brushMode === 'erase' ? 'Erasing pixels' : 'Restoring pixels'}</span>
-      </div>
-      {options.textEnabled ? (
+            <MoveRight size={16} />
+          </IconButton>
+          <label className="checkbox-row image-edit-toggle">
+            <input
+              checked={options.cropSquare}
+              onChange={(event) =>
+                onChange({
+                  ...options,
+                  cropSquare: event.target.checked,
+                  zoom: event.target.checked ? options.zoom : 1,
+                  offsetX: event.target.checked ? options.offsetX : 0,
+                  offsetY: event.target.checked ? options.offsetY : 0,
+                })
+              }
+              type="checkbox"
+            />
+            Square crop
+          </label>
+          <label className="checkbox-row image-edit-toggle">
+            <input
+              checked={options.normalizeSquare}
+              onChange={(event) => onChange({ ...options, normalizeSquare: event.target.checked })}
+              type="checkbox"
+            />
+            Normalize square
+          </label>
+          <label className="checkbox-row image-edit-toggle">
+            <input
+              checked={options.removeLightBackground}
+              onChange={(event) => onChange({ ...options, removeLightBackground: event.target.checked })}
+              type="checkbox"
+            />
+            Remove light background
+          </label>
+          <label>
+            Background removal
+            <select
+              onChange={(event) =>
+                onChange((current) => ({
+                  ...current,
+                  serverBackgroundRemovalMode: event.target.value as ImageEditOptions['serverBackgroundRemovalMode'],
+                }))
+              }
+              value={options.serverBackgroundRemovalMode}
+            >
+              <option value="none">Off</option>
+              <option value="threshold">Server threshold</option>
+              <option value="ai">AI fallback</option>
+            </select>
+          </label>
+          <label className="checkbox-row image-edit-toggle">
+            <input
+              checked={options.outline}
+              onChange={(event) => onChange({ ...options, outline: event.target.checked })}
+              type="checkbox"
+            />
+            Outline
+          </label>
+          <label className="checkbox-row image-edit-toggle">
+            <input
+              checked={options.shadow}
+              onChange={(event) => onChange({ ...options, shadow: event.target.checked })}
+              type="checkbox"
+            />
+            Shadow
+          </label>
+          <label className="checkbox-row image-edit-toggle">
+            <input
+              checked={options.textEnabled}
+              onChange={(event) => onChange((current) => ({ ...current, textEnabled: event.target.checked }))}
+              type="checkbox"
+            />
+            Enable text
+          </label>
+          <label className="checkbox-row image-edit-toggle">
+            <input
+              checked={options.autoFitSubject}
+              onChange={(event) =>
+                onChange((current) => ({
+                  ...current,
+                  autoFitSubject: event.target.checked,
+                  normalizeSquare: event.target.checked || current.normalizeSquare,
+                }))
+              }
+              type="checkbox"
+            />
+            Auto-fit
+          </label>
+          <label className="checkbox-row image-edit-toggle">
+            <input
+              checked={options.grayscale}
+              onChange={(event) => onChange((current) => ({ ...current, grayscale: event.target.checked }))}
+              type="checkbox"
+            />
+            Grayscale
+          </label>
+        </div>
+      ) : null}
+      {showBasicsPanel ? (
+        <div className="preset-row" aria-label="Image edit presets">
+          {imageEditPresets.map((preset) => (
+            <button
+              className="secondary-button"
+              key={preset.name}
+              onClick={() => applyPreset(preset.options)}
+              type="button"
+            >
+              {preset.name}
+            </button>
+          ))}
+        </div>
+      ) : null}
+      {showBasicsPanel ? (
+        <div className="layer-strip" aria-label="Canvas layers">
+          <span>Transparent bg</span>
+          <span>Sticker</span>
+          <span className={options.outline || options.shadow ? 'active' : ''}>Effects</span>
+          <span className={options.textEnabled ? 'active' : ''}>Text</span>
+        </div>
+      ) : null}
+      {showBasicsPanel ? (
+        <div className="image-edit-sliders brush-sliders">
+          <label>
+            Brush size
+            <input
+              max="120"
+              min="4"
+              onChange={(event) => onChange((current) => ({ ...current, brushSize: Number(event.target.value) }))}
+              step="1"
+              type="range"
+              value={options.brushSize}
+            />
+          </label>
+          <span className="brush-status">{options.brushMode === 'erase' ? 'Erasing pixels' : 'Restoring pixels'}</span>
+        </div>
+      ) : null}
+      {showTextPanel && (modal || options.textEnabled) ? (
         <div className="image-edit-sliders text-sliders">
+          {modal ? (
+            <label className="checkbox-row image-edit-toggle">
+              <input
+                checked={options.textEnabled}
+                onChange={(event) => onChange((current) => ({ ...current, textEnabled: event.target.checked }))}
+                type="checkbox"
+              />
+              Enable text
+            </label>
+          ) : null}
+          {options.textEnabled ? (
+            <>
+              <label>
+                Text content
+                <input
+                  maxLength={40}
+                  onChange={(event) => onChange((current) => ({ ...current, textContent: event.target.value }))}
+                  placeholder="meme text"
+                  value={options.textContent}
+                />
+              </label>
+              <label>
+                Size
+                <input
+                  max="140"
+                  min="18"
+                  onChange={(event) => onChange((current) => ({ ...current, textSize: Number(event.target.value) }))}
+                  step="1"
+                  type="range"
+                  value={options.textSize}
+                />
+              </label>
+              <label>
+                Fill
+                <input
+                  onChange={(event) => onChange((current) => ({ ...current, textColor: event.target.value }))}
+                  type="color"
+                  value={options.textColor}
+                />
+              </label>
+              <label>
+                Stroke
+                <input
+                  onChange={(event) => onChange((current) => ({ ...current, textStrokeColor: event.target.value }))}
+                  type="color"
+                  value={options.textStrokeColor}
+                />
+              </label>
+              <label>
+                Stroke width
+                <input
+                  max="20"
+                  min="0"
+                  onChange={(event) =>
+                    onChange((current) => ({ ...current, textStrokeWidth: Number(event.target.value) }))
+                  }
+                  step="1"
+                  type="range"
+                  value={options.textStrokeWidth}
+                />
+              </label>
+              <label>
+                Rotate
+                <input
+                  max="45"
+                  min="-45"
+                  onChange={(event) =>
+                    onChange((current) => ({ ...current, textRotation: Number(event.target.value) }))
+                  }
+                  step="1"
+                  type="range"
+                  value={options.textRotation}
+                />
+              </label>
+              <label>
+                X
+                <input
+                  max="100"
+                  min="0"
+                  onChange={(event) => onChange((current) => ({ ...current, textX: Number(event.target.value) }))}
+                  step="1"
+                  type="range"
+                  value={options.textX}
+                />
+              </label>
+              <label>
+                Y
+                <input
+                  max="100"
+                  min="0"
+                  onChange={(event) => onChange((current) => ({ ...current, textY: Number(event.target.value) }))}
+                  step="1"
+                  type="range"
+                  value={options.textY}
+                />
+              </label>
+            </>
+          ) : (
+            <span className="muted-row">Turn on text to add a caption layer.</span>
+          )}
+        </div>
+      ) : null}
+      {showBasicsPanel ? (
+        <div className="image-edit-sliders color-sliders">
           <label>
-            Text
+            Brightness
             <input
-              maxLength={40}
-              onChange={(event) => onChange((current) => ({ ...current, textContent: event.target.value }))}
-              placeholder="meme text"
-              value={options.textContent}
-            />
-          </label>
-          <label>
-            Size
-            <input
-              max="140"
-              min="18"
-              onChange={(event) => onChange((current) => ({ ...current, textSize: Number(event.target.value) }))}
+              max="100"
+              min="-100"
+              onChange={(event) => onChange((current) => ({ ...current, brightness: Number(event.target.value) }))}
               step="1"
               type="range"
-              value={options.textSize}
+              value={options.brightness}
             />
           </label>
           <label>
-            Fill
+            Contrast
             <input
-              onChange={(event) => onChange((current) => ({ ...current, textColor: event.target.value }))}
-              type="color"
-              value={options.textColor}
-            />
-          </label>
-          <label>
-            Stroke
-            <input
-              onChange={(event) => onChange((current) => ({ ...current, textStrokeColor: event.target.value }))}
-              type="color"
-              value={options.textStrokeColor}
-            />
-          </label>
-          <label>
-            Stroke width
-            <input
-              max="20"
-              min="0"
-              onChange={(event) => onChange((current) => ({ ...current, textStrokeWidth: Number(event.target.value) }))}
+              max="100"
+              min="-100"
+              onChange={(event) => onChange((current) => ({ ...current, contrast: Number(event.target.value) }))}
               step="1"
               type="range"
-              value={options.textStrokeWidth}
+              value={options.contrast}
             />
           </label>
           <label>
-            Rotate
+            Saturation
             <input
-              max="45"
-              min="-45"
-              onChange={(event) => onChange((current) => ({ ...current, textRotation: Number(event.target.value) }))}
+              max="100"
+              min="-100"
+              onChange={(event) => onChange((current) => ({ ...current, saturation: Number(event.target.value) }))}
               step="1"
               type="range"
-              value={options.textRotation}
+              value={options.saturation}
             />
           </label>
           <label>
-            X
+            Sharpen
             <input
               max="100"
               min="0"
-              onChange={(event) => onChange((current) => ({ ...current, textX: Number(event.target.value) }))}
+              onChange={(event) => onChange((current) => ({ ...current, sharpen: Number(event.target.value) }))}
               step="1"
               type="range"
-              value={options.textX}
+              value={options.sharpen}
             />
           </label>
           <label>
-            Y
+            Warmth
             <input
               max="100"
-              min="0"
-              onChange={(event) => onChange((current) => ({ ...current, textY: Number(event.target.value) }))}
+              min="-100"
+              onChange={(event) => onChange((current) => ({ ...current, warmth: Number(event.target.value) }))}
               step="1"
               type="range"
-              value={options.textY}
+              value={options.warmth}
+            />
+          </label>
+          <label>
+            Tint
+            <input
+              max="100"
+              min="-100"
+              onChange={(event) => onChange((current) => ({ ...current, tint: Number(event.target.value) }))}
+              step="1"
+              type="range"
+              value={options.tint}
             />
           </label>
         </div>
       ) : null}
-      <div className="image-edit-sliders color-sliders">
-        <label>
-          Brightness
-          <input
-            max="100"
-            min="-100"
-            onChange={(event) => onChange((current) => ({ ...current, brightness: Number(event.target.value) }))}
-            step="1"
-            type="range"
-            value={options.brightness}
-          />
-        </label>
-        <label>
-          Contrast
-          <input
-            max="100"
-            min="-100"
-            onChange={(event) => onChange((current) => ({ ...current, contrast: Number(event.target.value) }))}
-            step="1"
-            type="range"
-            value={options.contrast}
-          />
-        </label>
-        <label>
-          Saturation
-          <input
-            max="100"
-            min="-100"
-            onChange={(event) => onChange((current) => ({ ...current, saturation: Number(event.target.value) }))}
-            step="1"
-            type="range"
-            value={options.saturation}
-          />
-        </label>
-        <label>
-          Sharpen
-          <input
-            max="100"
-            min="0"
-            onChange={(event) => onChange((current) => ({ ...current, sharpen: Number(event.target.value) }))}
-            step="1"
-            type="range"
-            value={options.sharpen}
-          />
-        </label>
-        <label>
-          Warmth
-          <input
-            max="100"
-            min="-100"
-            onChange={(event) => onChange((current) => ({ ...current, warmth: Number(event.target.value) }))}
-            step="1"
-            type="range"
-            value={options.warmth}
-          />
-        </label>
-        <label>
-          Tint
-          <input
-            max="100"
-            min="-100"
-            onChange={(event) => onChange((current) => ({ ...current, tint: Number(event.target.value) }))}
-            step="1"
-            type="range"
-            value={options.tint}
-          />
-        </label>
-      </div>
-      <div className="optimizer-panel">
-        <label className="checkbox-row image-edit-toggle">
-          <input
-            checked={options.optimizeOutput}
-            onChange={(event) => onChange((current) => ({ ...current, optimizeOutput: event.target.checked }))}
-            type="checkbox"
-          />
-          Optimize under 100KB
-        </label>
-        <label>
-          Quality
-          <input
-            disabled={!options.optimizeOutput}
-            max="95"
-            min="35"
-            onChange={(event) => onChange((current) => ({ ...current, outputQuality: Number(event.target.value) }))}
-            step="1"
-            type="range"
-            value={options.outputQuality}
-          />
-        </label>
-        <span className={outputSize && outputSize > 100 * 1024 ? 'optimizer-warning' : 'optimizer-ok'}>
-          {outputSize ? `Output ${formatBytes(outputSize)}` : 'Output pending'}
-        </span>
-        {outputSize && !isPossiblyAnimated && outputSize > 100 * 1024 ? (
-          <span className="optimizer-warning">Static WhatsApp stickers should be under 100KB.</span>
-        ) : null}
-        {isPossiblyAnimated && file.size > 500 * 1024 ? (
-          <span className="optimizer-warning">Animated WhatsApp stickers should be under 500KB.</span>
-        ) : null}
-      </div>
-      {isPossiblyAnimated ? (
+      {showOutputPanel ? (
+        <div className="optimizer-panel">
+          <label className="checkbox-row image-edit-toggle">
+            <input
+              checked={options.optimizeOutput}
+              onChange={(event) => onChange((current) => ({ ...current, optimizeOutput: event.target.checked }))}
+              type="checkbox"
+            />
+            Optimize under 100KB
+          </label>
+          <label>
+            Quality
+            <input
+              disabled={!options.optimizeOutput}
+              max="95"
+              min="35"
+              onChange={(event) => onChange((current) => ({ ...current, outputQuality: Number(event.target.value) }))}
+              step="1"
+              type="range"
+              value={options.outputQuality}
+            />
+          </label>
+          <span className={outputSize && outputSize > 100 * 1024 ? 'optimizer-warning' : 'optimizer-ok'}>
+            {outputSize ? `Output ${formatBytes(outputSize)}` : 'Output pending'}
+          </span>
+          {outputSize && !isPossiblyAnimated && outputSize > 100 * 1024 ? (
+            <span className="optimizer-warning">Static WhatsApp stickers should be under 100KB.</span>
+          ) : null}
+          {isPossiblyAnimated && file.size > 500 * 1024 ? (
+            <span className="optimizer-warning">Animated WhatsApp stickers should be under 500KB.</span>
+          ) : null}
+        </div>
+      ) : null}
+      {showOutputPanel && isPossiblyAnimated ? (
         <div className="animated-panel">
           {sourcePreviewUrl ? <img alt="Animated source preview" src={sourcePreviewUrl} /> : null}
           <label>
@@ -3776,7 +4412,9 @@ function ImageEditControls({
             <input
               max="10"
               min="0"
-              onChange={(event) => onChange((current) => ({ ...current, animatedTrimStart: Number(event.target.value) }))}
+              onChange={(event) =>
+                onChange((current) => ({ ...current, animatedTrimStart: Number(event.target.value) }))
+              }
               step="0.1"
               type="range"
               value={options.animatedTrimStart}
@@ -3798,7 +4436,9 @@ function ImageEditControls({
             <input
               max="30"
               min="1"
-              onChange={(event) => onChange((current) => ({ ...current, animatedFrameRate: Number(event.target.value) }))}
+              onChange={(event) =>
+                onChange((current) => ({ ...current, animatedFrameRate: Number(event.target.value) }))
+              }
               step="1"
               type="range"
               value={options.animatedFrameRate}
@@ -3820,7 +4460,7 @@ function ImageEditControls({
           </span>
         </div>
       ) : null}
-      {options.autoFitSubject ? (
+      {showBasicsPanel && options.autoFitSubject ? (
         <div className="image-edit-sliders subject-sliders">
           <label>
             Subject padding
@@ -3835,12 +4475,40 @@ function ImageEditControls({
           </label>
         </div>
       ) : null}
-      {options.serverBackgroundRemovalMode !== 'none' ? (
+      {showBackgroundPanel ? (
+        <div className="image-edit-sliders background-mode-panel">
+          <label className="checkbox-row image-edit-toggle">
+            <input
+              checked={options.removeLightBackground}
+              onChange={(event) => onChange({ ...options, removeLightBackground: event.target.checked })}
+              type="checkbox"
+            />
+            Remove light background
+          </label>
+          <label>
+            Background removal
+            <select
+              onChange={(event) =>
+                onChange((current) => ({
+                  ...current,
+                  serverBackgroundRemovalMode: event.target.value as ImageEditOptions['serverBackgroundRemovalMode'],
+                }))
+              }
+              value={options.serverBackgroundRemovalMode}
+            >
+              <option value="none">Off</option>
+              <option value="threshold">Server threshold</option>
+              <option value="ai">AI fallback</option>
+            </select>
+          </label>
+        </div>
+      ) : null}
+      {showBackgroundPanel && options.serverBackgroundRemovalMode !== 'none' ? (
         <p className="upload-note server-bg-note">
           {serverBackgroundRemovalMessage(options.serverBackgroundRemovalMode, backgroundRemovalStatus)}
         </p>
       ) : null}
-      {showBackgroundControls ? (
+      {showBackgroundPanel && showBackgroundControls ? (
         <div className="image-edit-sliders background-sliders">
           <label>
             Threshold
@@ -3887,7 +4555,7 @@ function ImageEditControls({
           ) : null}
         </div>
       ) : null}
-      {options.cropSquare ? (
+      {showBasicsPanel && options.cropSquare ? (
         <div className="image-edit-sliders">
           <label>
             Zoom
@@ -3988,7 +4656,11 @@ function EmptyState() {
 }
 
 function exportFileName(pack: Pack) {
-  const slug = pack.name.replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '').toLowerCase() || 'sticker-pack';
+  const slug =
+    pack.name
+      .replace(/[^a-z0-9]+/gi, '-')
+      .replace(/^-|-$/g, '')
+      .toLowerCase() || 'sticker-pack';
   return `${slug}-${pack.id.slice(0, 8)}.zip`;
 }
 
@@ -4006,6 +4678,15 @@ function downloadBlob(blob: Blob, fileName: string) {
 function sharePackIdFromPath() {
   const match = window.location.pathname.match(/^\/share\/([^/?#]+)/);
   return match ? decodeURIComponent(match[1]) : null;
+}
+
+function packInitials(name: string) {
+  const words = name.trim().split(/\s+/).filter(Boolean);
+  const initials = words
+    .slice(0, 2)
+    .map((word) => word[0]?.toUpperCase() ?? '')
+    .join('');
+  return initials || 'SF';
 }
 
 function roleLabel(role?: PackRole) {
@@ -4055,7 +4736,11 @@ function isAnimatedSourceFile(file: File) {
   return file.type === 'image/gif' || file.type === 'image/webp' || /\.(gif|webp)$/i.test(file.name);
 }
 
-function animatedOptionsFromEdit(file: File, isAnimatedPack: boolean, options: ImageEditOptions): AnimatedStickerOptions | undefined {
+function animatedOptionsFromEdit(
+  file: File,
+  isAnimatedPack: boolean,
+  options: ImageEditOptions,
+): AnimatedStickerOptions | undefined {
   if (!isAnimatedPack || !isAnimatedSourceFile(file)) return undefined;
   return {
     animatedTrimStart: options.animatedTrimStart,
@@ -4065,7 +4750,10 @@ function animatedOptionsFromEdit(file: File, isAnimatedPack: boolean, options: I
   };
 }
 
-function backgroundRemovalOptionsFromEdit(isAnimatedPack: boolean, options: ImageEditOptions): BackgroundRemovalUploadOptions | undefined {
+function backgroundRemovalOptionsFromEdit(
+  isAnimatedPack: boolean,
+  options: ImageEditOptions,
+): BackgroundRemovalUploadOptions | undefined {
   if (isAnimatedPack || options.serverBackgroundRemovalMode === 'none') return undefined;
   return {
     backgroundRemovalMode: options.serverBackgroundRemovalMode,
@@ -4081,12 +4769,18 @@ function serverBackgroundRemovalMessage(
   status?: AdminSettings['backgroundRemoval'],
 ) {
   if (mode === 'threshold') return 'Server threshold cleanup uses the same threshold, soft edge, and speckle controls.';
-  if (!status) return 'Server AI availability is visible to admins; uploads fall back to threshold if no model is configured.';
-  if (status.aiCommandConfigured) return 'Server AI command is configured; failed AI runs fall back to threshold cleanup.';
+  if (!status)
+    return 'Server AI availability is visible to admins; uploads fall back to threshold if no model is configured.';
+  if (status.aiCommandConfigured)
+    return 'Server AI command is configured; failed AI runs fall back to threshold cleanup.';
   return 'Server AI is not configured yet; this upload will use threshold fallback.';
 }
 
-function stickerUploadOptionsFromEdit(file: File, isAnimatedPack: boolean, options: ImageEditOptions): StickerUploadOptions | undefined {
+function stickerUploadOptionsFromEdit(
+  file: File,
+  isAnimatedPack: boolean,
+  options: ImageEditOptions,
+): StickerUploadOptions | undefined {
   return {
     ...animatedOptionsFromEdit(file, isAnimatedPack, options),
     ...backgroundRemovalOptionsFromEdit(isAnimatedPack, options),
@@ -4098,24 +4792,42 @@ async function editableUploadFile(file: File, isAnimatedPack: boolean, options: 
 }
 
 async function editImageFile(file: File, options: ImageEditOptions) {
-  if (
-    options.rotation === 0 &&
-    !options.cropSquare &&
-    !options.normalizeSquare &&
-    !options.removeLightBackground &&
-    !options.outline &&
-    !options.shadow &&
-    !options.autoFitSubject &&
-    !hasColorAdjustments(options) &&
-    !options.optimizeOutput &&
-    options.brushStrokes.length === 0 &&
-    (!options.textEnabled || options.textContent.trim().length === 0)
-  ) {
+  if (!hasEffectiveImageEdits(options)) {
     return file;
   }
 
   const image = await loadImage(file);
-  const sourceSize = options.cropSquare ? Math.min(image.naturalWidth, image.naturalHeight) / Math.max(options.zoom, 1) : undefined;
+  const canvas = renderImageEditCanvas(image, options);
+  if (!canvas) return file;
+
+  const blob = options.optimizeOutput
+    ? await optimizeCanvasBlob(canvas, options.outputQuality)
+    : await canvasToBlob(canvas, 'image/png');
+  if (!blob) return file;
+
+  return new File([blob], editedFileName(file, blob.type), { type: blob.type });
+}
+
+function hasEffectiveImageEdits(options: ImageEditOptions) {
+  return (
+    options.rotation !== 0 ||
+    options.cropSquare ||
+    options.normalizeSquare ||
+    options.removeLightBackground ||
+    options.outline ||
+    options.shadow ||
+    options.autoFitSubject ||
+    hasColorAdjustments(options) ||
+    options.optimizeOutput ||
+    options.brushStrokes.length > 0 ||
+    (options.textEnabled && options.textContent.trim().length > 0)
+  );
+}
+
+function renderImageEditCanvas(image: HTMLImageElement, options: ImageEditOptions) {
+  const sourceSize = options.cropSquare
+    ? Math.min(image.naturalWidth, image.naturalHeight) / Math.max(options.zoom, 1)
+    : undefined;
   const sourceWidth = sourceSize ?? image.naturalWidth;
   const sourceHeight = sourceSize ?? image.naturalHeight;
   const sourceX = sourceSize
@@ -4142,11 +4854,21 @@ async function editImageFile(file: File, options: ImageEditOptions) {
   canvas.height = normalizedSide ?? outputHeight;
 
   const context = canvas.getContext('2d');
-  if (!context) return file;
+  if (!context) return null;
 
   context.translate(canvas.width / 2, canvas.height / 2);
   context.rotate((options.rotation * Math.PI) / 180);
-  context.drawImage(image, sourceX, sourceY, sourceWidth, sourceHeight, -sourceWidth / 2, -sourceHeight / 2, sourceWidth, sourceHeight);
+  context.drawImage(
+    image,
+    sourceX,
+    sourceY,
+    sourceWidth,
+    sourceHeight,
+    -sourceWidth / 2,
+    -sourceHeight / 2,
+    sourceWidth,
+    sourceHeight,
+  );
   context.setTransform(1, 0, 0, 1, 0, 0);
 
   if (hasColorAdjustments(options)) {
@@ -4177,13 +4899,48 @@ async function editImageFile(file: File, options: ImageEditOptions) {
     applyTextLayer(context, canvas.width, canvas.height, options);
   }
 
-  const blob = options.optimizeOutput ? await optimizeCanvasBlob(canvas, options.outputQuality) : await canvasToBlob(canvas, 'image/png');
-  if (!blob) return file;
-
-  return new File([blob], editedFileName(file, blob.type), { type: blob.type });
+  return canvas;
 }
 
-function removeLightBackground(context: CanvasRenderingContext2D, width: number, height: number, options: ImageEditOptions) {
+async function imageEditOutputSize(file: File, canvas: HTMLCanvasElement, options: ImageEditOptions) {
+  if (!hasEffectiveImageEdits(options)) return file.size;
+  const blob = options.optimizeOutput
+    ? await optimizeCanvasBlob(canvas, options.outputQuality)
+    : await canvasToBlob(canvas, 'image/png');
+  return blob?.size ?? file.size;
+}
+
+function ensurePreviewCanvasSize(canvas: HTMLCanvasElement) {
+  if (canvas.width !== 512) canvas.width = 512;
+  if (canvas.height !== 512) canvas.height = 512;
+}
+
+function drawEditedPreview(canvas: HTMLCanvasElement, editedCanvas: HTMLCanvasElement) {
+  const context = canvas.getContext('2d');
+  if (!context) return null;
+
+  drawCheckerboard(context, canvas.width, canvas.height, 16);
+  const scale = Math.min(canvas.width / editedCanvas.width, canvas.height / editedCanvas.height);
+  const width = editedCanvas.width * scale;
+  const height = editedCanvas.height * scale;
+  const x = (canvas.width - width) / 2;
+  const y = (canvas.height - height) / 2;
+  context.drawImage(editedCanvas, x, y, width, height);
+
+  return {
+    x: x / canvas.width,
+    y: y / canvas.height,
+    width: width / canvas.width,
+    height: height / canvas.height,
+  };
+}
+
+function removeLightBackground(
+  context: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  options: ImageEditOptions,
+) {
   const imageData = context.getImageData(0, 0, width, height);
   const data = imageData.data;
   const threshold = clamp(options.backgroundThreshold, 180, 255);
@@ -4269,7 +5026,12 @@ function hasColorAdjustments(options: ImageEditOptions) {
   );
 }
 
-function applyColorAdjustments(context: CanvasRenderingContext2D, width: number, height: number, options: ImageEditOptions) {
+function applyColorAdjustments(
+  context: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  options: ImageEditOptions,
+) {
   const imageData = context.getImageData(0, 0, width, height);
   const data = imageData.data;
   const brightness = clamp(options.brightness, -100, 100) * 2.55;
@@ -4556,15 +5318,6 @@ function loadImage(file: File) {
       URL.revokeObjectURL(url);
       reject(new Error('Image preview failed'));
     };
-    image.src = url;
-  });
-}
-
-function loadImageFromUrl(url: string) {
-  return new Promise<HTMLImageElement>((resolve, reject) => {
-    const image = new Image();
-    image.onload = () => resolve(image);
-    image.onerror = () => reject(new Error('Image preview failed'));
     image.src = url;
   });
 }

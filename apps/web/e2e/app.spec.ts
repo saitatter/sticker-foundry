@@ -38,13 +38,20 @@ type Pack = {
 
 test('covers core web sticker workflows with mocked API', async ({ page }) => {
   const state = createMockState();
+  state.failTrayIconFor.add('pack-ready');
   await mockApi(page, state);
 
-  await login(page);
+  await login(page, { openFirstPack: false });
 
-  await expect(page.getByRole('heading', { name: 'Packs' })).toBeVisible();
+  await expect(page.locator('.pack-library').getByRole('heading', { name: 'Packs' })).toBeVisible();
+  await expect(page.locator('.pack-album-grid')).toContainText('Smoke Ready');
+  await expect(
+    page.getByRole('button', { name: 'Open pack Smoke Ready' }).locator('.pack-cover.has-image img'),
+  ).toBeVisible();
+  await page.getByRole('button', { name: 'Open pack Smoke Ready' }).click();
   await expect(page.getByRole('heading', { name: 'Smoke Ready' })).toBeVisible();
   await expect(page.locator('.stats-grid')).toContainText('Owner');
+  await openStickersTab(page);
   await page.keyboard.press('j');
   await expect(page.locator('.sticker-tile').first()).toHaveClass(/selected/);
   await page.keyboard.press('n');
@@ -56,27 +63,51 @@ test('covers core web sticker workflows with mocked API', async ({ page }) => {
   await expect.poll(() => stickerGridColumnCount(page)).toBeGreaterThanOrEqual(2);
   await page.setViewportSize({ width: 1280, height: 720 });
 
+  await page.getByRole('tab', { name: 'Overview' }).click();
   await page.getByRole('button', { name: 'Preview JSON' }).click();
   await expect(page.locator('.contents-preview')).toContainText('sticker_packs');
+  await page.getByRole('tab', { name: 'Collaboration' }).click();
   await expect(page.getByRole('heading', { name: 'Collaboration' })).toBeVisible();
+  await openStickersTab(page);
   await page.locator('.sticker-preview-button').first().click();
   await expect(page.getByRole('heading', { name: 'Sticker detail' })).toBeVisible();
   await page.locator('.sticker-detail-dialog').getByRole('button', { name: 'Close' }).click();
 
-  await page.locator('.tool-panel').filter({ hasText: 'New pack' }).getByLabel('Name').fill('Scratch Pack');
-  await page.locator('.tool-panel').filter({ hasText: 'New pack' }).getByLabel('Publisher').fill('QA');
-  await page.locator('.tool-panel').filter({ hasText: 'New pack' }).getByRole('button', { name: 'Create' }).click();
+  const firstSticker = page.locator('.sticker-tile').first();
+  await firstSticker.getByRole('button', { name: 'Edit' }).click();
+  const stickerDialog = page.getByRole('dialog', { name: 'Sticker detail' });
+  await expect(stickerDialog).toBeVisible();
+  await stickerDialog.locator('.sticker-replace-form input[type=file]').setInputFiles({
+    name: 'replace.png',
+    mimeType: 'image/png',
+    buffer: png1x1,
+  });
+  await expect(stickerDialog.locator('.upload-edit-summary')).toContainText('Original image');
+  await stickerDialog.locator('.upload-edit-summary').getByRole('button', { name: 'Edit' }).click();
+  await expect(page.getByRole('dialog', { name: 'Sticker image editor' })).toBeVisible();
+  await page.getByRole('tab', { name: 'Background' }).click();
+  await page.locator('.image-editor-modal').getByRole('button', { name: 'Apply edits' }).click();
+  await stickerDialog.getByRole('button', { name: 'Close' }).click();
+
+  const newPackPanel = await openNewPackPanel(page);
+  await newPackPanel.getByLabel('Name').fill('Scratch Pack');
+  await newPackPanel.getByLabel('Publisher').fill('QA');
+  await newPackPanel.getByRole('button', { name: 'Create' }).click();
   await expect(page.getByRole('heading', { name: 'Scratch Pack' })).toBeVisible();
 
+  await openStickersTab(page);
   await page.locator('.upload-panel input[type=file]').setInputFiles({
     name: 'smoke.png',
     mimeType: 'image/png',
     buffer: png1x1,
   });
   await page.locator('.upload-panel').getByRole('button', { name: 'Upload' }).click();
+  await page.getByRole('tab', { name: 'Overview' }).click();
   await expect(page.locator('.stats-grid')).toContainText('1/30');
 
-  await page.getByRole('button', { name: 'Smoke Ready' }).click();
+  await page.getByRole('button', { name: 'Open packs' }).click();
+  await page.getByRole('button', { name: 'Open pack Smoke Ready' }).click();
+  await openStickersTab(page);
   await page.locator('.bulk-toolbar').getByRole('button', { name: 'Select all' }).click();
   await page.locator('.bulk-toolbar').getByLabel('Target').selectOption({ label: 'Scratch Pack (1/30)' });
   await page.locator('.bulk-toolbar').getByRole('button', { name: 'Copy' }).click();
@@ -115,9 +146,11 @@ test('submits optimizer and server background removal options', async ({ page })
 
   await chooseUploadImage(page, 'server-bg.png', 'image/png', png1x1);
   const editor = await openUploadEditor(page);
+  await editor.getByRole('tab', { name: 'Output' }).click();
   await editor.getByLabel('Optimize under 100KB').check();
-  await editor.getByLabel('Server bg').selectOption('ai');
   await expect(editor.locator('.optimizer-panel')).toContainText(/Output/);
+  await editor.getByRole('tab', { name: 'Background' }).click();
+  await editor.getByLabel('Background removal').selectOption('ai');
   await expect(editor.getByText('Server AI command is configured')).toBeVisible();
   await page.locator('.image-editor-modal').getByRole('button', { name: 'Apply edits' }).click();
 
@@ -133,15 +166,17 @@ test('submits animated trim and frame rate upload options', async ({ page }) => 
   await mockApi(page, state);
   await login(page);
 
-  const newPackPanel = page.locator('.tool-panel').filter({ hasText: 'New pack' });
+  const newPackPanel = await openNewPackPanel(page);
   await newPackPanel.getByLabel('Name').fill('Animated Smoke');
   await newPackPanel.getByLabel('Publisher').fill('QA');
   await newPackPanel.getByLabel('Animated pack').check();
   await newPackPanel.getByRole('button', { name: 'Create' }).click();
   await expect(page.locator('.stats-grid')).toContainText('Animated');
 
+  await openStickersTab(page);
   await chooseUploadImage(page, 'motion.gif', 'image/gif', gif1x1);
   const editor = await openUploadEditor(page);
+  await editor.getByRole('tab', { name: 'Output' }).click();
   await expect(editor.locator('.animated-panel')).toBeVisible();
   await editor.getByLabel('Trim start').fill('1');
   await editor.getByLabel('Trim end').fill('5');
@@ -190,7 +225,7 @@ function createMockState() {
     },
   ];
 
-  return { packs, uploads: [] as Array<{ packId: string; body: string }> };
+  return { failTrayIconFor: new Set<string>(), packs, uploads: [] as Array<{ packId: string; body: string }> };
 }
 
 async function mockApi(page: Page, state: ReturnType<typeof createMockState>) {
@@ -216,7 +251,7 @@ async function mockApi(page: Page, state: ReturnType<typeof createMockState>) {
         registrationInviteCode: '',
         storageQuotaBytes: null,
         auditRetentionDays: null,
-        instanceName: 'StickerFoundry',
+        instanceName: 'Sticker Foundry',
         instanceDescription: 'Self-hosted sticker pack management',
         backgroundRemoval: {
           thresholdAvailable: true,
@@ -230,13 +265,21 @@ async function mockApi(page: Page, state: ReturnType<typeof createMockState>) {
       return json(route, []);
     }
     if (method === 'GET' && path === '/packs') {
-      return json(route, state.packs.map(({ stickers, ...pack }) => pack));
+      return json(
+        route,
+        state.packs.map(({ stickers, ...pack }) => pack),
+      );
     }
     if (method === 'GET' && path === '/teams') {
       return json(route, []);
     }
     if (method === 'POST' && path === '/packs') {
-      const body = request.postDataJSON() as { name: string; publisher: string; isPublic?: boolean; isAnimated?: boolean };
+      const body = request.postDataJSON() as {
+        name: string;
+        publisher: string;
+        isPublic?: boolean;
+        isAnimated?: boolean;
+      };
       const pack: Pack = {
         id: `pack-${state.packs.length + 1}`,
         name: body.name,
@@ -282,6 +325,11 @@ async function mockApi(page: Page, state: ReturnType<typeof createMockState>) {
           },
         ],
       });
+    }
+
+    const trayIconMatch = path.match(/^\/packs\/([^/]+)\/tray-icon$/);
+    if (method === 'GET' && trayIconMatch && state.failTrayIconFor.has(trayIconMatch[1])) {
+      return json(route, { message: 'Tray icon not found' }, 404);
     }
 
     if (method === 'GET' && path.match(/^\/packs\/[^/]+\/(tray-icon|stickers\/[^/]+\/file)$/)) {
@@ -379,15 +427,25 @@ async function json(route: Route, body: unknown, status = 200) {
   });
 }
 
-async function login(page: Page) {
+async function login(page: Page, options: { openFirstPack?: boolean } = {}) {
   await page.goto('/');
   await page.getByLabel('Email').fill('demo@stickerfoundry.local');
   await page.getByRole('textbox', { name: /Password/ }).fill('stickerfoundry123');
   await page.locator('form').getByRole('button', { name: 'Login' }).click();
+  if (options.openFirstPack ?? true) {
+    await page.getByRole('button', { name: 'Open pack Smoke Ready' }).click();
+    await openStickersTab(page);
+  }
 }
 
 async function chooseUploadImage(page: Page, name: string, mimeType: string, buffer: Buffer) {
   await page.locator('.upload-panel input[type=file]').setInputFiles({ name, mimeType, buffer });
+}
+
+async function openStickersTab(page: Page) {
+  const stickersTab = page.getByRole('tab', { name: /Stickers/ });
+  await stickersTab.click();
+  await expect(stickersTab).toHaveAttribute('aria-selected', 'true');
 }
 
 async function openUploadEditor(page: Page) {
@@ -395,6 +453,13 @@ async function openUploadEditor(page: Page) {
   const editor = page.locator('.image-editor-modal .image-edit-controls').first();
   await expect(editor).toBeVisible();
   return editor;
+}
+
+async function openNewPackPanel(page: Page) {
+  await page.getByRole('button', { name: 'Create or join' }).click();
+  const drawer = page.getByRole('dialog', { name: 'Create and join' });
+  await expect(drawer).toBeVisible();
+  return drawer.locator('.tool-panel').filter({ hasText: 'New pack' });
 }
 
 async function drawOnCanvas(canvas: Locator) {
@@ -407,5 +472,7 @@ async function drawOnCanvas(canvas: Locator) {
 }
 
 async function stickerGridColumnCount(page: Page) {
-  return page.locator('.sticker-grid').evaluate((element) => getComputedStyle(element).gridTemplateColumns.split(' ').length);
+  return page
+    .locator('.sticker-grid')
+    .evaluate((element) => getComputedStyle(element).gridTemplateColumns.split(' ').length);
 }
