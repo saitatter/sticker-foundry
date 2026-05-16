@@ -1,5 +1,14 @@
 FROM node:20-bookworm-slim
 
+ARG OCI_SOURCE="https://github.com/saitatter/sticker-foundry"
+ARG OCI_REVISION=""
+ARG OCI_VERSION=""
+
+LABEL org.opencontainers.image.source="${OCI_SOURCE}" \
+  org.opencontainers.image.revision="${OCI_REVISION}" \
+  org.opencontainers.image.version="${OCI_VERSION}" \
+  org.opencontainers.image.title="StickerFoundry Backend AI"
+
 RUN apt-get update \
   && apt-get install -y --no-install-recommends openssl python3 python3-pip python3-venv libgomp1 \
   && python3 -m venv /opt/rembg \

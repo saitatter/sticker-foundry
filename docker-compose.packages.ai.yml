@@ -1,0 +1,5 @@
+services:
+  backend:
+    image: ${STICKER_FOUNDRY_BACKEND_AI_IMAGE:-ghcr.io/saitatter/sticker-foundry-backend-ai}:${STICKER_FOUNDRY_IMAGE_TAG:-latest}
+    environment:
+      BACKGROUND_REMOVAL_COMMAND: ${BACKGROUND_REMOVAL_COMMAND:-rembg i {input} {output}}

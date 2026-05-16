@@ -44,6 +44,8 @@ async function copyServerPackage() {
     '.env.example',
     'docker-compose.yml',
     'docker-compose.ai.yml',
+    'docker-compose.packages.yml',
+    'docker-compose.packages.ai.yml',
     'README.md',
     'LICENSE',
     'docs',

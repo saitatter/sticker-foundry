@@ -2,6 +2,14 @@
 
 This project ships a Compose setup with three services: PostgreSQL, backend API, and web UI.
 
+The easiest Unraid path is to use the prebuilt GitHub Container Registry images:
+
+- `ghcr.io/saitatter/sticker-foundry-backend:latest`
+- `ghcr.io/saitatter/sticker-foundry-web:latest`
+- Optional AI remover: `ghcr.io/saitatter/sticker-foundry-backend-ai:latest`
+
+Use `docker-compose.packages.yml` for Unraid so the server pulls images instead of building them locally.
+
 ## Recommended Shares
 
 - `appdata/sticker-foundry/postgres`: PostgreSQL data.
@@ -10,7 +18,13 @@ This project ships a Compose setup with three services: PostgreSQL, backend API,
 
 ## Volume Mapping
 
-Map the Compose volumes to durable Unraid paths:
+`docker-compose.packages.yml` already maps durable host paths using `UNRAID_APPDATA`:
+
+```env
+UNRAID_APPDATA=/mnt/user/appdata/sticker-foundry
+```
+
+If you use the build-from-source `docker-compose.yml`, map the Compose volumes to durable Unraid paths:
 
 ```yaml
 volumes:
@@ -47,6 +61,53 @@ CORS_ORIGIN=https://stickers.example.com
 REGISTRATION_MODE=invite-only
 REGISTRATION_INVITE_CODE=replace-with-private-invite-code
 ```
+
+Optional image settings:
+
+```env
+STICKER_FOUNDRY_IMAGE_TAG=latest
+WEB_PORT=8080
+BACKEND_PORT=3000
+```
+
+## Compose Manager Quick Start
+
+1. Create `/mnt/user/appdata/sticker-foundry/.env` from `.env.example`.
+2. Change `POSTGRES_PASSWORD`, `JWT_SECRET`, and the public URL/CORS values.
+3. In Unraid Compose Manager, point the stack at `docker-compose.packages.yml`.
+4. Start the stack.
+5. Open `http://YOUR_UNRAID_IP:8080`.
+
+CLI equivalent:
+
+```bash
+cd /mnt/user/appdata/sticker-foundry
+docker compose -f docker-compose.packages.yml --env-file .env up -d
+```
+
+For AI background removal:
+
+```bash
+docker compose -f docker-compose.packages.yml -f docker-compose.packages.ai.yml --env-file .env up -d
+```
+
+## Unraid Docker UI Images
+
+If you prefer creating containers manually in the Unraid Docker UI, use:
+
+- Backend repository: `ghcr.io/saitatter/sticker-foundry-backend:latest`
+- Web repository: `ghcr.io/saitatter/sticker-foundry-web:latest`
+- PostgreSQL repository: `postgres:16-alpine`
+
+Backend mappings:
+
+- Container port `3000` to host port `3000`.
+- Container path `/data` to `/mnt/user/appdata/sticker-foundry/data`.
+- `DATABASE_URL=postgresql://stickers:<password>@postgres:5432/stickers?schema=public`.
+
+Web mapping:
+
+- Container port `80` to host port `8080`.
 
 ## Reverse Proxy
 

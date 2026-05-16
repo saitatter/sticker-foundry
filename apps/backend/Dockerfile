@@ -1,5 +1,14 @@
 FROM node:20-alpine
 
+ARG OCI_SOURCE="https://github.com/saitatter/sticker-foundry"
+ARG OCI_REVISION=""
+ARG OCI_VERSION=""
+
+LABEL org.opencontainers.image.source="${OCI_SOURCE}" \
+  org.opencontainers.image.revision="${OCI_REVISION}" \
+  org.opencontainers.image.version="${OCI_VERSION}" \
+  org.opencontainers.image.title="StickerFoundry Backend"
+
 RUN apk add --no-cache openssl
 
 WORKDIR /app

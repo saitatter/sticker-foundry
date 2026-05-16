@@ -12,6 +12,15 @@ RUN npm install && npm --workspace apps/web run build
 
 FROM nginx:1.27-alpine
 
+ARG OCI_SOURCE="https://github.com/saitatter/sticker-foundry"
+ARG OCI_REVISION=""
+ARG OCI_VERSION=""
+
+LABEL org.opencontainers.image.source="${OCI_SOURCE}" \
+  org.opencontainers.image.revision="${OCI_REVISION}" \
+  org.opencontainers.image.version="${OCI_VERSION}" \
+  org.opencontainers.image.title="StickerFoundry Web"
+
 COPY apps/web/nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /app/apps/web/dist /usr/share/nginx/html
 
