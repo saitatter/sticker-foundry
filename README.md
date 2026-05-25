@@ -132,3 +132,9 @@ docker-compose.yml
 The repository logo is a transparent SVG: [assets/brand/sticker-foundry-logo.svg](assets/brand/sticker-foundry-logo.svg). Android launcher and web favicon assets use the rounded-square PNG app icon for better platform fit.
 
 Palette: deep teal `#08786f`, ink `#192124`, paper `#f7faf9`, forge accent `#f59e0b`, soft mint `#edf3f1`.
+
+---
+
+## Support
+
+If Sticker Foundry is useful to you, you can support ongoing development on [Ko-fi](https://ko-fi.com/saitatter).
