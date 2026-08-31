@@ -1,25 +1,21 @@
-<table>
-  <tr>
-    <td width="104">
-      <img src="assets/brand/sticker-foundry-logo.svg" alt="Sticker Foundry logo" width="88" height="88" />
-    </td>
-    <td>
-      <h1>Sticker Foundry</h1>
-      <p><strong>Self-hosted collaborative WhatsApp sticker pack manager.</strong></p>
-      <p>
-        <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/License-MIT-yellow.svg" /></a>
-        <img alt="GitHub Release" src="https://img.shields.io/github/v/release/saitatter/sticker-foundry" />
-        <img alt="NestJS backend" src="https://img.shields.io/badge/NestJS-Backend-E0234E?logo=nestjs&logoColor=white" />
-        <img alt="Kotlin Android" src="https://img.shields.io/badge/Kotlin-Android-7F52FF?logo=kotlin&logoColor=white" />
-        <img alt="Docker self-hosted" src="https://img.shields.io/badge/Docker-Self--hosted-2496ED?logo=docker&logoColor=white" />
-      </p>
-    </td>
-  </tr>
-</table>
+<p align="center">
+  <img src="assets/brand/sticker-foundry-logo.svg" alt="Sticker Foundry logo" width="104" height="104">
+</p>
 
-Sticker Foundry turns image drops into WhatsApp-ready sticker packs. The web app manages packs and collaboration, the backend normalizes and exports media, and the Android app syncs packs locally so WhatsApp can import them.
+# 🎨 Sticker Foundry
 
-## Highlights
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+![GitHub Release](https://img.shields.io/github/v/release/saitatter/sticker-foundry)
+[![Issues](https://img.shields.io/github/issues/saitatter/sticker-foundry)](https://github.com/saitatter/sticker-foundry/issues)
+![NestJS](https://img.shields.io/badge/NestJS-Backend-E0234E?logo=nestjs&logoColor=white)
+![Kotlin](https://img.shields.io/badge/Kotlin-Android-7F52FF?logo=kotlin&logoColor=white)
+![Docker](https://img.shields.io/badge/Docker-Self--hosted-2496ED?logo=docker&logoColor=white)
+
+> Self-hosted collaborative WhatsApp sticker pack manager.
+>
+> Turn image drops into WhatsApp-ready sticker packs with a web editor, NestJS backend, and Android bridge.
+
+## ✨ Highlights
 
 | Area    | What is included                                                                                                                        |
 | ------- | --------------------------------------------------------------------------------------------------------------------------------------- |
@@ -29,7 +25,7 @@ Sticker Foundry turns image drops into WhatsApp-ready sticker packs. The web app
 | Android | Server connection checks, Room cache, ZIP sync, local WhatsApp provider, WhatsApp/Business import intents, and edit/upload helpers.     |
 | Deploy  | Source Compose stack plus a GHCR all-in-one image for Unraid-style installs with web, API, PostgreSQL, and CPU AI background removal.   |
 
-## Quick Start
+## 🚀 Quick Start
 
 ```bash
 npm install
@@ -48,7 +44,7 @@ npm run dev
 
 Demo login: `demo@stickerfoundry.local` / `stickerfoundry123`
 
-## Docker / Unraid
+## 🐳 Docker / Unraid
 
 For a pull-only deployment, use the packaged all-in-one image:
 
@@ -66,7 +62,7 @@ http://YOUR_UNRAID_IP:WEB_PORT/api/
 
 Set strong `POSTGRES_PASSWORD` and `JWT_SECRET` before exposing the app outside your LAN.
 
-## Android
+## 📱 Android
 
 ```bash
 cd apps/android
@@ -82,7 +78,7 @@ Tester flow:
 
 WhatsApp requires local files exposed through a `ContentProvider`; remote sticker URLs are not enough. Sticker Foundry downloads exports to app-private storage before handing them to WhatsApp.
 
-## AI Background Removal
+## 🤖 AI Background Removal
 
 Server-side AI cleanup can call any local command that writes a transparent PNG to `{output}`:
 
@@ -92,7 +88,7 @@ BACKGROUND_REMOVAL_COMMAND="rembg i {input} {output}"
 
 If the command is empty or fails, Sticker Foundry falls back to the backend threshold remover.
 
-## Useful Commands
+## ⚡ Useful Commands
 
 | Task            | Command                                                          |
 | --------------- | ---------------------------------------------------------------- |
@@ -105,7 +101,7 @@ If the command is empty or fails, Sticker Foundry falls back to the backend thre
 | Release dry run | `npm run release:dry-run`                                        |
 | Android debug   | `cd apps/android && ./gradlew :app:lintDebug :app:assembleDebug` |
 
-## Repository Map
+## 🗺️ Repository Map
 
 ```text
 apps/backend        NestJS API, Prisma schema, image processing, exports
@@ -117,7 +113,7 @@ scripts             Operational helpers
 docker-compose.yml
 ```
 
-## Docs
+## 📚 Docs
 
 - [Production checklist](docs/PRODUCTION_CHECKLIST.md)
 - [Unraid notes](docs/UNRAID.md)
@@ -127,16 +123,23 @@ docker-compose.yml
 - [Feature backlog](docs/FEATURES_TO_ADD.md)
 - [Release notes guide](docs/RELEASE_NOTES.md)
 
-## Brand
+## 🎨 Brand
 
 The repository logo is a transparent SVG: [assets/brand/sticker-foundry-logo.svg](assets/brand/sticker-foundry-logo.svg). Android launcher and web favicon assets use the rounded-square PNG app icon for better platform fit.
 
 Palette: deep teal `#08786f`, ink `#192124`, paper `#f7faf9`, forge accent `#f59e0b`, soft mint `#edf3f1`.
 
----
+## 🔒 Release & Versioning
 
-## Support
+Uses **semantic-release** with Conventional Commits. Releases are manual (`workflow_dispatch`). Pushes to `main` run CI only.
 
-If Sticker Foundry is useful to you, you can support ongoing development on Ko-fi:
+Published release assets include:
+
+- GitHub Release notes + tags (`vX.Y.Z`)
+- GHCR Docker image: `ghcr.io/saitatter/sticker-foundry`
+- Android debug APK
+- Server package archive
+
+## 💛 Support
 
 [![Support me on Ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/saitatter)

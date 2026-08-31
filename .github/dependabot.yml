@@ -7,12 +7,14 @@ updates:
       day: monday
       time: "08:00"
       timezone: Europe/Bucharest
+    commit-message:
+      prefix: "chore(deps)"
     open-pull-requests-limit: 10
     groups:
       nest:
         patterns:
           - "@nestjs/*"
-      android-release-tools:
+      release-tools:
         patterns:
           - "semantic-release"
           - "@semantic-release/*"
@@ -30,3 +32,9 @@ updates:
       day: monday
       time: "08:30"
       timezone: Europe/Bucharest
+    commit-message:
+      prefix: "chore(ci)"
+    groups:
+      github-actions:
+        patterns:
+          - "*"
