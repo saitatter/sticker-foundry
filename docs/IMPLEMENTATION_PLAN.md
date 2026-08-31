@@ -1,6 +1,6 @@
 # Sticker Foundry Implementation Plan
 
-This document tracks what is still meaningful to validate or decide. Implemented product work has been removed from this plan so it does not drift.
+This document tracks what is still meaningful to validate or decide. Completed repo-level work (README, CI, workflows, configs) is not listed here.
 
 ## Current State
 
@@ -10,6 +10,7 @@ This document tracks what is still meaningful to validate or decide. Implemented
 - Android caches packs locally, tracks extraction status, rejects stale edits through server-side version checks, and supports upload-time crop, rotation, color adjustment, grayscale, text overlay, eraser/restore brush edits, rendered edit previews, server background-removal upload controls, animated trim/FPS/quality upload controls, and quick edit presets.
 - Web supports collaboration, public pack browsing, keyboard shortcuts, responsive sticker workflows, advanced sticker editing, batch presets, size warnings, and before/after compare.
 - Web editor coverage includes focused Playwright tests for brush/compare, optimizer/background upload options, and animated trim/FPS option submission.
+- CI conventions are aligned with pylrcget and collectarr-app: emoji README, bumped actions, dependabot prefixes, GenAI code review, copilot instructions, validate-release-config workflow.
 
 ## Milestone 1: Real WhatsApp Validation
 
@@ -24,6 +25,7 @@ Tasks:
 - Import into WhatsApp Business.
 - Compare provider columns and URI behavior against WhatsApp's official Android sample.
 - Document tested Android, WhatsApp, and WhatsApp Business versions.
+- Fill out the validation report in [WHATSAPP_VALIDATION.md](WHATSAPP_VALIDATION.md).
 
 Acceptance criteria:
 
@@ -40,6 +42,7 @@ Tasks:
 - Run `docker compose up -d --build` on a machine with Docker installed.
 - Confirm web, backend, PostgreSQL healthchecks, `/api/health`, `/api/docs`, and `/api/metrics?format=prometheus`.
 - Create a pack, upload 3 stickers, export ZIP, and sync from Android.
+- Fill out the checklist in [DOCKER_VALIDATION.md](DOCKER_VALIDATION.md).
 
 Acceptance criteria:
 
@@ -76,6 +79,23 @@ Acceptance criteria:
 
 - A clean self-hosted deployment can enable AI background removal without custom scripting.
 - Missing model/runtime is visible to admins and does not break uploads.
+
+## Milestone 5: Product Polish
+
+Goal: iterate on usability based on real-world usage.
+
+Tasks:
+
+- Add web dark mode theme.
+- Add pack search and filtering in the library view.
+- Add user profile editing (avatar, display name).
+- Add notification system for team activity (comments, new stickers, pack updates).
+- Add pack sharing links for non-team members (read-only public view).
+- Add batch import from existing sticker collections (ZIP upload).
+- Add sticker reordering within packs via drag-and-drop.
+- Add pack duplication/fork workflow.
+- Add export format options beyond ZIP (e.g., individual files, Telegram format).
+- Improve mobile web responsiveness for editing workflows.
 
 ## Design Notes
 
