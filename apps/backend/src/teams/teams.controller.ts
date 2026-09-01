@@ -1,6 +1,6 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
-import { CurrentUser, RequestUser } from '../common/current-user.decorator';
-import { JwtAuthGuard } from '../common/jwt-auth.guard';
+import { CurrentUser, RequestUser } from '../common/decorators/current-user.decorator';
+import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { AddTeamMemberDto } from './dto/add-team-member.dto';
 import { CreateTeamDto } from './dto/create-team.dto';
 import { UpdateTeamMemberDto } from './dto/update-team-member.dto';

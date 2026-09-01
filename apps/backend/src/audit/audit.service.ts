@@ -27,6 +27,7 @@ export class AuditService {
         entityType: input.entityType,
         entityId: input.entityId ?? undefined,
         metadata: input.metadata,
+        requestId: requestContext?.requestId,
         ipAddress: requestContext?.ipAddress,
         userAgent: requestContext?.userAgent,
       },
@@ -48,13 +49,14 @@ export class AuditService {
       include: { actor: { select: { email: true } } },
     });
     const rows = [
-      ['createdAt', 'actorEmail', 'action', 'entityType', 'entityId', 'ipAddress', 'userAgent', 'metadata'],
+      ['createdAt', 'actorEmail', 'action', 'entityType', 'entityId', 'requestId', 'ipAddress', 'userAgent', 'metadata'],
       ...entries.map((entry) => [
         entry.createdAt.toISOString(),
         entry.actor?.email ?? '',
         entry.action,
         entry.entityType,
         entry.entityId ?? '',
+        entry.requestId ?? '',
         entry.ipAddress ?? '',
         entry.userAgent ?? '',
         entry.metadata ? JSON.stringify(entry.metadata) : '',

@@ -1,6 +1,9 @@
 package com.stickerfoundry.app
 
+import android.content.Context
+import android.content.Intent
 import android.os.Bundle
+import androidx.core.content.FileProvider
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
@@ -15,6 +18,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -25,19 +29,31 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.stickerfoundry.app.data.ImageEditOptions
+import com.stickerfoundry.app.ui.theme.StickerFoundryTheme
 import com.stickerfoundry.app.whatsapp.WhatsAppStickerLauncher
+import java.io.File
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            MaterialTheme {
+            StickerFoundryTheme {
                 Surface(modifier = Modifier.fillMaxSize()) {
                     StickerApp()
                 }
             }
         }
     }
+}
+
+private fun shareExport(context: Context, file: File) {
+    val uri = FileProvider.getUriForFile(context, "${BuildConfig.APPLICATION_ID}.fileprovider", file)
+    val shareIntent = Intent(Intent.ACTION_SEND).apply {
+        type = "application/zip"
+        putExtra(Intent.EXTRA_STREAM, uri)
+        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+    }
+    context.startActivity(Intent.createChooser(shareIntent, "Share sticker pack export"))
 }
 
 @Composable
@@ -51,6 +67,9 @@ private fun StickerApp(viewModel: StickerViewModel = viewModel(factory = Sticker
     val account by viewModel.account.collectAsState()
     val cacheUsage by viewModel.cacheUsage.collectAsState()
     val context = LocalContext.current
+    LaunchedEffect(viewModel) {
+        viewModel.exportEvents.collect { file -> shareExport(context, file) }
+    }
     var stickerUploadPackId by remember { mutableStateOf<String?>(null) }
     var stickerUploadPackAnimated by remember { mutableStateOf(false) }
     var trayIconPackId by remember { mutableStateOf<String?>(null) }
@@ -81,6 +100,11 @@ private fun StickerApp(viewModel: StickerViewModel = viewModel(factory = Sticker
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         LoginBox(
+            serverUrl = serverUrl,
+            serverStatus = serverStatus,
+            checkingServer = checkingServer,
+            onSaveServerUrl = { viewModel.saveServerUrl(it) },
+            onCheckServerUrl = { viewModel.checkServerUrl(it) },
             onLogin = { email, password -> viewModel.login(email, password) },
             onSync = { viewModel.sync() },
             onSettings = {
@@ -111,6 +135,7 @@ private fun StickerApp(viewModel: StickerViewModel = viewModel(factory = Sticker
                             trayIconPackId = pack.id
                             trayIconPicker.launch("image/*")
                         },
+                        onExport = { viewModel.exportPack(pack.id) },
                     )
                 }
             }

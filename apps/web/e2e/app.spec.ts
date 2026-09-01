@@ -225,7 +225,12 @@ function createMockState() {
     },
   ];
 
-  return { failTrayIconFor: new Set<string>(), packs, uploads: [] as Array<{ packId: string; body: string }> };
+  return {
+    failTrayIconFor: new Set<string>(),
+    packs,
+    uploads: [] as Array<{ packId: string; body: string }>,
+    jobs: new Map<string, { id: string }>(),
+  };
 }
 
 async function mockApi(page: Page, state: ReturnType<typeof createMockState>) {
@@ -393,6 +398,25 @@ async function mockApi(page: Page, state: ReturnType<typeof createMockState>) {
     }
     if (method === 'GET' && path.match(/^\/packs\/[^/]+\/activity$/)) {
       return json(route, []);
+    }
+
+    const jobMatch = path.match(/^\/jobs\/([^/]+)$/);
+    if (method === 'GET' && jobMatch) {
+      const job = state.jobs.get(jobMatch[1]);
+      if (!job) return json(route, { message: 'Job not found' }, 404);
+      return json(route, { ...job, status: 'COMPLETED', progress: 100 });
+    }
+
+    const queuedUploadMatch = path.match(/^\/packs\/([^/]+)\/stickers\/jobs$/);
+    if (method === 'POST' && queuedUploadMatch) {
+      const pack = packById(state, queuedUploadMatch[1]);
+      state.uploads.push({ packId: pack.id, body: request.postDataBuffer()?.toString('utf8') ?? '' });
+      const sticker = newSticker(pack, `uploaded-${Date.now()}.webp`);
+      pack.stickers = [...(pack.stickers ?? []), sticker];
+      pack.stickerCount = pack.stickers.length;
+      const jobId = `job-${state.uploads.length}`;
+      state.jobs.set(jobId, { id: jobId });
+      return json(route, { id: jobId, status: 'QUEUED', progress: 0 }, 202);
     }
 
     return json(route, { message: `Unhandled ${method} ${path}` }, 404);

@@ -1,5 +1,5 @@
 import sharp = require('sharp');
-import { BackgroundRemovalService } from './background-removal.service';
+import { BackgroundRemovalService } from '../media/background-removal.service';
 
 describe(BackgroundRemovalService, () => {
   it('removes simple light backgrounds while preserving subject pixels', async () => {

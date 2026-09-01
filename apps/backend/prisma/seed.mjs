@@ -2,8 +2,8 @@ import { PrismaClient } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 import { createHash } from 'crypto';
 import { existsSync, readFileSync } from 'fs';
-import { mkdir, writeFile } from 'fs/promises';
-import { dirname, join, resolve } from 'path';
+import { mkdir, rm, writeFile } from 'fs/promises';
+import { dirname, isAbsolute, join, resolve } from 'path';
 import sharp from 'sharp';
 import { fileURLToPath } from 'url';
 
@@ -62,9 +62,12 @@ const stickers = [
 ];
 
 async function main() {
-  const dataDir = resolve(backendRoot, process.env.DATA_DIR ?? './data');
-  const packDir = join(dataDir, 'packs', demoPack.id);
-  await mkdir(packDir, { recursive: true });
+  const dataDir = dataDirectory(process.env.DATA_DIR ?? './data');
+  const prefix = safePrefix(process.env.S3_PREFIX ?? 'packs');
+  const packDir = join(dataDir, prefix, demoPack.id);
+  const stickersDir = join(packDir, 'stickers');
+  await mkdir(stickersDir, { recursive: true });
+  await rm(join(packDir, 'tray_icon.webp'), { force: true });
 
   const passwordHash = await bcrypt.hash(demoUser.password, 12);
   const user = await prisma.user.upsert({
@@ -111,17 +114,22 @@ async function main() {
   });
 
   const trayIcon = await renderTrayIcon();
-  await writeFile(join(packDir, 'tray_icon.webp'), trayIcon);
+  await writeFile(join(packDir, 'cover.webp'), trayIcon);
 
   for (const [position, sticker] of stickers.entries()) {
     const buffer = await renderSticker(sticker);
-    await writeFile(join(packDir, sticker.fileName), buffer);
+    const imageMetadata = await sharp(buffer).metadata();
+    await writeFile(join(stickersDir, sticker.fileName), buffer);
 
     await prisma.sticker.create({
       data: {
         id: sticker.id,
         packId: demoPack.id,
         fileName: sticker.fileName,
+        storageKey: `${prefix}/${demoPack.id}/stickers/${sticker.fileName}`,
+        mimeType: 'image/webp',
+        width: imageMetadata.width,
+        height: imageMetadata.height,
         emojis: sticker.emojis,
         accessibilityText: sticker.accessibilityText,
         sizeBytes: buffer.length,
@@ -177,6 +185,20 @@ async function renderTrayIcon() {
 
 function sha256(buffer) {
   return createHash('sha256').update(buffer).digest('hex');
+}
+
+function safePrefix(value) {
+  const normalized = value.replaceAll('\\', '/').replace(/^\/+|\/+$/g, '');
+  if (!normalized || normalized.split('/').some((part) => part === '.' || part === '..')) {
+    throw new Error('S3_PREFIX must be a relative storage prefix');
+  }
+  return normalized;
+}
+
+function dataDirectory(value) {
+  if (isAbsolute(value)) return resolve(value);
+  const normalized = value.replaceAll('\\', '/').replace(/^\.\//, '');
+  return normalized.startsWith('apps/backend/') ? resolve(repoRoot, value) : resolve(backendRoot, value);
 }
 
 main()

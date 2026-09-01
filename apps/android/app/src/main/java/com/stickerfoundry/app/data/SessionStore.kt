@@ -1,28 +1,35 @@
 package com.stickerfoundry.app.data
 
+import android.util.Base64
 import android.content.Context
+import android.security.keystore.KeyProperties
 import com.stickerfoundry.app.BuildConfig
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
+import java.security.KeyStore
+import javax.crypto.Cipher
+import javax.crypto.KeyGenerator
+import javax.crypto.SecretKey
+import javax.crypto.spec.GCMParameterSpec
 
 class SessionStore(context: Context) {
     private val prefs = context.getSharedPreferences("session", Context.MODE_PRIVATE)
 
-    fun token(): String? = prefs.getString("token", null)
+    fun token(): String? = readSecure(ACCESS_TOKEN_KEY)
 
-    fun refreshToken(): String? = prefs.getString("refreshToken", null)
+    fun refreshToken(): String? = readSecure(REFRESH_TOKEN_KEY)
 
     fun accountLabel(): String = prefs.getString("accountLabel", null) ?: "Not logged in"
 
     fun serverUrl(): String = prefs.getString("serverUrl", null) ?: BuildConfig.API_BASE_URL
 
     fun saveToken(token: String) {
-        prefs.edit().putString("token", token).apply()
+        writeSecure(ACCESS_TOKEN_KEY, token)
     }
 
     fun saveTokens(token: String, refreshToken: String) {
         prefs.edit()
-            .putString("token", token)
-            .putString("refreshToken", refreshToken)
+            .putString(secureKey(ACCESS_TOKEN_KEY), encrypt(token))
+            .putString(secureKey(REFRESH_TOKEN_KEY), encrypt(refreshToken))
             .apply()
     }
 
@@ -38,7 +45,67 @@ class SessionStore(context: Context) {
     fun normalizedServerUrl(url: String): String = normalizeServerUrl(url)
 
     fun clearToken() {
-        prefs.edit().remove("token").remove("refreshToken").remove("accountLabel").apply()
+        prefs.edit()
+            .remove(secureKey(ACCESS_TOKEN_KEY))
+            .remove(secureKey(REFRESH_TOKEN_KEY))
+            .remove("accountLabel")
+            .apply()
+    }
+
+    private fun readSecure(key: String): String? {
+        val encoded = prefs.getString(secureKey(key), null) ?: return null
+        return runCatching { decrypt(encoded) }.getOrElse {
+            prefs.edit().remove(secureKey(key)).apply()
+            null
+        }
+    }
+
+    private fun writeSecure(key: String, value: String) {
+        prefs.edit()
+            .putString(secureKey(key), encrypt(value))
+            .apply()
+    }
+
+    private fun secureKey(key: String): String = "secure_$key"
+
+    private fun encrypt(value: String): String {
+        val cipher = Cipher.getInstance(TRANSFORMATION)
+        cipher.init(Cipher.ENCRYPT_MODE, secretKey())
+        val iv = Base64.encodeToString(cipher.iv, Base64.NO_WRAP)
+        val ciphertext = Base64.encodeToString(cipher.doFinal(value.toByteArray(Charsets.UTF_8)), Base64.NO_WRAP)
+        return "$iv:$ciphertext"
+    }
+
+    private fun decrypt(value: String): String {
+        val parts = value.split(':', limit = 2)
+        require(parts.size == 2)
+        val cipher = Cipher.getInstance(TRANSFORMATION)
+        cipher.init(Cipher.DECRYPT_MODE, secretKey(), GCMParameterSpec(TAG_LENGTH_BITS, Base64.decode(parts[0], Base64.NO_WRAP)))
+        return cipher.doFinal(Base64.decode(parts[1], Base64.NO_WRAP)).toString(Charsets.UTF_8)
+    }
+
+    private fun secretKey(): SecretKey {
+        val keyStore = KeyStore.getInstance(ANDROID_KEYSTORE).apply { load(null) }
+        val existing = keyStore.getKey(KEY_ALIAS, null) as? SecretKey
+        if (existing != null) return existing
+
+        val generator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, ANDROID_KEYSTORE)
+        generator.init(android.security.keystore.KeyGenParameterSpec.Builder(
+            KEY_ALIAS,
+            android.security.keystore.KeyProperties.PURPOSE_ENCRYPT or android.security.keystore.KeyProperties.PURPOSE_DECRYPT,
+        ).setBlockModes(android.security.keystore.KeyProperties.BLOCK_MODE_GCM)
+            .setEncryptionPaddings(android.security.keystore.KeyProperties.ENCRYPTION_PADDING_NONE)
+            .build())
+        return generator.generateKey()
+    }
+
+    companion object {
+        private const val ACCESS_TOKEN_KEY = "accessToken"
+        private const val REFRESH_TOKEN_KEY = "refreshToken"
+        private const val ANDROID_KEYSTORE = "AndroidKeyStore"
+        private const val KEY_ALIAS = "com.stickerfoundry.app.session"
+        private const val TRANSFORMATION = "AES/GCM/NoPadding"
+        private const val TAG_LENGTH_BITS = 128
     }
 
     private fun normalizeServerUrl(url: String): String {

@@ -1,0 +1,214 @@
+import { AlertCircle, Archive, CheckCircle2, Film, Globe2, Lock, Search } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import type { Pack, StickerFoundryApi } from './api';
+import { Metric } from './ui';
+
+export type PackFilter = 'all' | 'public' | 'private' | 'ready' | 'needs-work';
+export type PackSort = 'updated' | 'name' | 'stickers';
+
+export function PackLibrary({
+  api,
+  packs,
+  selectedPackId,
+  loading,
+  onSelect,
+}: {
+  api: StickerFoundryApi;
+  packs: Pack[];
+  selectedPackId: string | null;
+  loading: boolean;
+  onSelect: (packId: string) => void;
+}) {
+  const [query, setQuery] = useState('');
+  const [filter, setFilter] = useState<PackFilter>('all');
+  const [sort, setSort] = useState<PackSort>('updated');
+  const readyCount = packs.filter((pack) => pack.stickerCount >= 3).length;
+  const publicCount = packs.filter((pack) => pack.isPublic).length;
+  const privateCount = packs.length - publicCount;
+  const visiblePacks = useMemo(() => {
+    const normalizedQuery = query.trim().toLowerCase();
+    return packs
+      .filter((pack) => {
+        if (normalizedQuery) {
+          const haystack = `${pack.name} ${pack.publisher} ${pack.description ?? ''}`.toLowerCase();
+          if (!haystack.includes(normalizedQuery)) return false;
+        }
+        if (filter === 'public') return pack.isPublic;
+        if (filter === 'private') return !pack.isPublic;
+        if (filter === 'ready') return pack.stickerCount >= 3;
+        if (filter === 'needs-work') return pack.stickerCount < 3;
+        return true;
+      })
+      .sort((left, right) => {
+        if (sort === 'name') return left.name.localeCompare(right.name);
+        if (sort === 'stickers') return right.stickerCount - left.stickerCount || left.name.localeCompare(right.name);
+        return new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime();
+      });
+  }, [filter, packs, query, sort]);
+
+  return (
+    <section className="pack-library" aria-label="Sticker packs">
+      <div className="pack-library-header">
+        <div>
+          <p className="eyebrow">Library</p>
+          <h2>Packs</h2>
+        </div>
+        <span className="counter">{loading ? '...' : visiblePacks.length}</span>
+      </div>
+      <div className="pack-library-metrics">
+        <Metric label="Total" value={String(packs.length)} />
+        <Metric label="Ready" value={String(readyCount)} />
+        <Metric label="Public" value={String(publicCount)} />
+        <Metric label="Private" value={String(privateCount)} />
+      </div>
+      <div className="pack-library-toolbar">
+        <label className="search-field">
+          <Search size={15} />
+          <input
+            aria-label="Search packs"
+            placeholder="Search packs"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+          />
+        </label>
+        <div className="pack-library-selects">
+          <select
+            aria-label="Filter packs"
+            value={filter}
+            onChange={(event) => setFilter(event.target.value as PackFilter)}
+          >
+            <option value="all">All</option>
+            <option value="public">Public</option>
+            <option value="private">Private</option>
+            <option value="ready">Ready</option>
+            <option value="needs-work">Needs work</option>
+          </select>
+          <select aria-label="Sort packs" value={sort} onChange={(event) => setSort(event.target.value as PackSort)}>
+            <option value="updated">Updated</option>
+            <option value="name">Name</option>
+            <option value="stickers">Stickers</option>
+          </select>
+        </div>
+      </div>
+      <div className="pack-album-grid">
+        {visiblePacks.length === 0 && !loading ? (
+          <div className="empty-pack-list">
+            <Archive size={22} />
+            <span>{packs.length === 0 ? 'No packs' : 'No packs match the current filters'}</span>
+          </div>
+        ) : null}
+        {visiblePacks.map((pack) => (
+          <button
+            aria-label={`Open pack ${pack.name}`}
+            className={`pack-album-card ${pack.id === selectedPackId ? 'selected' : ''}`}
+            key={pack.id}
+            onClick={() => onSelect(pack.id)}
+            type="button"
+          >
+            <PackCover api={api} pack={pack} />
+            <span className="pack-album-copy">
+              <strong>{pack.name}</strong>
+              <small>{pack.publisher}</small>
+              {pack.description ? <span>{pack.description}</span> : pack.teamName ? <span>{pack.teamName}</span> : null}
+            </span>
+            <span className="pack-album-meta">
+              <span className={`status-pill ${pack.isPublic ? 'public' : 'private'}`}>
+                {pack.isPublic ? <Globe2 size={13} /> : <Lock size={13} />}
+                {pack.isPublic ? 'Public' : 'Private'}
+              </span>
+              <span className={`status-pill ${pack.stickerCount >= 3 ? 'ready' : 'needs-work'}`}>
+                {pack.stickerCount >= 3 ? <CheckCircle2 size={13} /> : <AlertCircle size={13} />}
+                {pack.stickerCount}/30
+              </span>
+              {pack.isAnimated ? (
+                <span className="status-pill pending">
+                  <Film size={13} />
+                  Animated
+                </span>
+              ) : null}
+              {pack.role ? <span className="status-pill">{roleLabel(pack.role)}</span> : null}
+            </span>
+          </button>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function PackCover({ api, pack }: { api: StickerFoundryApi; pack: Pack }) {
+  const [coverUrl, setCoverUrl] = useState<string | null>(null);
+  const [loadingCover, setLoadingCover] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    let objectUrl: string | null = null;
+    setCoverUrl(null);
+    setLoadingCover(true);
+
+    async function loadCover() {
+      try {
+        const blob = await api.trayIconBlob(pack.id);
+        if (!alive) return;
+        objectUrl = URL.createObjectURL(blob);
+        setCoverUrl(objectUrl);
+        setLoadingCover(false);
+        return;
+      } catch {
+        // The tray icon can be missing on older packs; fall back to the first sticker preview.
+      }
+
+      try {
+        const detailedPack = pack.stickers?.length ? pack : await api.pack(pack.id);
+        const firstSticker = detailedPack.stickers?.[0];
+        if (!firstSticker) return;
+
+        const blob = await api.stickerBlob(pack.id, firstSticker.id);
+        if (!alive) return;
+        objectUrl = URL.createObjectURL(blob);
+        setCoverUrl(objectUrl);
+      } catch {
+        if (alive) setCoverUrl(null);
+      } finally {
+        if (alive) setLoadingCover(false);
+      }
+    }
+
+    void loadCover();
+
+    return () => {
+      alive = false;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [api, pack.id, pack.imageDataVersion]);
+
+  return (
+    <span className={`pack-cover ${coverUrl ? 'has-image' : ''} ${loadingCover ? 'loading' : ''}`}>
+      {loadingCover ? (
+        <span className="pack-cover-skeleton" />
+      ) : coverUrl ? (
+        <img alt="" src={coverUrl} />
+      ) : (
+        <span className="pack-cover-initials">{packInitials(pack.name)}</span>
+      )}
+      <span className={`pack-cover-privacy ${pack.isPublic ? 'public' : 'private'}`}>
+        {pack.isPublic ? <Globe2 size={14} /> : <Lock size={14} />}
+      </span>
+    </span>
+  );
+}
+
+function packInitials(name: string) {
+  const words = name.trim().split(/\s+/).filter(Boolean);
+  const initials = words
+    .slice(0, 2)
+    .map((word) => word[0]?.toUpperCase() ?? '')
+    .join('');
+  return initials || 'SF';
+}
+
+function roleLabel(role?: Pack['role']) {
+  if (role === 'OWNER') return 'Owner';
+  if (role === 'EDITOR') return 'Editor';
+  if (role === 'VIEWER') return 'Viewer';
+  return 'Private';
+}

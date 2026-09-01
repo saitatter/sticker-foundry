@@ -8,11 +8,13 @@ import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { JwtStrategy } from './jwt.strategy';
 import { MailerService } from './mailer.service';
+import { JobsModule } from '../jobs/jobs.module';
 
 @Module({
   imports: [
     PassportModule,
     AuditModule,
+    JobsModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],

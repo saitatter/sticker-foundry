@@ -1,6 +1,6 @@
 import { Controller, Get, NotFoundException, Param, Res } from '@nestjs/common';
 import { Response } from 'express';
-import { PackExportService } from './pack-export.service';
+import { PackExportService } from '../exports/pack-export.service';
 import { PacksService } from './packs.service';
 
 @Controller('public/packs')

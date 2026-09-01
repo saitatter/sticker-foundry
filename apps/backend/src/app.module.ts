@@ -7,9 +7,11 @@ import { AuditContextMiddleware } from './audit/audit-context.middleware';
 import { AuditModule } from './audit/audit.module';
 import { AuthModule } from './auth/auth.module';
 import { HealthModule } from './health/health.module';
+import { JobsModule } from './jobs/jobs.module';
 import { PacksModule } from './packs/packs.module';
 import { PrismaService } from './prisma.service';
 import { SyncModule } from './sync/sync.module';
+import { StorageModule } from './storage/storage.module';
 import { TeamsModule } from './teams/teams.module';
 
 @Module({
@@ -31,8 +33,10 @@ import { TeamsModule } from './teams/teams.module';
     AdminModule,
     AuthModule,
     HealthModule,
+    JobsModule,
     PacksModule,
     SyncModule,
+    StorageModule,
     TeamsModule,
   ],
   providers: [

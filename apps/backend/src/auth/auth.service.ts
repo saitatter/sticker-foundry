@@ -4,6 +4,7 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
+  Optional,
   ServiceUnavailableException,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -13,6 +14,7 @@ import { Prisma } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 import { createHash, randomBytes } from 'crypto';
 import { AuditService } from '../audit/audit.service';
+import { JobsService } from '../jobs/jobs.service';
 import { PrismaService } from '../prisma.service';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { LoginDto } from './dto/login.dto';
@@ -30,6 +32,7 @@ export class AuthService {
     private readonly config: ConfigService,
     private readonly audit: AuditService,
     private readonly mailer: MailerService,
+    @Optional() private readonly jobs?: JobsService,
   ) {}
 
   async register(dto: RegisterDto) {
@@ -96,6 +99,9 @@ export class AuthService {
   }
 
   async refresh(dto: RefreshTokenDto) {
+    if (!dto.refreshToken) {
+      throw new UnauthorizedException('Refresh token is invalid or expired');
+    }
     const session = await this.prisma.userSession.findUnique({
       where: { refreshTokenHash: this.refreshTokenHash(dto.refreshToken) },
       include: { user: { select: { id: true, email: true, displayName: true, isAdmin: true } } },
@@ -156,7 +162,22 @@ export class AuthService {
       },
     });
 
-    await this.mailer.sendPasswordReset(user.email, user.displayName, this.passwordResetUrl(token), expiresAt);
+    const resetUrl = this.passwordResetUrl(token);
+    if (this.jobs) {
+      await this.jobs.enqueue({
+        type: 'email',
+        name: 'password-reset',
+        userId: user.id,
+        data: {
+          email: user.email,
+          displayName: user.displayName,
+          resetUrl,
+          expiresAt: expiresAt.toISOString(),
+        },
+      });
+    } else {
+      await this.mailer.sendPasswordReset(user.email, user.displayName, resetUrl, expiresAt);
+    }
     await this.audit.record({
       actorId: user.id,
       action: 'auth.passwordReset.request',
@@ -209,6 +230,9 @@ export class AuthService {
   }
 
   async logout(dto: RefreshTokenDto) {
+    if (!dto.refreshToken) {
+      return { revoked: true };
+    }
     await this.prisma.userSession.updateMany({
       where: { refreshTokenHash: this.refreshTokenHash(dto.refreshToken), revokedAt: null },
       data: { revokedAt: new Date() },

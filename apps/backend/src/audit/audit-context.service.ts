@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { AsyncLocalStorage } from 'async_hooks';
 
 export type AuditRequestContext = {
+  requestId: string;
   ipAddress?: string;
   userAgent?: string;
 };

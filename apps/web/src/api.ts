@@ -1,3 +1,13 @@
+import type {
+  AuditLogEntryDto,
+  AuthResponseDto,
+  JobResponseDto,
+  PackDto,
+  PackRole as SharedPackRole,
+  StickerDto,
+  StickerReviewStatus as SharedStickerReviewStatus,
+} from '@sticker-foundry/shared-types';
+
 export type User = {
   id: string;
   email: string;
@@ -5,11 +15,11 @@ export type User = {
   isAdmin: boolean;
 };
 
-export type AuthResponse = {
-  accessToken: string;
-  refreshToken: string;
-  user: User;
-};
+export type AuthResponse = AuthResponseDto;
+
+export type JobStatus = JobResponseDto['status'];
+
+export type JobResponse = JobResponseDto;
 
 export type UserSession = {
   id: string;
@@ -40,18 +50,7 @@ export type InstanceSettings = {
   instanceDescription: string;
 };
 
-export type AuditLogEntry = {
-  id: string;
-  actorId?: string | null;
-  action: string;
-  entityType: string;
-  entityId?: string | null;
-  metadata?: unknown;
-  ipAddress?: string | null;
-  userAgent?: string | null;
-  createdAt: string;
-  actor?: User | null;
-};
+export type AuditLogEntry = AuditLogEntryDto;
 
 export type UpdateAdminSettingsInput = {
   registrationMode?: RegistrationMode;
@@ -62,18 +61,7 @@ export type UpdateAdminSettingsInput = {
   instanceDescription?: string;
 };
 
-export type Sticker = {
-  id: string;
-  fileName: string;
-  emojis: string[];
-  accessibilityText?: string | null;
-  sizeBytes: number;
-  sha256: string;
-  perceptualHash?: string | null;
-  position: number;
-  reviewStatus: StickerReviewStatus;
-  createdAt: string;
-};
+export type Sticker = StickerDto;
 
 export type StickerComment = {
   id: string;
@@ -85,8 +73,8 @@ export type StickerComment = {
   user: User;
 };
 
-export type PackRole = 'VIEWER' | 'EDITOR' | 'OWNER';
-export type StickerReviewStatus = 'PENDING' | 'APPROVED' | 'NEEDS_WORK';
+export type PackRole = SharedPackRole;
+export type StickerReviewStatus = SharedStickerReviewStatus;
 
 export type AnimatedStickerOptions = {
   animatedTrimStart?: number;
@@ -105,26 +93,7 @@ export type BackgroundRemovalUploadOptions = {
 
 export type StickerUploadOptions = AnimatedStickerOptions & BackgroundRemovalUploadOptions;
 
-export type Pack = {
-  id: string;
-  name: string;
-  publisher: string;
-  description?: string | null;
-  isPublic: boolean;
-  requiresApproval: boolean;
-  isAnimated: boolean;
-  teamId?: string | null;
-  teamName?: string | null;
-  imageDataVersion: string;
-  stickerCount: number;
-  exportStickerCount?: number;
-  canExport?: boolean;
-  updatedAt: string;
-  role?: PackRole;
-  canEdit?: boolean;
-  canManage?: boolean;
-  stickers?: Sticker[];
-};
+export type Pack = PackDto;
 
 export type PackMember = {
   id: string;
@@ -225,15 +194,17 @@ function appendStickerUploadOptions(form: FormData, options?: StickerUploadOptio
 }
 
 export class StickerFoundryApi {
+  private refreshPromise: Promise<string | null> | null = null;
+
   constructor(
     private readonly getToken: () => string | null,
-    private readonly getRefreshToken: () => string | null = () => null,
     private readonly onAuth: (auth: AuthResponse | null) => void = () => undefined,
   ) {}
 
   async register(email: string, displayName: string, password: string, inviteCode?: string) {
     return this.request<AuthResponse>('/auth/register', {
       method: 'POST',
+      headers: { 'X-Refresh-Cookie': 'true' },
       body: JSON.stringify({ email, displayName, password, inviteCode: inviteCode || undefined }),
     });
   }
@@ -241,6 +212,7 @@ export class StickerFoundryApi {
   async login(email: string, password: string) {
     return this.request<AuthResponse>('/auth/login', {
       method: 'POST',
+      headers: { 'X-Refresh-Cookie': 'true' },
       body: JSON.stringify({ email, password }),
     });
   }
@@ -271,10 +243,10 @@ export class StickerFoundryApi {
     });
   }
 
-  async logout(refreshToken: string) {
+  async logout() {
     return this.request<{ revoked: boolean }>('/auth/logout', {
       method: 'POST',
-      body: JSON.stringify({ refreshToken }),
+      headers: { 'X-Refresh-Cookie': 'true' },
     });
   }
 
@@ -319,6 +291,7 @@ export class StickerFoundryApi {
   async exportAuditLog(limit = 1000) {
     const response = await fetch(`${API_BASE_URL}/admin/audit-log/export?limit=${limit}`, {
       headers: new Headers(this.authHeaders()),
+      credentials: 'include',
     });
     if (!response.ok) {
       throw new ApiError(await readError(response), response.status);
@@ -492,6 +465,58 @@ export class StickerFoundryApi {
     });
   }
 
+  async queueStickerUpload(
+    packId: string,
+    file: File,
+    emojis: string[],
+    accessibilityText: string,
+    uploadOptions?: StickerUploadOptions,
+  ) {
+    const form = new FormData();
+    form.append('file', file);
+    form.append('emojis', emojis.join(','));
+    if (accessibilityText.trim()) {
+      form.append('accessibilityText', accessibilityText.trim());
+    }
+    appendStickerUploadOptions(form, uploadOptions);
+
+    return this.request<JobResponse>(`/packs/${packId}/stickers/jobs`, {
+      method: 'POST',
+      auth: true,
+      body: form,
+      isMultipart: true,
+    });
+  }
+
+  async job(id: string) {
+    return this.request<JobResponse>(`/jobs/${id}`, { auth: true });
+  }
+
+  async cancelJob(id: string) {
+    return this.request<JobResponse>(`/jobs/${id}/cancel`, {
+      method: 'POST',
+      auth: true,
+    });
+  }
+
+  async retryJob(id: string) {
+    return this.request<JobResponse>(`/jobs/${id}/retry`, {
+      method: 'POST',
+      auth: true,
+    });
+  }
+
+  async waitForJob(id: string, onUpdate?: (job: JobResponse) => void) {
+    for (;;) {
+      const job = await this.job(id);
+      onUpdate?.(job);
+      if (job.status === 'COMPLETED' || job.status === 'FAILED' || job.status === 'CANCELLED') {
+        return job;
+      }
+      await new Promise((resolve) => window.setTimeout(resolve, 750));
+    }
+  }
+
   async uploadTrayIcon(packId: string, file: File) {
     const form = new FormData();
     form.append('file', file);
@@ -507,6 +532,7 @@ export class StickerFoundryApi {
   async trayIconBlob(packId: string) {
     const response = await fetch(`${API_BASE_URL}/packs/${packId}/tray-icon`, {
       headers: new Headers(this.authHeaders()),
+      credentials: 'include',
     });
     if (!response.ok) {
       throw new ApiError(await readError(response), response.status);
@@ -598,6 +624,7 @@ export class StickerFoundryApi {
   async stickerBlob(packId: string, stickerId: string) {
     const response = await fetch(`${API_BASE_URL}/packs/${packId}/stickers/${stickerId}/file`, {
       headers: new Headers(this.authHeaders()),
+      credentials: 'include',
     });
     if (!response.ok) {
       throw new ApiError(await readError(response), response.status);
@@ -608,11 +635,19 @@ export class StickerFoundryApi {
   async exportPack(packId: string) {
     const response = await fetch(`${API_BASE_URL}/packs/${packId}/export`, {
       headers: new Headers(this.authHeaders()),
+      credentials: 'include',
     });
     if (!response.ok) {
       throw new ApiError(await readError(response), response.status);
     }
     return response.blob();
+  }
+
+  async queueExportPack(packId: string) {
+    return this.request<JobResponse>(`/packs/${packId}/export/jobs`, {
+      method: 'POST',
+      auth: true,
+    });
   }
 
   async exportContents(packId: string) {
@@ -636,6 +671,7 @@ export class StickerFoundryApi {
     let response = await fetch(`${API_BASE_URL}${path}`, {
       ...options,
       headers,
+      credentials: 'include',
     });
 
     const refreshedToken = response.status === 401 && options.auth ? await this.refreshAuth() : null;
@@ -648,6 +684,7 @@ export class StickerFoundryApi {
       response = await fetch(`${API_BASE_URL}${path}`, {
         ...options,
         headers: retryHeaders,
+        credentials: 'include',
       });
     }
 
@@ -664,21 +701,26 @@ export class StickerFoundryApi {
   }
 
   private async refreshAuth() {
-    const refreshToken = this.getRefreshToken();
-    if (!refreshToken) return null;
+    if (this.refreshPromise) return this.refreshPromise;
+    this.refreshPromise = (async () => {
+      const response = await fetch(`${API_BASE_URL}/auth/refresh`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Refresh-Cookie': 'true' },
+        credentials: 'include',
+      });
+      if (!response.ok) {
+        this.onAuth(null);
+        return null;
+      }
 
-    const response = await fetch(`${API_BASE_URL}/auth/refresh`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ refreshToken }),
-    });
-    if (!response.ok) {
-      this.onAuth(null);
-      return null;
+      const auth = (await response.json()) as AuthResponse;
+      this.onAuth(auth);
+      return auth.accessToken;
+    })();
+    try {
+      return await this.refreshPromise;
+    } finally {
+      this.refreshPromise = null;
     }
-
-    const auth = (await response.json()) as AuthResponse;
-    this.onAuth(auth);
-    return auth.accessToken;
   }
 }

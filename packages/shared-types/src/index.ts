@@ -1,6 +1,9 @@
 export type StickerDto = {
   id: string;
   fileName: string;
+  mimeType: string;
+  width: number;
+  height: number;
   emojis: string[];
   accessibilityText?: string | null;
   sizeBytes: number;
@@ -160,13 +163,23 @@ export type TeamMemberDto = {
 
 export type AuthResponseDto = {
   accessToken: string;
-  refreshToken: string;
+  refreshToken?: string;
   user: {
     id: string;
     email: string;
     displayName: string;
     isAdmin: boolean;
   };
+};
+
+export type JobStatus = 'QUEUED' | 'PROCESSING' | 'COMPLETED' | 'FAILED' | 'CANCELLED';
+
+export type JobResponseDto = {
+  id: string;
+  status: JobStatus;
+  progress: number;
+  error?: string;
+  result?: Record<string, unknown>;
 };
 
 export type UserSessionDto = {
@@ -198,6 +211,7 @@ export type AuditLogEntryDto = {
   action: string;
   entityType: string;
   entityId?: string | null;
+  requestId?: string | null;
   metadata?: unknown;
   ipAddress?: string | null;
   userAgent?: string | null;

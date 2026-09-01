@@ -10,12 +10,15 @@ import com.stickerfoundry.app.data.PackEntity
 import com.stickerfoundry.app.data.StickerRepository
 import com.stickerfoundry.app.data.StickerEntity
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import retrofit2.HttpException
+import java.io.File
 import java.io.IOException
 import java.net.ConnectException
 import java.net.UnknownHostException
@@ -45,6 +48,8 @@ class StickerViewModel(
     val serverUrl = MutableStateFlow(repository.serverUrl())
     val account = MutableStateFlow(repository.accountLabel())
     val cacheUsage = MutableStateFlow(formatBytes(repository.cacheSizeBytes()))
+    private val _exportEvents = MutableSharedFlow<File>(extraBufferCapacity = 1)
+    val exportEvents = _exportEvents.asSharedFlow()
 
     fun login(email: String, password: String) {
         viewModelScope.launch {
@@ -165,6 +170,19 @@ class StickerViewModel(
             runCatching { repository.replaceTrayIcon(packId, uri, options) }
                 .onSuccess { setInfo("Tray icon replaced") }
                 .onFailure { setError(it, "Tray icon update failed") }
+        }
+    }
+
+    fun exportPack(packId: String) {
+        viewModelScope.launch {
+            setInfo("Preparing export")
+            try {
+                val file = repository.exportPack(packId)
+                _exportEvents.emit(file)
+                setInfo("Export ready to share")
+            } catch (error: Throwable) {
+                setError(error, "Export failed")
+            }
         }
     }
 

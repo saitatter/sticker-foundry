@@ -8,7 +8,9 @@ import android.provider.OpenableColumns
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MultipartBody
@@ -105,8 +107,21 @@ class StickerRepository private constructor(context: Context) {
 
     suspend fun uploadSticker(packId: String, uri: Uri, options: ImageEditOptions) = withContext(Dispatchers.IO) {
         mutatePackWithConflictSync(packId) { bearer, version ->
-            api().uploadSticker(bearer, packId, version, multipartFromUri(uri, options), stickerUploadOptionParts(options)).close()
+            val job = api().queueStickerUpload(
+                bearer,
+                packId,
+                version,
+                multipartFromUri(uri, options),
+                stickerUploadOptionParts(options),
+            )
+            awaitJob(job.id)
         }
+    }
+
+    suspend fun exportPack(packId: String): File = withContext(Dispatchers.IO) {
+        val job = withAuthRetry { bearer -> api().queueExport(bearer, packId) }
+        awaitJob(job.id)
+        downloadExportToFile(packId)
     }
 
     suspend fun replaceTrayIcon(packId: String, uri: Uri, options: ImageEditOptions) = withContext(Dispatchers.IO) {
@@ -125,6 +140,7 @@ class StickerRepository private constructor(context: Context) {
     suspend fun clearCache() = withContext(Dispatchers.IO) {
         db.stickerDao().deleteAllPacks()
         packsDirectory().deleteRecursively()
+        File(appContext.filesDir, "exports").deleteRecursively()
     }
 
     suspend fun clearPackCache(packId: String) = withContext(Dispatchers.IO) {
@@ -238,6 +254,15 @@ class StickerRepository private constructor(context: Context) {
     private suspend fun downloadZipToTemp(packId: String): File {
         val downloadDir = File(appContext.cacheDir, "downloads").apply { mkdirs() }
         val zipFile = File(downloadDir, "$packId-${System.currentTimeMillis()}.zip.tmp")
+        return downloadExportToFile(packId, zipFile)
+    }
+
+    private suspend fun downloadExportToFile(packId: String): File {
+        val exportDir = File(appContext.filesDir, "exports").apply { mkdirs() }
+        return downloadExportToFile(packId, File(exportDir, "$packId-${System.currentTimeMillis()}.zip"))
+    }
+
+    private suspend fun downloadExportToFile(packId: String, zipFile: File): File {
         try {
             withAuthRetry { bearer ->
                 api().exportPack(bearer, packId).use { body ->
@@ -292,6 +317,17 @@ class StickerRepository private constructor(context: Context) {
         val response = api().refresh(RefreshTokenRequest(refreshToken))
         session.saveTokens(response.accessToken, response.refreshToken)
         return "Bearer ${response.accessToken}"
+    }
+
+    private suspend fun awaitJob(jobId: String): JobDto = withTimeout(JOB_TIMEOUT_MS) {
+        while (true) {
+            val job = withAuthRetry { bearer -> api().job(bearer, jobId) }
+            when (job.status) {
+                "COMPLETED" -> return@withTimeout job
+                "FAILED", "CANCELLED" -> throw IllegalStateException(job.error ?: "Server job ${job.status.lowercase()}")
+            }
+            delay(JOB_POLL_MS)
+        }
     }
 
     private fun multipartFromUri(uri: Uri, options: ImageEditOptions): MultipartBody.Part {
@@ -367,6 +403,8 @@ class StickerRepository private constructor(context: Context) {
     }
 
     companion object {
+        private const val JOB_POLL_MS = 750L
+        private const val JOB_TIMEOUT_MS = 10 * 60 * 1_000L
         @Volatile private var instance: StickerRepository? = null
 
         fun get(context: Context): StickerRepository =

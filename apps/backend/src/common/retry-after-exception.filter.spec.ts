@@ -1,5 +1,5 @@
 import { ArgumentsHost } from '@nestjs/common';
-import { RetryAfterExceptionFilter } from './retry-after-exception.filter';
+import { RetryAfterExceptionFilter } from './filters/retry-after-exception.filter';
 import { MediaQueueFullException } from '../packs/media-queue.service';
 
 describe(RetryAfterExceptionFilter, () => {

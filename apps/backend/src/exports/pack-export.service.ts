@@ -7,8 +7,8 @@ import { mkdir, rename, stat } from 'fs/promises';
 import { join } from 'path';
 import { StickerReviewStatus } from '@prisma/client';
 import { PrismaService } from '../prisma.service';
-import { PackStorageService } from './pack-storage.service';
-import { DEFAULT_STICKER_EMOJIS, WHATSAPP_LIMITS } from './whatsapp-constraints';
+import { PackStorageService } from '../storage/pack-storage.service';
+import { DEFAULT_STICKER_EMOJIS, WHATSAPP_LIMITS } from '../packs/whatsapp-constraints';
 
 type Archive = archiver.Archiver;
 type ExportPack = {
@@ -20,8 +20,11 @@ type ExportPack = {
   imageDataVersion: string;
   stickers: Array<{
     fileName: string;
+    storageKey: string;
     emojis: string[];
     accessibilityText: string | null;
+    sha256: string;
+    sizeBytes: number;
     reviewStatus?: StickerReviewStatus;
   }>;
 };
@@ -68,7 +71,7 @@ export class PackExportService {
     archive.append(await this.storage.readStream(pack.id, 'tray_icon.webp'), { name: 'tray_icon.webp' });
 
     for (const sticker of pack.stickers) {
-      archive.append(await this.storage.readStream(pack.id, sticker.fileName), { name: sticker.fileName });
+      archive.append(await this.storage.readStreamByKey(sticker.storageKey), { name: sticker.fileName });
     }
   }
 
@@ -186,7 +189,7 @@ export class PackExportService {
     };
   }
 
-  private async contentHash(pack: ExportPack & { stickers: Array<ExportPack['stickers'][number] & { sha256?: string }> }) {
+  private async contentHash(pack: ExportPack) {
     const hash = createHash('sha256');
     hash.update(`${pack.id}:${pack.imageDataVersion}:${pack.isAnimated}`);
 

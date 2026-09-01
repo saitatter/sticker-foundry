@@ -4,6 +4,7 @@ import {
   Delete,
   Get,
   Headers,
+  HttpCode,
   HttpStatus,
   Param,
   Patch,
@@ -16,8 +17,8 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { Response } from 'express';
-import { CurrentUser, RequestUser } from '../common/current-user.decorator';
-import { JwtAuthGuard } from '../common/jwt-auth.guard';
+import { CurrentUser, RequestUser } from '../common/decorators/current-user.decorator';
+import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CreatePackInviteDto } from './dto/create-pack-invite.dto';
 import { CreatePackDto } from './dto/create-pack.dto';
 import { CreateStickerCommentDto } from './dto/create-sticker-comment.dto';
@@ -27,7 +28,7 @@ import { UpdatePackMemberDto } from './dto/update-pack-member.dto';
 import { UpdatePackDto } from './dto/update-pack.dto';
 import { UpdateStickerDto } from './dto/update-sticker.dto';
 import { UploadStickerDto } from './dto/upload-sticker.dto';
-import { PackExportService } from './pack-export.service';
+import { PackExportService } from '../exports/pack-export.service';
 import { PacksService } from './packs.service';
 
 const stickerUploadOptions = { limits: { fileSize: 10 * 1024 * 1024 } };
@@ -176,6 +177,19 @@ export class PacksController {
     return this.packsService.uploadSticker(user.sub, id, file, dto);
   }
 
+  @Post(':id/stickers/jobs')
+  @HttpCode(HttpStatus.ACCEPTED)
+  @UseInterceptors(FileInterceptor('file', stickerUploadOptions))
+  queueStickerUpload(
+    @CurrentUser() user: RequestUser,
+    @Param('id') id: string,
+    @Headers('if-match') ifMatch: string | undefined,
+    @UploadedFile() file: Express.Multer.File,
+    @Body() dto: UploadStickerDto,
+  ) {
+    return this.packsService.assertPackVersion(user.sub, id, ifMatch).then(() => this.packsService.queueStickerUpload(user.sub, id, file, dto));
+  }
+
   @Patch(':id/stickers')
   reorderStickers(@CurrentUser() user: RequestUser, @Param('id') id: string, @Body() dto: ReorderStickersDto) {
     return this.packsService.reorderStickers(user.sub, id, dto);
@@ -240,6 +254,12 @@ export class PacksController {
     response.setHeader('Content-Disposition', `attachment; filename="sticker-pack-${id}.zip"`);
     response.setHeader('ETag', this.exportService.etagForHash(cached.contentHash));
     return response.sendFile(cached.path);
+  }
+
+  @Post(':id/export/jobs')
+  @HttpCode(HttpStatus.ACCEPTED)
+  queueExport(@CurrentUser() user: RequestUser, @Param('id') id: string) {
+    return this.packsService.queueExport(user.sub, id);
   }
 
   @Get(':id/export/live')

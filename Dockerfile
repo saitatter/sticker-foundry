@@ -9,9 +9,11 @@ RUN apt-get update \
 
 COPY package.json package-lock.json ./
 COPY apps/backend/package.json apps/backend/package.json
+COPY apps/worker/package.json apps/worker/package.json
 COPY apps/web/package.json apps/web/package.json
 COPY packages/shared-types/package.json packages/shared-types/package.json
 COPY apps/backend apps/backend
+COPY apps/worker apps/worker
 COPY apps/web apps/web
 COPY packages/shared-types packages/shared-types
 
@@ -31,7 +33,7 @@ LABEL org.opencontainers.image.source="${OCI_SOURCE}" \
   org.opencontainers.image.revision="${OCI_REVISION}" \
   org.opencontainers.image.version="${OCI_VERSION}" \
   org.opencontainers.image.title="Sticker Foundry" \
-  org.opencontainers.image.description="All-in-one Sticker Foundry server with web UI, API, PostgreSQL, and AI background removal"
+  org.opencontainers.image.description="All-in-one Sticker Foundry server with web UI, API, PostgreSQL, Redis, and AI background removal"
 
 RUN apt-get update \
   && apt-get install -y --no-install-recommends \
@@ -41,6 +43,7 @@ RUN apt-get update \
     openssl \
     postgresql \
     postgresql-client \
+    redis-server \
     python3 \
     python3-pip \
     python3-venv \
@@ -60,6 +63,7 @@ ENV BACKGROUND_REMOVAL_COMMAND="rembg i {input} {output}" \
   PATH="/opt/rembg/bin:${PATH}" \
   PORT="3000" \
   POSTGRES_DATA_DIR="/data/postgres" \
+  REDIS_DATA_DIR="/data/redis" \
   U2NET_HOME="/data/rembg-models"
 
 WORKDIR /app
@@ -69,6 +73,7 @@ COPY --from=build /app/node_modules node_modules
 COPY --from=build /app/apps/backend/package.json apps/backend/package.json
 COPY --from=build /app/apps/backend/dist apps/backend/dist
 COPY --from=build /app/apps/backend/prisma apps/backend/prisma
+COPY --from=build /app/apps/worker/package.json apps/worker/package.json
 COPY --from=build /app/apps/web/dist /usr/share/nginx/html
 COPY docker/all-in-one/nginx.conf /etc/nginx/conf.d/sticker-foundry.conf
 COPY docker/all-in-one/start.sh /usr/local/bin/sticker-foundry-start
@@ -80,6 +85,6 @@ VOLUME ["/data"]
 EXPOSE 80
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=5 \
-  CMD wget -q --spider http://127.0.0.1/api/health || exit 1
+  CMD wget -q --spider http://127.0.0.1/api/health/ready || exit 1
 
 CMD ["sticker-foundry-start"]

@@ -5,6 +5,8 @@ POSTGRES_DB="${POSTGRES_DB:-stickers}"
 POSTGRES_USER="${POSTGRES_USER:-stickers}"
 POSTGRES_PASSWORD="${POSTGRES_PASSWORD:-stickers}"
 POSTGRES_DATA_DIR="${POSTGRES_DATA_DIR:-/data/postgres}"
+REDIS_DATA_DIR="${REDIS_DATA_DIR:-/data/redis}"
+REDIS_URL="${REDIS_URL:-redis://127.0.0.1:6379}"
 DATA_DIR="${DATA_DIR:-/data/app}"
 EXPORT_CACHE_DIR="${EXPORT_CACHE_DIR:-$DATA_DIR/export-cache}"
 BACKGROUND_REMOVAL_COMMAND="${BACKGROUND_REMOVAL_COMMAND:-rembg i {input} {output}}"
@@ -14,18 +16,28 @@ database_url() {
   node -e 'const [user, password, db] = process.argv.slice(1); console.log(`postgresql://${encodeURIComponent(user)}:${encodeURIComponent(password)}@127.0.0.1:5432/${encodeURIComponent(db)}?schema=public`);' "$POSTGRES_USER" "$POSTGRES_PASSWORD" "$POSTGRES_DB"
 }
 
+uses_internal_redis() {
+  case "$REDIS_URL" in
+    redis://127.0.0.1:6379|redis://127.0.0.1:6379/*|redis://localhost:6379|redis://localhost:6379/*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
 DATABASE_URL="${DATABASE_URL:-$(database_url)}"
 
 export BACKGROUND_REMOVAL_COMMAND
 export DATABASE_URL
 export DATA_DIR
 export EXPORT_CACHE_DIR
+export REDIS_URL
 export NODE_ENV="${NODE_ENV:-production}"
 export PORT="${PORT:-3000}"
 export U2NET_HOME="${U2NET_HOME:-/data/rembg-models}"
 
 postgres_pid=""
+redis_pid=""
 backend_pid=""
+worker_pid=""
 nginx_pid=""
 
 stop_services() {
@@ -35,6 +47,14 @@ stop_services() {
 
   if [ -n "$backend_pid" ] && kill -0 "$backend_pid" 2>/dev/null; then
     kill "$backend_pid" 2>/dev/null || true
+  fi
+
+  if [ -n "$worker_pid" ] && kill -0 "$worker_pid" 2>/dev/null; then
+    kill "$worker_pid" 2>/dev/null || true
+  fi
+
+  if [ -n "$redis_pid" ] && kill -0 "$redis_pid" 2>/dev/null; then
+    kill "$redis_pid" 2>/dev/null || true
   fi
 
   if [ -n "$postgres_pid" ] || [ -s "$POSTGRES_DATA_DIR/postmaster.pid" ]; then
@@ -58,7 +78,7 @@ POSTGRES_PASSWORD_SQL="$(sql_literal "$POSTGRES_PASSWORD")"
 POSTGRES_USER_IDENT="$(sql_identifier "$POSTGRES_USER")"
 POSTGRES_DB_IDENT="$(sql_identifier "$POSTGRES_DB")"
 
-mkdir -p "$DATA_DIR" "$EXPORT_CACHE_DIR" "$POSTGRES_DATA_DIR" "$U2NET_HOME" /run/postgresql
+mkdir -p "$DATA_DIR" "$EXPORT_CACHE_DIR" "$POSTGRES_DATA_DIR" "$REDIS_DATA_DIR" "$U2NET_HOME" /run/postgresql
 chown -R postgres:postgres "$POSTGRES_DATA_DIR" /run/postgresql
 
 if [ ! -s "$POSTGRES_DATA_DIR/PG_VERSION" ]; then
@@ -72,6 +92,11 @@ fi
 
 su postgres -c "\"$PG_BIN/pg_ctl\" -D \"$POSTGRES_DATA_DIR\" -o '-c listen_addresses=127.0.0.1' -w start"
 postgres_pid="$(head -n 1 "$POSTGRES_DATA_DIR/postmaster.pid" 2>/dev/null || true)"
+
+if uses_internal_redis; then
+  redis-server --bind 127.0.0.1 --port 6379 --dir "$REDIS_DATA_DIR" --appendonly yes --daemonize no &
+  redis_pid="$!"
+fi
 
 if ! printf "SELECT 1 FROM pg_roles WHERE rolname='%s';\n" "$POSTGRES_USER_SQL" | su postgres -c "psql -d postgres -tA" | grep -q 1; then
   printf "CREATE ROLE \"%s\" LOGIN;\n" "$POSTGRES_USER_IDENT" | su postgres -c "psql -d postgres"
@@ -87,11 +112,16 @@ cd /app/apps/backend
 npx prisma migrate deploy
 node dist/main.js &
 backend_pid="$!"
+node dist/worker.js &
+worker_pid="$!"
 
 nginx -g "daemon off;" &
 nginx_pid="$!"
 
-while kill -0 "$backend_pid" 2>/dev/null && kill -0 "$nginx_pid" 2>/dev/null; do
+while kill -0 "$backend_pid" 2>/dev/null \
+  && kill -0 "$worker_pid" 2>/dev/null \
+  && kill -0 "$nginx_pid" 2>/dev/null \
+  && { [ -z "$redis_pid" ] || kill -0 "$redis_pid" 2>/dev/null; }; do
   sleep 2
 done
 

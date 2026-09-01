@@ -42,6 +42,16 @@ interface StickerApi {
     ): ResponseBody
 
     @Multipart
+    @POST("packs/{id}/stickers/jobs")
+    suspend fun queueStickerUpload(
+        @Header("Authorization") bearerToken: String,
+        @Path("id") packId: String,
+        @Header("If-Match") ifMatch: String,
+        @Part file: MultipartBody.Part,
+        @Part options: List<MultipartBody.Part>,
+    ): JobDto
+
+    @Multipart
     @POST("packs/{id}/tray-icon")
     suspend fun replaceTrayIcon(
         @Header("Authorization") bearerToken: String,
@@ -56,6 +66,18 @@ interface StickerApi {
         @Header("Authorization") bearerToken: String,
         @Path("id") packId: String,
     ): ResponseBody
+
+    @POST("packs/{id}/export/jobs")
+    suspend fun queueExport(
+        @Header("Authorization") bearerToken: String,
+        @Path("id") packId: String,
+    ): JobDto
+
+    @GET("jobs/{id}")
+    suspend fun job(
+        @Header("Authorization") bearerToken: String,
+        @Path("id") jobId: String,
+    ): JobDto
 
     @GET("packs/{id}/manifest")
     suspend fun packManifest(

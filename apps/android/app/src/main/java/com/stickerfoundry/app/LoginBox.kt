@@ -19,15 +19,54 @@ import androidx.compose.ui.unit.dp
 
 @Composable
 fun LoginBox(
+    serverUrl: String,
+    serverStatus: AppStatus,
+    checkingServer: Boolean,
+    onSaveServerUrl: (String) -> Unit,
+    onCheckServerUrl: (String) -> Unit,
     onLogin: (String, String) -> Unit,
     onSync: () -> Unit,
     onSettings: () -> Unit,
     status: AppStatus,
 ) {
+    var editedServerUrl by remember(serverUrl) { mutableStateOf(serverUrl) }
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        OutlinedTextField(
+            value = editedServerUrl,
+            onValueChange = { editedServerUrl = it },
+            label = { Text("Server URL") },
+            supportingText = { Text("Use http://HomeDockers:8095/api/; hostname:port also works.") },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Button(
+                modifier = Modifier.weight(1f),
+                onClick = { onSaveServerUrl(editedServerUrl) },
+            ) {
+                Text("Save URL")
+            }
+            Button(
+                modifier = Modifier.weight(1f),
+                enabled = !checkingServer,
+                onClick = { onCheckServerUrl(editedServerUrl) },
+            ) {
+                Text(if (checkingServer) "Checking..." else "Test server")
+            }
+        }
+        if (serverStatus.message.isNotBlank()) {
+            Text(
+                serverStatus.message,
+                color = if (serverStatus.isError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
         OutlinedTextField(
             value = email,
             onValueChange = { email = it },
@@ -41,14 +80,26 @@ fun LoginBox(
             visualTransformation = PasswordVisualTransformation(),
             modifier = Modifier.fillMaxWidth(),
         )
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(onClick = { onLogin(email, password) }) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Button(
+                modifier = Modifier.weight(1f),
+                onClick = { onLogin(email, password) },
+            ) {
                 Text("Login")
             }
-            Button(onClick = onSync) {
+            Button(
+                modifier = Modifier.weight(1f),
+                onClick = onSync,
+            ) {
                 Text("Sync")
             }
-            Button(onClick = onSettings) {
+            Button(
+                modifier = Modifier.weight(1f),
+                onClick = onSettings,
+            ) {
                 Text("Settings")
             }
         }

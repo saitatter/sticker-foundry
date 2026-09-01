@@ -1,0 +1,10 @@
+{
+  "name": "@sticker-foundry/worker",
+  "version": "1.2.0",
+  "private": true,
+  "scripts": {
+    "build": "npm --prefix ../backend run build",
+    "start": "node ../backend/dist/worker.js",
+    "start:dev": "npm --prefix ../backend run start:worker:dev"
+  }
+}

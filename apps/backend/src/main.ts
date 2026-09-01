@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
-import { RetryAfterExceptionFilter } from './common/retry-after-exception.filter';
+import { RetryAfterExceptionFilter } from './common/filters/retry-after-exception.filter';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -17,6 +17,7 @@ async function bootstrap() {
             .split(',')
             .map((origin) => origin.trim())
             .filter(Boolean),
+        credentials: true,
   });
   app.setGlobalPrefix('api');
   app.useGlobalFilters(new RetryAfterExceptionFilter());

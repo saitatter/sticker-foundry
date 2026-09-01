@@ -38,6 +38,7 @@ fun PackRow(
     onClearLocal: () -> Unit,
     onUploadSticker: () -> Unit,
     onReplaceTrayIcon: () -> Unit,
+    onExport: () -> Unit,
 ) {
     val cacheReady = pack.extractionStatus == EXTRACTION_READY
     Card(modifier = Modifier.fillMaxWidth()) {
@@ -91,6 +92,9 @@ fun PackRow(
                 }
                 TextButton(onClick = onClearLocal) {
                     Text("Clear local")
+                }
+                TextButton(onClick = onExport, enabled = cacheReady) {
+                    Text("Export & share")
                 }
             }
             if (pack.stickerCount < 3) {

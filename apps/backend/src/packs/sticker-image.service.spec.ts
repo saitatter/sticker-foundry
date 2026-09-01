@@ -1,6 +1,6 @@
 import { BadRequestException } from '@nestjs/common';
 import sharp = require('sharp');
-import { StickerImageService } from './sticker-image.service';
+import { StickerImageService } from '../media/sticker-image.service';
 
 describe(StickerImageService, () => {
   const service = new StickerImageService();

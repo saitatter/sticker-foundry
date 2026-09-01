@@ -11,6 +11,7 @@
     "preview": "vite preview --host 0.0.0.0"
   },
   "dependencies": {
+    "@sticker-foundry/shared-types": "1.2.0",
     "lucide-react": "^1.16.0",
     "react": "^19.2.1",
     "react-dom": "^19.2.1"

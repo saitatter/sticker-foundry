@@ -1,0 +1,845 @@
+import { AlertCircle, Archive, CheckCircle2, Copy, Download, FileJson, ImagePlus, RotateCcw, Trash2, X } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { AdminSettings, AuditLogEntry, JobResponse, Pack, PackRole, Sticker, StickerFoundryApi } from './api';
+import { CollaborationPanel, PackEditForm, TrayIconPanel, UploadPanel } from './pack-detail-panels';
+import { reviewStatusLabel, StickerTile } from './sticker-tile';
+import { exportFileName, IconButton, Metric } from './ui';
+
+type PackDetailTab = 'overview' | 'stickers' | 'collaboration' | 'settings';
+
+export function PackDetail({
+  api,
+  backgroundRemovalStatus,
+  pack,
+  packs,
+  onChanged,
+  onDeleted,
+  onCloned,
+  onError,
+  onNotice,
+}: {
+  api: StickerFoundryApi;
+  backgroundRemovalStatus?: AdminSettings['backgroundRemoval'];
+  pack: Pack;
+  packs: Pack[];
+  onChanged: (message: string) => Promise<void>;
+  onDeleted: () => void;
+  onCloned: (pack: Pack) => void;
+  onError: (error: unknown) => void;
+  onNotice: (message: string) => void;
+}) {
+  const [optimisticStickers, setOptimisticStickers] = useState<Sticker[] | null>(null);
+  const stickers = optimisticStickers ?? pack.stickers ?? [];
+  const exportStickerCount = pack.requiresApproval
+    ? stickers.filter((sticker) => sticker.reviewStatus === 'APPROVED').length
+    : stickers.length;
+  const canEdit = pack.canEdit ?? true;
+  const canManage = pack.canManage ?? false;
+  const canExport = exportStickerCount >= 3 && exportStickerCount <= 30;
+  const exportStatusText = exportReadinessMessage(exportStickerCount, pack.requiresApproval, pack.isAnimated);
+  const exportActionHintId = `export-actions-${pack.id}`;
+  const [exporting, setExporting] = useState(false);
+  const [exportProgress, setExportProgress] = useState(0);
+  const [exportJob, setExportJob] = useState<JobResponse | null>(null);
+  const [exportActionId, setExportActionId] = useState<string | null>(null);
+  const [contentsPreview, setContentsPreview] = useState<string | null>(null);
+  const [loadingContents, setLoadingContents] = useState(false);
+  const [draggingStickerId, setDraggingStickerId] = useState<string | null>(null);
+  const [selectedStickerIds, setSelectedStickerIds] = useState<string[]>([]);
+  const [bulkEmojis, setBulkEmojis] = useState('');
+  const [bulkTargetPackId, setBulkTargetPackId] = useState('');
+  const [bulkSaving, setBulkSaving] = useState(false);
+  const [activeTab, setActiveTab] = useState<PackDetailTab>('overview');
+  const selectedStickerSet = useMemo(() => new Set(selectedStickerIds), [selectedStickerIds]);
+  const hasBulkSelection = selectedStickerIds.length > 0;
+  const transferTargets = packs.filter((item) => item.canEdit && item.id !== pack.id);
+  const detailTabs = useMemo<Array<{ id: PackDetailTab; label: string }>>(() => {
+    const tabs: Array<{ id: PackDetailTab; label: string }> = [
+      { id: 'overview', label: 'Overview' },
+      { id: 'stickers', label: `Stickers (${stickers.length})` },
+    ];
+
+    if (canManage) tabs.push({ id: 'collaboration', label: 'Collaboration' });
+    if (canEdit || canManage) tabs.push({ id: 'settings', label: 'Settings' });
+    return tabs;
+  }, [canEdit, canManage, stickers.length]);
+  const tabButtonId = (tab: PackDetailTab) => `pack-${pack.id}-${tab}-tab`;
+  const tabPanelId = (tab: PackDetailTab) => `pack-${pack.id}-${tab}-panel`;
+
+  useEffect(() => {
+    setSelectedStickerIds([]);
+    setBulkEmojis('');
+    setBulkTargetPackId('');
+    setOptimisticStickers(null);
+    setContentsPreview(null);
+    setExportJob(null);
+    setExportProgress(0);
+    setActiveTab('overview');
+  }, [pack.id]);
+
+  useEffect(() => {
+    setOptimisticStickers(null);
+  }, [pack.imageDataVersion]);
+
+  useEffect(() => {
+    if (!detailTabs.some((tab) => tab.id === activeTab)) {
+      setActiveTab('overview');
+    }
+  }, [activeTab, detailTabs]);
+
+  async function downloadCompletedExport() {
+    const blob = await api.exportPack(pack.id);
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = exportFileName(pack);
+    document.body.append(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+    onNotice('Export ZIP downloaded');
+  }
+
+  async function waitForExport(jobId: string) {
+    const completed = await api.waitForJob(jobId, (job) => {
+      setExportJob(job);
+      setExportProgress(job.progress);
+    });
+    if (completed.status === 'CANCELLED') {
+      onNotice('Export cancelled');
+      return;
+    }
+    if (completed.status !== 'COMPLETED') {
+      throw new Error(completed.error ?? 'Export could not be completed');
+    }
+    await downloadCompletedExport();
+  }
+
+  async function exportPack() {
+    setExporting(true);
+    setExportProgress(0);
+    try {
+      const queued = await api.queueExportPack(pack.id);
+      setExportJob(queued);
+      await waitForExport(queued.id);
+    } catch (error) {
+      onError(error);
+    } finally {
+      setExporting(false);
+    }
+  }
+
+  async function cancelExport() {
+    if (!exportJob) return;
+    setExportActionId(exportJob.id);
+    try {
+      setExportJob(await api.cancelJob(exportJob.id));
+    } catch (error) {
+      onError(error);
+    } finally {
+      setExportActionId(null);
+    }
+  }
+
+  async function retryExport() {
+    if (!exportJob) return;
+    setExporting(true);
+    setExportActionId(exportJob.id);
+    try {
+      const queued = await api.retryJob(exportJob.id);
+      setExportJob(queued);
+      setExportProgress(0);
+      await waitForExport(queued.id);
+    } catch (error) {
+      onError(error);
+    } finally {
+      setExportActionId(null);
+      setExporting(false);
+    }
+  }
+
+  async function deletePack() {
+    if (!confirm(`Delete "${pack.name}"?`)) return;
+    try {
+      await api.deletePack(pack.id);
+      onDeleted();
+    } catch (error) {
+      onError(error);
+    }
+  }
+
+  async function clonePack() {
+    try {
+      onCloned(await api.clonePack(pack.id));
+    } catch (error) {
+      onError(error);
+    }
+  }
+
+  async function previewContents() {
+    if (contentsPreview) {
+      setContentsPreview(null);
+      return;
+    }
+
+    setActiveTab('overview');
+    setLoadingContents(true);
+    try {
+      const contents = await api.exportContents(pack.id);
+      setContentsPreview(JSON.stringify(contents, null, 2));
+    } catch (error) {
+      onError(error);
+    } finally {
+      setLoadingContents(false);
+    }
+  }
+
+  async function moveSticker(stickerId: string, direction: -1 | 1) {
+    const currentIndex = stickers.findIndex((sticker) => sticker.id === stickerId);
+    const nextIndex = currentIndex + direction;
+    if (currentIndex < 0 || nextIndex < 0 || nextIndex >= stickers.length) return;
+
+    const nextOrder = stickers.map((sticker) => sticker.id);
+    [nextOrder[currentIndex], nextOrder[nextIndex]] = [nextOrder[nextIndex], nextOrder[currentIndex]];
+    const nextStickers = [...stickers];
+    [nextStickers[currentIndex], nextStickers[nextIndex]] = [nextStickers[nextIndex], nextStickers[currentIndex]];
+    setOptimisticStickers(nextStickers);
+
+    try {
+      await api.reorderStickers(pack.id, nextOrder);
+      await onChanged('Sticker order updated');
+    } catch (error) {
+      setOptimisticStickers(null);
+      onError(error);
+    }
+  }
+
+  async function reorderStickerTo(targetStickerId: string) {
+    if (!draggingStickerId || draggingStickerId === targetStickerId) return;
+
+    const currentIndex = stickers.findIndex((sticker) => sticker.id === draggingStickerId);
+    const targetIndex = stickers.findIndex((sticker) => sticker.id === targetStickerId);
+    if (currentIndex < 0 || targetIndex < 0) return;
+
+    const nextOrder = stickers.map((sticker) => sticker.id);
+    const [movedStickerId] = nextOrder.splice(currentIndex, 1);
+    const insertIndex = currentIndex < targetIndex ? targetIndex - 1 : targetIndex;
+    nextOrder.splice(insertIndex, 0, movedStickerId);
+    const nextStickers = nextOrder
+      .map((id) => stickers.find((sticker) => sticker.id === id))
+      .filter((sticker): sticker is Sticker => Boolean(sticker));
+    setOptimisticStickers(nextStickers);
+
+    try {
+      await api.reorderStickers(pack.id, nextOrder);
+      await onChanged('Sticker order updated');
+    } catch (error) {
+      setOptimisticStickers(null);
+      onError(error);
+    } finally {
+      setDraggingStickerId(null);
+    }
+  }
+
+  function toggleStickerSelection(stickerId: string, selected: boolean) {
+    setSelectedStickerIds((current) => {
+      if (selected) return current.includes(stickerId) ? current : [...current, stickerId];
+      return current.filter((id) => id !== stickerId);
+    });
+  }
+
+  function selectRelativeSticker(direction: -1 | 1) {
+    if (stickers.length === 0) return;
+    setSelectedStickerIds((current) => {
+      const activeId = current[current.length - 1];
+      const activeIndex = activeId ? stickers.findIndex((sticker) => sticker.id === activeId) : -1;
+      const nextIndex =
+        activeIndex < 0
+          ? direction > 0
+            ? 0
+            : stickers.length - 1
+          : Math.max(0, Math.min(stickers.length - 1, activeIndex + direction));
+      return [stickers[nextIndex].id];
+    });
+  }
+
+  function selectAllStickers() {
+    setSelectedStickerIds(stickers.map((sticker) => sticker.id));
+  }
+
+  async function reviewSelectedStickers(reviewStatus: Sticker['reviewStatus']) {
+    if (selectedStickerIds.length === 0 || bulkSaving) return;
+    const selectedStickers = stickers.filter((sticker) => selectedStickerIds.includes(sticker.id));
+    if (selectedStickers.length === 0) return;
+
+    setBulkSaving(true);
+    setOptimisticStickers(
+      stickers.map((sticker) => (selectedStickerIds.includes(sticker.id) ? { ...sticker, reviewStatus } : sticker)),
+    );
+    try {
+      for (const sticker of selectedStickers) {
+        await api.updateSticker(pack.id, sticker.id, sticker.emojis, sticker.accessibilityText ?? '', reviewStatus);
+      }
+      await onChanged('Review status updated');
+    } catch (error) {
+      setOptimisticStickers(null);
+      onError(error);
+    } finally {
+      setBulkSaving(false);
+    }
+  }
+
+  async function bulkDeleteStickers() {
+    if (selectedStickerIds.length === 0 || !confirm(`Delete ${selectedStickerIds.length} selected sticker(s)?`)) return;
+    setBulkSaving(true);
+    try {
+      for (const stickerId of selectedStickerIds) {
+        await api.deleteSticker(pack.id, stickerId);
+      }
+      setSelectedStickerIds([]);
+      await onChanged('Selected stickers deleted');
+    } catch (error) {
+      onError(error);
+    } finally {
+      setBulkSaving(false);
+    }
+  }
+
+  async function bulkApplyEmojis() {
+    const emojis = bulkEmojis
+      .split(',')
+      .map((emoji) => emoji.trim())
+      .filter(Boolean)
+      .slice(0, 3);
+    if (selectedStickerIds.length === 0 || emojis.length === 0) return;
+
+    setBulkSaving(true);
+    try {
+      for (const sticker of stickers.filter((item) => selectedStickerIds.includes(item.id))) {
+        await api.updateSticker(pack.id, sticker.id, emojis, sticker.accessibilityText ?? '');
+      }
+      setSelectedStickerIds([]);
+      setBulkEmojis('');
+      await onChanged('Emoji updated on selected stickers');
+    } catch (error) {
+      onError(error);
+    } finally {
+      setBulkSaving(false);
+    }
+  }
+
+  async function bulkGenerateAltText() {
+    if (selectedStickerIds.length === 0) return;
+
+    setBulkSaving(true);
+    try {
+      for (const sticker of stickers.filter((item) => selectedStickerIds.includes(item.id))) {
+        await api.updateSticker(
+          pack.id,
+          sticker.id,
+          sticker.emojis,
+          generatedAltText(pack, sticker),
+          sticker.reviewStatus,
+        );
+      }
+      setSelectedStickerIds([]);
+      await onChanged('Alt text generated for selected stickers');
+    } catch (error) {
+      onError(error);
+    } finally {
+      setBulkSaving(false);
+    }
+  }
+
+  async function bulkTransferStickers(mode: 'copy' | 'move') {
+    if (selectedStickerIds.length === 0 || !bulkTargetPackId) return;
+
+    setBulkSaving(true);
+    try {
+      if (mode === 'copy') {
+        await api.copyStickers(pack.id, bulkTargetPackId, selectedStickerIds);
+        await onChanged('Selected stickers copied');
+      } else {
+        await api.moveStickers(pack.id, bulkTargetPackId, selectedStickerIds);
+        setSelectedStickerIds([]);
+        await onChanged('Selected stickers moved');
+      }
+    } catch (error) {
+      onError(error);
+    } finally {
+      setBulkSaving(false);
+    }
+  }
+
+  useEffect(() => {
+    if (!canEdit || activeTab !== 'stickers') return;
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (isTypingTarget(event.target)) return;
+      const key = event.key.toLowerCase();
+      if (event.repeat && key !== 'j' && key !== 'k') return;
+
+      if (key === 'escape') {
+        setSelectedStickerIds([]);
+        return;
+      }
+      if (key === 'j') {
+        event.preventDefault();
+        selectRelativeSticker(1);
+        return;
+      }
+      if (key === 'k') {
+        event.preventDefault();
+        selectRelativeSticker(-1);
+        return;
+      }
+      if (selectedStickerIds.length === 0) return;
+      if (key === 'a') {
+        event.preventDefault();
+        void reviewSelectedStickers('APPROVED');
+        return;
+      }
+      if (key === 'p') {
+        event.preventDefault();
+        void reviewSelectedStickers('PENDING');
+        return;
+      }
+      if (key === 'n') {
+        event.preventDefault();
+        void reviewSelectedStickers('NEEDS_WORK');
+        return;
+      }
+      if (event.shiftKey && selectedStickerIds.length === 1 && event.key === 'ArrowUp') {
+        event.preventDefault();
+        void moveSticker(selectedStickerIds[0], -1);
+        return;
+      }
+      if (event.shiftKey && selectedStickerIds.length === 1 && event.key === 'ArrowDown') {
+        event.preventDefault();
+        void moveSticker(selectedStickerIds[0], 1);
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  });
+
+  return (
+    <section className="detail">
+      <div className="detail-header">
+        <div>
+          <p className="eyebrow">{pack.isPublic ? 'Public pack' : 'Private pack'}</p>
+          <h2>{pack.name}</h2>
+          <p>{pack.publisher}</p>
+        </div>
+        <div className="detail-actions">
+          <div className="detail-export-actions">
+            <div className="detail-export-buttons">
+              <button
+                aria-describedby={!canExport ? exportActionHintId : undefined}
+                className="secondary-button"
+                disabled={!canExport || loadingContents}
+                onClick={() => void previewContents()}
+                title={!canExport ? exportStatusText : undefined}
+                type="button"
+              >
+                <FileJson size={17} />
+                {contentsPreview ? 'Hide JSON' : 'Preview JSON'}
+              </button>
+              <button
+                aria-describedby={!canExport ? exportActionHintId : undefined}
+                className="secondary-button"
+                disabled={!canExport || exporting}
+                onClick={() => void exportPack()}
+                title={!canExport ? exportStatusText : undefined}
+                type="button"
+              >
+                <Download size={17} />
+                {exporting ? `Exporting ${exportProgress}%` : 'Download ZIP'}
+              </button>
+              {exporting && exportJob && (exportJob.status === 'QUEUED' || exportJob.status === 'PROCESSING') ? (
+                <button
+                  className="secondary-button"
+                  disabled={exportActionId === exportJob.id}
+                  onClick={() => void cancelExport()}
+                  type="button"
+                >
+                  <X size={17} />
+                  Cancel export
+                </button>
+              ) : null}
+              {!exporting && exportJob && (exportJob.status === 'FAILED' || exportJob.status === 'CANCELLED') ? (
+                <button
+                  className="secondary-button"
+                  disabled={exportActionId === exportJob.id}
+                  onClick={() => void retryExport()}
+                  type="button"
+                >
+                  <RotateCcw size={17} />
+                  Retry export
+                </button>
+              ) : null}
+            </div>
+            {!canExport ? (
+              <span className="detail-action-hint" id={exportActionHintId}>
+                {exportStatusText}
+              </span>
+            ) : null}
+          </div>
+          <button className="secondary-button" onClick={() => void clonePack()} type="button">
+            <Copy size={17} />
+            Clone
+          </button>
+          {canManage ? (
+            <IconButton label="Delete pack" onClick={() => void deletePack()} danger>
+              <Trash2 size={18} />
+            </IconButton>
+          ) : null}
+        </div>
+      </div>
+
+      <div className="detail-tabs" role="tablist" aria-label="Pack sections">
+        {detailTabs.map((tab) => (
+          <button
+            aria-controls={tabPanelId(tab.id)}
+            aria-selected={activeTab === tab.id}
+            className={activeTab === tab.id ? 'active' : undefined}
+            id={tabButtonId(tab.id)}
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            role="tab"
+            type="button"
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {activeTab === 'overview' ? (
+        <div
+          aria-labelledby={tabButtonId('overview')}
+          className="detail-tab-panel"
+          id={tabPanelId('overview')}
+          role="tabpanel"
+        >
+          <div className="stats-grid">
+            <Metric label="Stickers" value={`${stickers.length}/30`} />
+            <Metric label="Export" value={`${exportStickerCount}/30`} />
+            <Metric label="Format" value={pack.isAnimated ? 'Animated' : 'Static'} />
+            <Metric label="Role" value={roleLabel(pack.role)} />
+            <Metric label="Version" value={pack.imageDataVersion} />
+            <Metric label="Updated" value={new Date(pack.updatedAt).toLocaleDateString()} />
+          </div>
+
+          <ExportReadiness
+            stickerCount={exportStickerCount}
+            canExport={canExport}
+            requiresApproval={pack.requiresApproval}
+            isAnimated={pack.isAnimated}
+          />
+
+          {contentsPreview ? <pre className="contents-preview">{contentsPreview}</pre> : null}
+
+          <ActivityPanel api={api} pack={pack} onError={onError} />
+        </div>
+      ) : null}
+
+      {activeTab === 'stickers' ? (
+        <div
+          aria-labelledby={tabButtonId('stickers')}
+          className="detail-tab-panel"
+          id={tabPanelId('stickers')}
+          role="tabpanel"
+        >
+          {canEdit ? (
+            <UploadPanel
+              api={api}
+              backgroundRemovalStatus={backgroundRemovalStatus}
+              pack={pack}
+              remainingSlots={Math.max(0, 30 - stickers.length)}
+              onChanged={onChanged}
+              onError={onError}
+            />
+          ) : null}
+
+          <section className="stickers-section">
+            <div className="section-heading">
+              <h3>Stickers</h3>
+              <Archive size={18} />
+            </div>
+            {canEdit && stickers.length > 0 ? (
+              <div className={`bulk-toolbar ${hasBulkSelection ? 'active' : 'idle'}`}>
+                <span className="counter">{selectedStickerIds.length}</span>
+                <button className="secondary-button" disabled={bulkSaving} onClick={selectAllStickers} type="button">
+                  Select all
+                </button>
+                {hasBulkSelection ? (
+                  <>
+                    <button
+                      className="secondary-button"
+                      disabled={bulkSaving}
+                      onClick={() => setSelectedStickerIds([])}
+                      type="button"
+                    >
+                      Clear
+                    </button>
+                    <label>
+                      Emojis
+                      <input
+                        value={bulkEmojis}
+                        onChange={(event) => setBulkEmojis(event.target.value)}
+                        placeholder="smile,laugh"
+                      />
+                    </label>
+                    <button
+                      className="secondary-button"
+                      disabled={!bulkEmojis.trim() || bulkSaving}
+                      onClick={() => void bulkApplyEmojis()}
+                      type="button"
+                    >
+                      Apply emoji
+                    </button>
+                    <button
+                      className="secondary-button"
+                      disabled={bulkSaving}
+                      onClick={() => void bulkGenerateAltText()}
+                      type="button"
+                    >
+                      Generate alt
+                    </button>
+                    <button
+                      className="secondary-button danger-button"
+                      disabled={bulkSaving}
+                      onClick={() => void bulkDeleteStickers()}
+                      type="button"
+                    >
+                      Delete selected
+                    </button>
+                    <label>
+                      Target
+                      <select
+                        disabled={transferTargets.length === 0}
+                        value={bulkTargetPackId}
+                        onChange={(event) => setBulkTargetPackId(event.target.value)}
+                      >
+                        <option value="">Choose pack</option>
+                        {transferTargets.map((target) => (
+                          <option key={target.id} value={target.id}>
+                            {target.name} ({target.stickerCount}/30)
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <button
+                      className="secondary-button"
+                      disabled={!bulkTargetPackId || bulkSaving}
+                      onClick={() => void bulkTransferStickers('copy')}
+                      type="button"
+                    >
+                      Copy
+                    </button>
+                    <button
+                      className="secondary-button"
+                      disabled={!bulkTargetPackId || bulkSaving}
+                      onClick={() => void bulkTransferStickers('move')}
+                      type="button"
+                    >
+                      Move
+                    </button>
+                  </>
+                ) : (
+                  <span className="bulk-toolbar-note">Select stickers to show bulk actions</span>
+                )}
+              </div>
+            ) : null}
+            {stickers.length > 0 ? (
+              <div className="sticker-grid">
+                {stickers.map((sticker, index) => (
+                  <StickerTile
+                    api={api}
+                    backgroundRemovalStatus={backgroundRemovalStatus}
+                    isAnimatedPack={pack.isAnimated}
+                    key={sticker.id}
+                    packId={pack.id}
+                    transferTargets={transferTargets}
+                    sticker={sticker}
+                    version={pack.imageDataVersion}
+                    canEdit={canEdit}
+                    canMoveDown={index < stickers.length - 1}
+                    canMoveUp={index > 0}
+                    isDragging={draggingStickerId === sticker.id}
+                    isSelected={selectedStickerSet.has(sticker.id)}
+                    onChanged={() => onChanged('Sticker updated')}
+                    onDeleted={() => onChanged('Sticker deleted')}
+                    onDragEnd={() => setDraggingStickerId(null)}
+                    onDragStart={() => setDraggingStickerId(sticker.id)}
+                    onDrop={() => void reorderStickerTo(sticker.id)}
+                    onError={onError}
+                    onMoveDown={() => moveSticker(sticker.id, 1)}
+                    onMoveUp={() => moveSticker(sticker.id, -1)}
+                    onSelectedChange={(selected) => toggleStickerSelection(sticker.id, selected)}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="empty-inline">
+                <ImagePlus size={22} />
+                <span>No stickers yet</span>
+              </div>
+            )}
+          </section>
+        </div>
+      ) : null}
+
+      {activeTab === 'collaboration' && canManage ? (
+        <div
+          aria-labelledby={tabButtonId('collaboration')}
+          className="detail-tab-panel"
+          id={tabPanelId('collaboration')}
+          role="tabpanel"
+        >
+          <CollaborationPanel api={api} pack={pack} onChanged={onChanged} onError={onError} onNotice={onNotice} />
+        </div>
+      ) : null}
+
+      {activeTab === 'settings' && (canEdit || canManage) ? (
+        <div
+          aria-labelledby={tabButtonId('settings')}
+          className="detail-tab-panel"
+          id={tabPanelId('settings')}
+          role="tabpanel"
+        >
+          {canManage ? <PackEditForm api={api} pack={pack} onChanged={onChanged} onError={onError} /> : null}
+
+          {canEdit ? <TrayIconPanel api={api} pack={pack} onChanged={onChanged} onError={onError} /> : null}
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+function ActivityPanel({
+  api,
+  pack,
+  onError,
+}: {
+  api: StickerFoundryApi;
+  pack: Pack;
+  onError: (error: unknown) => void;
+}) {
+  const [entries, setEntries] = useState<AuditLogEntry[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    setLoading(true);
+    api
+      .packActivity(pack.id)
+      .then((nextEntries) => {
+        if (alive) setEntries(nextEntries);
+      })
+      .catch(onError)
+      .finally(() => {
+        if (alive) setLoading(false);
+      });
+
+    return () => {
+      alive = false;
+    };
+  }, [api, onError, pack.id]);
+
+  return (
+    <section className="activity-panel">
+      <div className="section-heading">
+        <h3>Activity</h3>
+        <Archive size={18} />
+      </div>
+      <div className="activity-list">
+        {loading ? <span className="muted-row">Loading activity</span> : null}
+        {entries.map((entry) => (
+          <div className="activity-row" key={entry.id}>
+            <span>
+              <strong>{auditActionLabel(entry.action)}</strong>
+              <small>
+                {entry.actor?.email ?? 'System'} · {new Date(entry.createdAt).toLocaleString()}
+              </small>
+            </span>
+            <small>{entry.entityType}</small>
+          </div>
+        ))}
+        {!loading && entries.length === 0 ? <span className="muted-row">No activity yet.</span> : null}
+      </div>
+    </section>
+  );
+}
+
+function ExportReadiness({
+  stickerCount,
+  canExport,
+  requiresApproval,
+  isAnimated,
+}: {
+  stickerCount: number;
+  canExport: boolean;
+  requiresApproval: boolean;
+  isAnimated: boolean;
+}) {
+  const message = exportReadinessMessage(stickerCount, requiresApproval, isAnimated);
+
+  return (
+    <section className={`export-panel ${canExport ? 'ready' : 'blocked'}`}>
+      <div className="export-status">
+        {canExport ? <CheckCircle2 size={20} /> : <AlertCircle size={20} />}
+        <div>
+          <h3>{canExport ? 'WhatsApp export ready' : 'WhatsApp export blocked'}</h3>
+          <p>
+            {canExport
+              ? `${requiresApproval ? 'Approved stickers' : 'Ordered stickers'} are included in the ${isAnimated ? 'animated' : 'static'} contents.json and ZIP.`
+              : message}
+          </p>
+        </div>
+      </div>
+      <span className="export-count">{stickerCount}/30</span>
+    </section>
+  );
+}
+
+function exportReadinessMessage(stickerCount: number, requiresApproval: boolean, isAnimated: boolean) {
+  if (stickerCount < 3) {
+    const missing = 3 - stickerCount;
+    return `${missing} more ${requiresApproval ? 'approved ' : ''}sticker${missing === 1 ? '' : 's'} needed for this ${isAnimated ? 'animated' : 'static'} pack.`;
+  }
+  if (stickerCount > 30) {
+    return `Remove ${stickerCount - 30} sticker${stickerCount - 30 === 1 ? '' : 's'} to stay under the WhatsApp 30 sticker limit.`;
+  }
+  return 'Export is blocked until this pack meets the WhatsApp sticker rules.';
+}
+
+function roleLabel(role?: PackRole) {
+  if (role === 'OWNER') return 'Owner';
+  if (role === 'EDITOR') return 'Editor';
+  if (role === 'VIEWER') return 'Viewer';
+  return 'Private';
+}
+
+function isTypingTarget(target: EventTarget | null) {
+  const element = target as HTMLElement | null;
+  if (!element) return false;
+  return element.isContentEditable || ['INPUT', 'SELECT', 'TEXTAREA'].includes(element.tagName);
+}
+
+function auditActionLabel(action: string) {
+  return action
+    .split('.')
+    .map((part) => part.slice(0, 1).toUpperCase() + part.slice(1))
+    .join(' ');
+}
+
+function generatedAltText(pack: Pack, sticker: Sticker) {
+  const emojiText = sticker.emojis.filter(Boolean).join(' ');
+  const status = reviewStatusLabel(sticker.reviewStatus).toLowerCase();
+  const parts = [`${pack.name} sticker`];
+  if (emojiText) parts.push(`with ${emojiText}`);
+  parts.push(`marked ${status}`);
+  return parts.join(' ').slice(0, 125);
+}

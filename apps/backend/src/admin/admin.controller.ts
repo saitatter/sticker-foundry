@@ -1,7 +1,7 @@
 import { Body, Controller, Get, Patch, Post, Query, Res, UseGuards } from '@nestjs/common';
 import { Response } from 'express';
-import { CurrentUser, RequestUser } from '../common/current-user.decorator';
-import { JwtAuthGuard } from '../common/jwt-auth.guard';
+import { CurrentUser, RequestUser } from '../common/decorators/current-user.decorator';
+import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { AdminService } from './admin.service';
 import { UpdateAdminSettingsDto } from './dto/update-admin-settings.dto';
 

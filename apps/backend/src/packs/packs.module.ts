@@ -1,19 +1,26 @@
 import { Module } from '@nestjs/common';
 import { MulterModule } from '@nestjs/platform-express';
 import { AuditModule } from '../audit/audit.module';
+import { ExportsModule } from '../exports/exports.module';
+import { JobsModule } from '../jobs/jobs.module';
+import { MediaModule } from '../media/media.module';
+import { StorageModule } from '../storage/storage.module';
 import { PrismaService } from '../prisma.service';
-import { BackgroundRemovalService } from './background-removal.service';
-import { PackExportService } from './pack-export.service';
-import { PackStorageService } from './pack-storage.service';
 import { PacksController } from './packs.controller';
 import { PacksService } from './packs.service';
+import { PacksCollaborationService } from './packs-collaboration.service';
+import { PackAccessService } from './pack-access.service';
+import { PacksStickerService } from './packs-sticker.service';
 import { MediaQueueService } from './media-queue.service';
 import { PublicPacksController } from './public-packs.controller';
-import { StickerImageService } from './sticker-image.service';
 
 @Module({
   imports: [
     AuditModule,
+    ExportsModule,
+    JobsModule,
+    MediaModule,
+    StorageModule,
     MulterModule.register({
       limits: {
         fileSize: 10 * 1024 * 1024,
@@ -21,6 +28,13 @@ import { StickerImageService } from './sticker-image.service';
     }),
   ],
   controllers: [PacksController, PublicPacksController],
-  providers: [PacksService, PackExportService, PackStorageService, MediaQueueService, StickerImageService, BackgroundRemovalService, PrismaService],
+  providers: [
+    PacksService,
+    PacksCollaborationService,
+    PackAccessService,
+    PacksStickerService,
+    MediaQueueService,
+    PrismaService,
+  ],
 })
 export class PacksModule {}

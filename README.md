@@ -54,7 +54,7 @@ docker compose -f docker-compose.packages.yml --env-file .env up -d
 
 Image: `ghcr.io/saitatter/sticker-foundry:latest`
 
-The package serves web and API on one port, with the API under `/api`. For Android on LAN, set the server URL to:
+The package serves web and API on one port, with PostgreSQL, Redis, and the three queue workers inside the image. The API is under `/api`. For Android on LAN, set the server URL to:
 
 ```text
 http://YOUR_UNRAID_IP:WEB_PORT/api/
@@ -62,7 +62,32 @@ http://YOUR_UNRAID_IP:WEB_PORT/api/
 
 Set strong `POSTGRES_PASSWORD` and `JWT_SECRET` before exposing the app outside your LAN.
 
+Redis data is stored under the `/data` volume. Set `REDIS_URL` only when the package should use an external Redis instance instead.
+
+### Storage contract
+
+Disk and S3 use the same canonical layout:
+
+```text
+<S3_PREFIX>/<packId>/cover.webp
+<S3_PREFIX>/<packId>/stickers/<fileName>
+```
+
+Every sticker stores its storage key, MIME type, width, height, checksum, and size in PostgreSQL. The API does not resolve alternate file locations. On an existing installation, make sure all sticker metadata and files already follow this contract before applying the latest database schema.
+
+The latest schema makes this metadata mandatory and refuses to upgrade a database that still contains incomplete sticker records. Android sessions use encrypted storage; after updating the app, users with an older session format must sign in again.
+
+For local S3 and email testing, start the development overrides:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
+```
+
+MinIO is available at `http://localhost:9001` and MailHog at `http://localhost:8025`. The override configures the backend and worker to use MinIO and sends password-reset emails to MailHog.
+
 ## 📱 Android
+
+The Android build requires JDK 17. Configure `JAVA_HOME` to a JDK 17 installation before running Gradle.
 
 ```bash
 cd apps/android
@@ -77,6 +102,18 @@ Tester flow:
 4. Import a pack with at least 3 exportable stickers into WhatsApp.
 
 WhatsApp requires local files exposed through a `ContentProvider`; remote sticker URLs are not enough. Sticker Foundry downloads exports to app-private storage before handing them to WhatsApp.
+
+## 🎨 Web UI Architecture
+
+The web client remains React/Vite with CSS variables and domain-focused stylesheets for the workspace, editor, authentication, and responsive layout. This keeps the current editor and dense pack-management workflows easy to tune without introducing a second styling vocabulary.
+
+`shadcn/ui` with Tailwind is worth adopting incrementally for new shared primitives such as buttons, inputs, dialogs, tabs, and notices. A full rewrite is not justified at the current stage: it would duplicate the existing CSS tokens and touch every screen without adding product capability. The intended path is to establish Tailwind tokens, add selected shadcn primitives, and migrate one workflow at a time while keeping the same visual tokens available to Android Compose.
+
+## ✅ Current Validation Gaps
+
+- Docker boot and PostgreSQL/Redis/MinIO smoke tests still need to run on a Docker host.
+- The Android Gradle build needs JDK 17; the current workstation only exposes JDK 21.
+- A production database upgrade must be run after its sticker files and metadata have been checked against the storage contract above.
 
 ## 🤖 AI Background Removal
 
@@ -122,6 +159,7 @@ docker-compose.yml
 - [WhatsApp validation](docs/WHATSAPP_VALIDATION.md)
 - [Feature backlog](docs/FEATURES_TO_ADD.md)
 - [Release notes guide](docs/RELEASE_NOTES.md)
+- [Docker validation](docs/DOCKER_VALIDATION.md)
 
 ## 🎨 Brand
 

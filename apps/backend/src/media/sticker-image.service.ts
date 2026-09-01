@@ -4,13 +4,16 @@ import { createHash } from 'crypto';
 import { mkdir, stat, writeFile } from 'fs/promises';
 import { dirname } from 'path';
 import sharp = require('sharp');
-import { WHATSAPP_LIMITS } from './whatsapp-constraints';
+import { WHATSAPP_LIMITS } from '../packs/whatsapp-constraints';
 
 export type ProcessedImage = {
   bytes: Buffer;
   sizeBytes: number;
   sha256: string;
   perceptualHash: string;
+  mimeType: 'image/webp';
+  width: number;
+  height: number;
 };
 
 export type StickerProcessingOptions = {
@@ -89,7 +92,7 @@ export class StickerImageService {
     let last: Buffer | undefined;
 
     for (const quality of this.qualityCandidates(preferredQuality)) {
-      const output = await sharp(input, { animated })
+      const encoded = await sharp(input, { animated })
         .rotate()
         .resize(pixels, pixels, {
           fit: 'contain',
@@ -102,8 +105,9 @@ export class StickerImageService {
           lossless: false,
           smartSubsample: true,
         })
-        .toBuffer();
+        .toBuffer({ resolveWithObject: true });
 
+      const output = encoded.data;
       last = output;
       if (output.byteLength <= maxBytes) {
         return {
@@ -111,6 +115,9 @@ export class StickerImageService {
           sizeBytes: output.byteLength,
           sha256: createHash('sha256').update(output).digest('hex'),
           perceptualHash: await this.perceptualHash(output),
+          mimeType: 'image/webp',
+          width: encoded.info.width,
+          height: encoded.info.pageHeight ?? encoded.info.height,
         };
       }
     }
@@ -197,7 +204,9 @@ export class StickerImageService {
       throw new BadRequestException('Animated trim end must be after trim start');
     }
     if (endMs - startMs > WHATSAPP_LIMITS.maxAnimatedStickerDurationMs) {
-      throw new BadRequestException(`Animated sticker duration must be at most ${WHATSAPP_LIMITS.maxAnimatedStickerDurationMs}ms`);
+      throw new BadRequestException(
+        `Animated sticker duration must be at most ${WHATSAPP_LIMITS.maxAnimatedStickerDurationMs}ms`,
+      );
     }
 
     const frameIndexes = this.sampleFrameIndexes(delays, startMs, endMs, frameDuration);
@@ -228,7 +237,10 @@ export class StickerImageService {
   private normalizedDelays(metadata: ImageMetadata) {
     const pages = metadata.pages ?? 1;
     const delays = metadata.delay?.length ? metadata.delay : [];
-    return Array.from({ length: pages }, (_, index) => Math.max(WHATSAPP_LIMITS.minAnimatedFrameDurationMs, delays[index] ?? 100));
+    return Array.from(
+      { length: pages },
+      (_, index) => Math.max(WHATSAPP_LIMITS.minAnimatedFrameDurationMs, delays[index] ?? 100),
+    );
   }
 
   private estimatedFrameRate(delays: number[]) {

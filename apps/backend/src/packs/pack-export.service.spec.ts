@@ -2,8 +2,8 @@ import { BadRequestException } from '@nestjs/common';
 import { mkdir, mkdtemp, rm, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
 import { join } from 'path';
-import { PackExportService } from './pack-export.service';
-import { PackStorageService } from './pack-storage.service';
+import { PackExportService } from '../exports/pack-export.service';
+import { PackStorageService } from '../storage/pack-storage.service';
 
 function createArchive() {
   return {
@@ -47,16 +47,19 @@ describe(PackExportService, () => {
       stickers: [
         {
           fileName: 'first.webp',
+          storageKey: 'packs/pack-1234567890/stickers/first.webp',
           emojis: ['\uD83D\uDE00'],
           accessibilityText: 'first sticker',
         },
         {
           fileName: 'second.webp',
+          storageKey: 'packs/pack-1234567890/stickers/second.webp',
           emojis: [],
           accessibilityText: null,
         },
         {
           fileName: 'third.webp',
+          storageKey: 'packs/pack-1234567890/stickers/third.webp',
           emojis: ['\uD83D\uDD25', '\u2728'],
           accessibilityText: 'third sticker',
         },
@@ -64,9 +67,10 @@ describe(PackExportService, () => {
     };
     const { service, prisma } = await createService(pack);
     const packDir = service.packDirectory(pack.id);
-    await mkdir(packDir, { recursive: true });
-    await writeFile(join(packDir, 'tray_icon.webp'), 'tray');
-    await Promise.all(pack.stickers.map((sticker) => writeFile(join(packDir, sticker.fileName), 'sticker')));
+    const stickersDir = join(packDir, 'stickers');
+    await mkdir(stickersDir, { recursive: true });
+    await writeFile(join(packDir, 'cover.webp'), 'tray');
+    await Promise.all(pack.stickers.map((sticker) => writeFile(join(stickersDir, sticker.fileName), 'sticker')));
 
     const archive = createArchive();
     await service.buildZip(pack.id, archive as never);
@@ -133,18 +137,49 @@ describe(PackExportService, () => {
       isAnimated: false,
       imageDataVersion: '2',
       stickers: [
-        { fileName: 'one.webp', emojis: ['😀'], accessibilityText: null, reviewStatus: 'APPROVED' },
-        { fileName: 'two.webp', emojis: ['😀'], accessibilityText: null, reviewStatus: 'NEEDS_WORK' },
-        { fileName: 'three.webp', emojis: ['😀'], accessibilityText: null, reviewStatus: 'APPROVED' },
-        { fileName: 'four.webp', emojis: ['😀'], accessibilityText: null, reviewStatus: 'PENDING' },
-        { fileName: 'five.webp', emojis: ['😀'], accessibilityText: null, reviewStatus: 'APPROVED' },
+        {
+          fileName: 'one.webp',
+          storageKey: 'packs/pack-review/stickers/one.webp',
+          emojis: ['😀'],
+          accessibilityText: null,
+          reviewStatus: 'APPROVED',
+        },
+        {
+          fileName: 'two.webp',
+          storageKey: 'packs/pack-review/stickers/two.webp',
+          emojis: ['😀'],
+          accessibilityText: null,
+          reviewStatus: 'NEEDS_WORK',
+        },
+        {
+          fileName: 'three.webp',
+          storageKey: 'packs/pack-review/stickers/three.webp',
+          emojis: ['😀'],
+          accessibilityText: null,
+          reviewStatus: 'APPROVED',
+        },
+        {
+          fileName: 'four.webp',
+          storageKey: 'packs/pack-review/stickers/four.webp',
+          emojis: ['😀'],
+          accessibilityText: null,
+          reviewStatus: 'PENDING',
+        },
+        {
+          fileName: 'five.webp',
+          storageKey: 'packs/pack-review/stickers/five.webp',
+          emojis: ['😀'],
+          accessibilityText: null,
+          reviewStatus: 'APPROVED',
+        },
       ],
     };
     const { service } = await createService(pack);
     const packDir = service.packDirectory(pack.id);
-    await mkdir(packDir, { recursive: true });
-    await writeFile(join(packDir, 'tray_icon.webp'), 'tray');
-    await Promise.all(pack.stickers.map((sticker) => writeFile(join(packDir, sticker.fileName), 'sticker')));
+    const stickersDir = join(packDir, 'stickers');
+    await mkdir(stickersDir, { recursive: true });
+    await writeFile(join(packDir, 'cover.webp'), 'tray');
+    await Promise.all(pack.stickers.map((sticker) => writeFile(join(stickersDir, sticker.fileName), 'sticker')));
 
     const archive = createArchive();
     await service.buildZip(pack.id, archive as never);

@@ -69,6 +69,7 @@ type AuditLogRecord = {
   entityType: string;
   entityId: string | null;
   metadata: unknown;
+  requestId: string | null;
   ipAddress: string | null;
   userAgent: string | null;
   createdAt: Date;
@@ -167,6 +168,7 @@ class InMemoryPrisma {
         entityType: data.entityType,
         entityId: data.entityId ?? null,
         metadata: data.metadata ?? null,
+        requestId: data.requestId ?? null,
         ipAddress: data.ipAddress ?? null,
         userAgent: data.userAgent ?? null,
         createdAt: new Date(),
@@ -399,6 +401,7 @@ describe('StickerFoundry API e2e', () => {
     const server = app.getHttpServer();
     const auth = await request(server)
       .post('/api/auth/register')
+      .set('X-Request-ID', 'e2e-register-request')
       .set('User-Agent', 'StickerFoundryE2E/1.0')
       .send({
         email: 'maker@example.com',
@@ -409,6 +412,7 @@ describe('StickerFoundry API e2e', () => {
     const token = auth.body.accessToken as string;
     expect(auth.body.refreshToken).toEqual(expect.any(String));
     expect(auth.body.user.isAdmin).toBe(true);
+    expect(auth.headers['x-request-id']).toBe('e2e-register-request');
 
     await request(server)
       .patch('/api/admin/settings')
@@ -480,7 +484,7 @@ describe('StickerFoundry API e2e', () => {
         expect(response.body.map((entry: { action: string }) => entry.action)).toContain('admin.settings.update');
         expect(response.body.map((entry: { action: string }) => entry.action)).toContain('auth.register');
         expect(response.body.find((entry: { action: string }) => entry.action === 'auth.register')).toEqual(
-          expect.objectContaining({ userAgent: 'StickerFoundryE2E/1.0' }),
+          expect.objectContaining({ userAgent: 'StickerFoundryE2E/1.0', requestId: 'e2e-register-request' }),
         );
       });
 
@@ -490,7 +494,7 @@ describe('StickerFoundry API e2e', () => {
       .expect(200)
       .expect('Content-Type', /text\/csv/)
       .expect((response) => {
-        expect(response.text).toContain('"createdAt","actorEmail","action"');
+        expect(response.text).toContain('"createdAt","actorEmail","action","entityType","entityId","requestId"');
         expect(response.text).toContain('"auth.register"');
       });
 

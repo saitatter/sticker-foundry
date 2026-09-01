@@ -77,9 +77,11 @@ function createService() {
     deletePack: jest.fn(),
     copyPack: jest.fn(),
     readBuffer: jest.fn().mockResolvedValue(Buffer.from('old-sticker')),
+    readBufferByKey: jest.fn().mockResolvedValue(Buffer.from('old-sticker')),
     readStream: jest.fn(),
     deleteFile: jest.fn(),
     copyFile: jest.fn(),
+    storageKeyFor: jest.fn((packId: string, fileName: string) => `packs/${packId}/stickers/${fileName}`),
   };
 
   const config = {
@@ -614,6 +616,7 @@ describe(PacksService, () => {
       data: expect.objectContaining({
         packId: 'target-pack',
         fileName: 'generated-sticker-id.webp',
+        storageKey: 'packs/target-pack/stickers/generated-sticker-id.webp',
         position: 2,
       }),
     });
@@ -836,7 +839,14 @@ describe(PacksService, () => {
 
   it('replaces a sticker image without changing its metadata or file name', async () => {
     const { service, prisma, imageService, storage } = createService();
-    const processed = { buffer: Buffer.from('new-sticker'), sizeBytes: 77, sha256: 'new-sha' };
+    const processed = {
+      buffer: Buffer.from('new-sticker'),
+      sizeBytes: 77,
+      sha256: 'new-sha',
+      mimeType: 'image/webp',
+      width: 512,
+      height: 512,
+    };
 
     prisma.pack.findUnique.mockResolvedValue({
       id: 'pack-1',
@@ -847,8 +857,13 @@ describe(PacksService, () => {
       id: 'sticker-1',
       packId: 'pack-1',
       fileName: 'existing.webp',
+      storageKey: 'packs/pack-1/stickers/existing.webp',
+      mimeType: 'image/webp',
+      width: 512,
+      height: 512,
       emojis: ['\uD83D\uDE00'],
       accessibilityText: 'same metadata',
+      sizeBytes: 77,
       position: 0,
     });
     imageService.processSticker.mockResolvedValue(processed);
@@ -872,10 +887,14 @@ describe(PacksService, () => {
     expect(storage.replaceImage).toHaveBeenCalledWith('pack-1', 'existing.webp', processed);
     expect(prisma.sticker.update).toHaveBeenCalledWith({
       where: { id: 'sticker-1' },
-      data: {
+      data: expect.objectContaining({
+        storageKey: 'packs/pack-1/stickers/existing.webp',
+        mimeType: 'image/webp',
+        width: 512,
+        height: 512,
         sizeBytes: 77,
         sha256: 'new-sha',
-      },
+      }),
     });
     expect(prisma.pack.update).toHaveBeenCalledWith({
       where: { id: 'pack-1' },

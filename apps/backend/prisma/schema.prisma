@@ -70,6 +70,7 @@ model AuditLog {
   entityType String
   entityId   String?
   metadata   Json?
+  requestId  String?
   ipAddress  String?
   userAgent  String?
   createdAt  DateTime @default(now())
@@ -77,6 +78,7 @@ model AuditLog {
   @@index([actorId])
   @@index([action])
   @@index([entityType, entityId])
+  @@index([requestId])
   @@index([createdAt])
 }
 
@@ -138,6 +140,10 @@ model Sticker {
   packId            String
   pack              Pack                @relation(fields: [packId], references: [id], onDelete: Cascade)
   fileName          String
+  storageKey        String
+  mimeType          String
+  width             Int
+  height            Int
   emojis            String[]
   accessibilityText String?
   sizeBytes         Int
@@ -213,4 +219,34 @@ model PackInvite {
   @@index([packId])
   @@index([email])
   @@index([acceptedById])
+}
+
+model MediaJob {
+  id          String    @id @default(cuid())
+  type        String
+  status      JobStatus @default(QUEUED)
+  progress    Int       @default(0)
+  error       String?
+  attempts    Int       @default(0)
+  payload     Json?
+  result      Json?
+  userId      String?
+  packId      String?
+  stickerId   String?
+  createdAt   DateTime  @default(now())
+  startedAt   DateTime?
+  completedAt DateTime?
+
+  @@index([status, createdAt])
+  @@index([userId])
+  @@index([packId])
+  @@index([stickerId])
+}
+
+enum JobStatus {
+  QUEUED
+  PROCESSING
+  COMPLETED
+  FAILED
+  CANCELLED
 }

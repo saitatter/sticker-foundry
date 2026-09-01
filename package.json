@@ -5,16 +5,18 @@
   "description": "Self-hosted collaborative WhatsApp sticker pack management platform.",
   "workspaces": [
     "apps/backend",
+    "apps/worker",
     "apps/web",
     "packages/shared-types"
   ],
   "scripts": {
-    "dev": "concurrently -n backend,web -c cyan,green \"npm run dev:backend\" \"npm run dev:web\"",
+    "dev": "concurrently -n backend,worker,web -c cyan,magenta,green \"npm run dev:backend\" \"npm run dev:worker\" \"npm run dev:web\"",
     "dev:seeded": "npm run prisma:migrate && npm run prisma:seed && npm run dev",
     "dev:backend": "npm --workspace apps/backend run start:dev",
+    "dev:worker": "npm --workspace apps/worker run start:dev",
     "dev:web": "npm --workspace apps/web run dev",
     "build:backend": "npm --workspace apps/backend run build",
-    "build:web": "npm --workspace apps/web run build",
+    "build:web": "npm run build:shared-types && npm --workspace apps/web run build",
     "prisma:generate": "npm --workspace apps/backend run prisma:generate",
     "prisma:migrate": "npm --workspace apps/backend run prisma:migrate",
     "prisma:seed": "npm --workspace apps/backend run prisma:seed",

@@ -17,6 +17,23 @@ data class RefreshTokenRequest(
     val refreshToken: String,
 )
 
+data class JobDto(
+    val id: String,
+    val status: String,
+    val progress: Int,
+    val error: String? = null,
+    val result: JobResultDto? = null,
+)
+
+data class JobResultDto(
+    val packId: String? = null,
+    val contentHash: String? = null,
+    val downloadPath: String? = null,
+    val storageKey: String? = null,
+    val sizeBytes: Long? = null,
+    val sha256: String? = null,
+)
+
 data class HealthResponse(
     val status: String,
 )

@@ -15,11 +15,36 @@ Expected:
 
 - `postgres` is healthy.
 - `backend` is running.
+- `worker` is running and consumes media, export, and email queues.
 - `web` is running.
+
+## Development S3 And Email Services
+
+Use the development override when testing the S3 storage adapter or password-reset delivery:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
+```
+
+Expected:
+
+- MinIO is available at `http://localhost:9001` with the credentials from `MINIO_ROOT_USER` and `MINIO_ROOT_PASSWORD`.
+- MailHog is available at `http://localhost:8025`.
+- The backend and worker use the initialized MinIO bucket and reset messages appear in MailHog.
+
+Stop the override with:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.dev.yml down
+```
+
+## Storage Contract
+
+Disk and S3 use the same layout: `<S3_PREFIX>/<packId>/cover.webp` for the tray icon and `<S3_PREFIX>/<packId>/stickers/<fileName>` for sticker files. `Sticker.storageKey`, `mimeType`, `width`, and `height` are required by the current schema. Check existing records and files before running `prisma:deploy`; the schema upgrade stops when any sticker metadata is incomplete.
 
 ## Unraid Package Boot
 
-The Unraid package uses one app container with web, API, PostgreSQL, and AI background removal included:
+The Unraid package uses one app container with web, API, PostgreSQL, Redis, queue workers, and AI background removal included:
 
 ```bash
 docker compose -f docker-compose.packages.yml --env-file .env up -d
@@ -32,6 +57,7 @@ Expected:
 - `sticker-foundry` is healthy.
 - Admin settings show AI background removal as configured.
 - PostgreSQL data persists under `/data/postgres`.
+- Redis data persists under `/data/redis` and `/api/health/ready` reports active workers.
 
 ## Optional AI Background Removal Boot
 
@@ -52,6 +78,8 @@ Expected:
 
 ```bash
 curl -fsS http://localhost:3000/api/health
+curl -fsS http://localhost:3000/api/health/live
+curl -fsS http://localhost:3000/api/health/ready
 curl -fsS http://localhost:3000/api/docs-json >/tmp/stickerfoundry-openapi.json
 curl -fsS "http://localhost:3000/api/metrics?format=prometheus" | head
 ```
@@ -67,6 +95,8 @@ curl -fsS "http://localhost:8080/api/metrics?format=prometheus" | head
 Expected:
 
 - health returns OK JSON.
+- `/api/health/live` reports process liveness without checking dependencies.
+- `/api/health/ready` returns HTTP 503 when PostgreSQL, Redis, or the queue workers are unavailable.
 - OpenAPI JSON downloads.
 - Prometheus metrics are text and include process/application metrics.
 
@@ -84,6 +114,6 @@ Expected:
 
 - Use `ghcr.io/saitatter/sticker-foundry:latest`.
 - Bind `/data` to `/mnt/user/appdata/sticker-foundry/data`.
-- Keep PostgreSQL internal to the all-in-one container.
+- Keep PostgreSQL and Redis internal to the all-in-one container unless `DATABASE_URL` or `REDIS_URL` is explicitly configured for external services.
 - Put the web UI behind HTTPS before remote access.
 - Route all traffic to web port `8080`; `/api/*` is routed internally.
