@@ -60,6 +60,8 @@ http://YOUR_DOCKER_HOST:3000/api/
 
 Set strong `POSTGRES_PASSWORD` and `JWT_SECRET` before exposing the app outside your LAN. PostgreSQL and Redis are kept on private Docker ports by default; publish them only for controlled local administration.
 
+The host ports for PostgreSQL and Redis default to `5432` and `6379`. Override `POSTGRES_HOST_PORT` and `REDIS_HOST_PORT` in `.env` if another local stack already uses them. The MinIO/MailHog development override exposes analogous `*_HOST_PORT` variables.
+
 ### Storage contract
 
 Disk and S3 use the same canonical layout:
