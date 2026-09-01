@@ -14,7 +14,7 @@
 - Web: `apps/web` — React/Vite, Playwright e2e tests.
 - Android: `apps/android` — Kotlin, Room cache, WhatsApp ContentProvider bridge.
 - Shared types: `packages/shared-types`.
-- Docker: `Dockerfile` (all-in-one), `docker-compose.yml` (source), `docker-compose.packages.yml` (GHCR prebuilt).
+- Docker: `docker-compose.yml` (source), with `docker-compose.dev.yml` and `docker-compose.ai.yml` as optional overrides.
 
 ## Git and Releases
 
@@ -58,9 +58,8 @@
 
 ## Docker
 
-- `Dockerfile` builds a single all-in-one image with web, API, PostgreSQL, nginx, and optional rembg AI.
-- `docker-compose.yml` is for source development (separate postgres/backend/web services).
-- `docker-compose.packages.yml` is for pull-only deployment from GHCR.
+- `docker-compose.yml` is the supported source stack with separate postgres, redis, backend, worker, and web services.
+- `docker-compose.dev.yml` adds MinIO and MailHog for local S3 and email testing.
 - `docker-compose.ai.yml` overrides backend with AI background removal dependencies.
 
 ## When to Use Skills or Agents

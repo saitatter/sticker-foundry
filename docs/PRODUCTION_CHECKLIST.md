@@ -15,7 +15,7 @@ Use this before exposing Sticker Foundry outside your LAN.
 
 - Replace the default `JWT_SECRET` with a long random value.
 - Replace the default `POSTGRES_PASSWORD`.
-- Store SMTP and S3 credentials in Unraid/Docker secrets or private env files.
+- Store SMTP and S3 credentials in Docker secrets or private env files.
 - Keep `.env` out of git.
 
 ## Authentication

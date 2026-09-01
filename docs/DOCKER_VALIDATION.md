@@ -1,6 +1,6 @@
-# Docker And Unraid Validation
+# Docker Validation
 
-Docker is not available in the current local workspace, so use this checklist on a Docker host or Unraid box.
+Docker is not available in the current local workspace, so use this checklist on a host with Docker installed.
 
 ## Source Compose Boot
 
@@ -42,23 +42,6 @@ docker compose -f docker-compose.yml -f docker-compose.dev.yml down
 
 Disk and S3 use the same layout: `<S3_PREFIX>/<packId>/cover.webp` for the tray icon and `<S3_PREFIX>/<packId>/stickers/<fileName>` for sticker files. `Sticker.storageKey`, `mimeType`, `width`, and `height` are required by the current schema. Check existing records and files before running `prisma:deploy`; the schema upgrade stops when any sticker metadata is incomplete.
 
-## Unraid Package Boot
-
-The Unraid package uses one app container with web, API, PostgreSQL, Redis, queue workers, and AI background removal included:
-
-```bash
-docker compose -f docker-compose.packages.yml --env-file .env up -d
-docker compose -f docker-compose.packages.yml ps
-docker compose -f docker-compose.packages.yml exec sticker-foundry rembg --help
-```
-
-Expected:
-
-- `sticker-foundry` is healthy.
-- Admin settings show AI background removal as configured.
-- PostgreSQL data persists under `/data/postgres`.
-- Redis data persists under `/data/redis` and `/api/health/ready` reports active workers.
-
 ## Optional AI Background Removal Boot
 
 For source builds, the AI override builds a backend image with `rembg[cpu]` and sets `BACKGROUND_REMOVAL_COMMAND` automatically:
@@ -84,14 +67,6 @@ curl -fsS http://localhost:3000/api/docs-json >/tmp/stickerfoundry-openapi.json
 curl -fsS "http://localhost:3000/api/metrics?format=prometheus" | head
 ```
 
-For the all-in-one package, use port `8080`:
-
-```bash
-curl -fsS http://localhost:8080/api/health
-curl -fsS http://localhost:8080/api/docs-json >/tmp/stickerfoundry-openapi.json
-curl -fsS "http://localhost:8080/api/metrics?format=prometheus" | head
-```
-
 Expected:
 
 - health returns OK JSON.
@@ -109,11 +84,3 @@ Expected:
 - Export ZIP.
 - Configure Android to the backend URL.
 - Sync the pack and attempt WhatsApp import.
-
-## Unraid Notes
-
-- Use `ghcr.io/saitatter/sticker-foundry:latest`.
-- Bind `/data` to `/mnt/user/appdata/sticker-foundry/data`.
-- Keep PostgreSQL and Redis internal to the all-in-one container unless `DATABASE_URL` or `REDIS_URL` is explicitly configured for external services.
-- Put the web UI behind HTTPS before remote access.
-- Route all traffic to web port `8080`; `/api/*` is routed internally.

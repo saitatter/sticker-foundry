@@ -70,7 +70,7 @@ module.exports = {
           },
           {
             path: 'dist/sticker-foundry-server-package.tar.gz',
-            label: 'Sticker Foundry server package for Docker/Unraid',
+            label: 'Sticker Foundry source server package',
           },
         ],
       },

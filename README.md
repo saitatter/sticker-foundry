@@ -23,7 +23,7 @@
 | Backend | NestJS API, PostgreSQL/Prisma, JWT auth, teams, invites, audit logs, storage, ZIP exports, metrics, and media processing.               |
 | Editor  | Crop/normalize, erase/restore brush, text layer, cleanup tools, animated options, optimizer, presets, and before/after compare.         |
 | Android | Server connection checks, Room cache, ZIP sync, local WhatsApp provider, WhatsApp/Business import intents, and edit/upload helpers.     |
-| Deploy  | Source Compose stack plus a GHCR all-in-one image for Unraid-style installs with web, API, PostgreSQL, and CPU AI background removal.   |
+| Deploy  | Source Compose stack with optional MinIO/MailHog development services and CPU AI background removal.                              |
 
 ## 🚀 Quick Start
 
@@ -44,25 +44,21 @@ npm run dev
 
 Demo login: `demo@stickerfoundry.local` / `stickerfoundry123`
 
-## 🐳 Docker / Unraid
+## 🐳 Docker
 
-For a pull-only deployment, use the packaged all-in-one image:
+The supported deployment is the source Compose stack. It builds and runs PostgreSQL, Redis, the NestJS backend, the queue worker, and the web server as separate services:
 
 ```bash
-docker compose -f docker-compose.packages.yml --env-file .env up -d
+docker compose up -d --build
 ```
 
-Image: `ghcr.io/saitatter/sticker-foundry:latest`
-
-The package serves web and API on one port, with PostgreSQL, Redis, and the three queue workers inside the image. The API is under `/api`. For Android on LAN, set the server URL to:
+The web UI is available at `http://localhost:8080` and the API at `http://localhost:3000/api`. For Android on LAN, set the server URL to the backend host and port:
 
 ```text
-http://YOUR_UNRAID_IP:WEB_PORT/api/
+http://YOUR_DOCKER_HOST:3000/api/
 ```
 
-Set strong `POSTGRES_PASSWORD` and `JWT_SECRET` before exposing the app outside your LAN.
-
-Redis data is stored under the `/data` volume. Set `REDIS_URL` only when the package should use an external Redis instance instead.
+Set strong `POSTGRES_PASSWORD` and `JWT_SECRET` before exposing the app outside your LAN. PostgreSQL and Redis are kept on private Docker ports by default; publish them only for controlled local administration.
 
 ### Storage contract
 
@@ -153,7 +149,6 @@ docker-compose.yml
 ## 📚 Docs
 
 - [Production checklist](docs/PRODUCTION_CHECKLIST.md)
-- [Unraid notes](docs/UNRAID.md)
 - [Reverse proxy examples](docs/REVERSE_PROXY.md)
 - [Android signing](docs/ANDROID_SIGNING.md)
 - [WhatsApp validation](docs/WHATSAPP_VALIDATION.md)
@@ -174,9 +169,8 @@ Uses **semantic-release** with Conventional Commits. Releases are manual (`workf
 Published release assets include:
 
 - GitHub Release notes + tags (`vX.Y.Z`)
-- GHCR Docker image: `ghcr.io/saitatter/sticker-foundry`
 - Android debug APK
-- Server package archive
+- Source server package archive
 
 ## 💛 Support
 
