@@ -8,7 +8,7 @@ COPY packages/shared-types/package.json packages/shared-types/package.json
 COPY apps/web apps/web
 COPY packages/shared-types packages/shared-types
 
-RUN npm install && npm --workspace apps/web run build
+RUN npm install --ignore-scripts && npm --workspace apps/web run build
 
 FROM nginx:1.27-alpine
 
