@@ -172,13 +172,13 @@ export function AdminSettingsPage({
                 <strong>Background removal</strong>
                 <small>
                   Threshold ready ·{' '}
-                  {adminSettings.backgroundRemoval.aiCommandConfigured ? 'AI command configured' : 'AI fallback only'}
+                  {adminSettings.backgroundRemoval.aiCommandConfigured ? 'rembg configured' : 'rembg fallback only'}
                 </small>
               </span>
               <span
                 className={adminSettings.backgroundRemoval.aiCommandConfigured ? 'status-pill ready' : 'status-pill warning'}
               >
-                {adminSettings.backgroundRemoval.aiCommandConfigured ? 'AI ready' : 'Threshold fallback'}
+                {adminSettings.backgroundRemoval.aiCommandConfigured ? 'rembg ready' : 'Threshold fallback'}
               </span>
             </div>
           ) : (

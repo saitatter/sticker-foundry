@@ -69,7 +69,7 @@ export const defaultImageEditOptions: ImageEditOptions = {
   cropSquare: false,
   normalizeSquare: false,
   removeLightBackground: false,
-  serverBackgroundRemovalMode: 'none',
+  serverBackgroundRemovalMode: 'ai',
   backgroundThreshold: 238,
   backgroundFeather: 14,
   cleanupSpeckles: true,

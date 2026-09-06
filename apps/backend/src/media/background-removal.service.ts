@@ -25,9 +25,10 @@ export class BackgroundRemovalService {
   constructor(@Optional() private readonly config?: ConfigService) {}
 
   async remove(input: Buffer, options: BackgroundRemovalOptions = {}) {
-    if (!options.mode || options.mode === 'none') return input;
+    const mode = options.mode ?? 'ai';
+    if (mode === 'none') return input;
 
-    if (options.mode === 'ai') {
+    if (mode === 'ai') {
       const aiOutput = await this.tryCommandProvider(input);
       if (aiOutput) return aiOutput;
     }

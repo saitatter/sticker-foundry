@@ -35,7 +35,7 @@ services:
     image: sticker-foundry-backend:local
     build:
       context: .
-      dockerfile: apps/backend/Dockerfile
+      dockerfile: apps/backend/Dockerfile.ai
     restart: unless-stopped
     depends_on:
       postgres:
@@ -85,7 +85,8 @@ services:
       EMAIL_QUEUE_CONCURRENCY: ${EMAIL_QUEUE_CONCURRENCY:-2}
       MEDIA_QUEUE_MAX_WAITING: ${MEDIA_QUEUE_MAX_WAITING:-50}
       MEDIA_QUEUE_RETRY_AFTER_SECONDS: ${MEDIA_QUEUE_RETRY_AFTER_SECONDS:-5}
-      BACKGROUND_REMOVAL_COMMAND: ${BACKGROUND_REMOVAL_COMMAND:-}
+      BACKGROUND_REMOVAL_COMMAND: ${BACKGROUND_REMOVAL_COMMAND:-rembg i {input} {output}}
+      U2NET_HOME: ${U2NET_HOME:-/data/rembg}
       THROTTLE_TTL_MS: ${THROTTLE_TTL_MS:-60000}
       THROTTLE_LIMIT: ${THROTTLE_LIMIT:-300}
       AUDIT_RETENTION_DAYS: ${AUDIT_RETENTION_DAYS:-}
@@ -101,7 +102,7 @@ services:
     ports:
       - "3000:3000"
     healthcheck:
-      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:3000/api/health || exit 1"]
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health').then((response) => process.exit(response.ok ? 0 : 1)).catch(() => process.exit(1))"]
       interval: 10s
       timeout: 5s
       retries: 6
@@ -111,7 +112,7 @@ services:
     image: sticker-foundry-backend:local
     build:
       context: .
-      dockerfile: apps/backend/Dockerfile
+      dockerfile: apps/backend/Dockerfile.ai
     command: ["node", "dist/worker.js"]
     container_name: sticker-foundry-worker
     restart: unless-stopped
@@ -142,7 +143,8 @@ services:
       MEDIA_QUEUE_CONCURRENCY: ${MEDIA_QUEUE_CONCURRENCY:-1}
       EXPORT_QUEUE_CONCURRENCY: ${EXPORT_QUEUE_CONCURRENCY:-1}
       EMAIL_QUEUE_CONCURRENCY: ${EMAIL_QUEUE_CONCURRENCY:-2}
-      BACKGROUND_REMOVAL_COMMAND: ${BACKGROUND_REMOVAL_COMMAND:-}
+      BACKGROUND_REMOVAL_COMMAND: ${BACKGROUND_REMOVAL_COMMAND:-rembg i {input} {output}}
+      U2NET_HOME: ${U2NET_HOME:-/data/rembg}
       UPLOAD_MAX_PIXELS: ${UPLOAD_MAX_PIXELS:-25000000}
       UPLOAD_MAX_TOTAL_PIXELS: ${UPLOAD_MAX_TOTAL_PIXELS:-80000000}
       UPLOAD_MAX_ANIMATED_EDIT_PIXELS: ${UPLOAD_MAX_ANIMATED_EDIT_PIXELS:-20000000}

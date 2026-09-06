@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { type Pack } from './api';
+import { Card } from './components/ui/card';
 import { type Notice } from './ui-types';
 
 const APP_LOGO_SRC = '/logo.svg';
@@ -16,10 +17,10 @@ export function BrandMark() {
 
 export function Metric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="metric">
+    <Card className="metric">
       <span>{label}</span>
       <strong>{value}</strong>
-    </div>
+    </Card>
   );
 }
 

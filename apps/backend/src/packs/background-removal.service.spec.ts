@@ -39,8 +39,9 @@ describe(BackgroundRemovalService, () => {
     expect(alphaAt(3, 3)).toBe(255);
   });
 
-  it('falls back to threshold removal when the AI command is not configured', async () => {
-    const service = new BackgroundRemovalService({ get: jest.fn(() => '') } as never);
+  it('defaults to AI removal and falls back to threshold when rembg is not configured', async () => {
+    const config = { get: jest.fn(() => '') };
+    const service = new BackgroundRemovalService(config as never);
     const input = await sharp({
       create: {
         width: 2,
@@ -52,9 +53,10 @@ describe(BackgroundRemovalService, () => {
       .png()
       .toBuffer();
 
-    const output = await service.remove(input, { mode: 'ai', threshold: 238, feather: 0 });
+    const output = await service.remove(input, { threshold: 238, feather: 0 });
     const { data } = await sharp(output).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
 
+    expect(config.get).toHaveBeenCalledWith('BACKGROUND_REMOVAL_COMMAND', '');
     expect(data[3]).toBe(0);
   });
 });

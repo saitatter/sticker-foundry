@@ -115,13 +115,13 @@ The web client remains React/Vite with CSS variables and domain-focused styleshe
 
 ## 🤖 AI Background Removal
 
-Server-side AI cleanup can call any local command that writes a transparent PNG to `{output}`:
+Server-side AI cleanup uses `rembg` as the primary remover in the default Docker stack. It calls a local command that writes a transparent PNG to `{output}`:
 
 ```env
 BACKGROUND_REMOVAL_COMMAND="rembg i {input} {output}"
 ```
 
-If the command is empty or fails, Sticker Foundry falls back to the backend threshold remover.
+If the command is unavailable or fails, Sticker Foundry falls back to the backend threshold remover. Set the command to empty only when you explicitly want the threshold fallback.
 
 ## ⚡ Useful Commands
 

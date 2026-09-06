@@ -18,6 +18,8 @@
 }
 
 .workspace-nav-row {
+  position: relative;
+  overflow: hidden;
   width: 100%;
   min-height: 58px;
   display: grid;
@@ -30,11 +32,41 @@
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 8px;
+  box-shadow: var(--shadow-soft);
+  transition:
+    transform 160ms ease,
+    border-color 160ms ease,
+    background-color 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.workspace-nav-row::before {
+  position: absolute;
+  inset: 10px auto 10px 0;
+  width: 3px;
+  border-radius: 0 999px 999px 0;
+  background: var(--primary);
+  content: '';
+  opacity: 0;
+  transform: scaleY(0.35);
+  transition: opacity 160ms ease, transform 160ms ease;
+}
+
+.workspace-nav-row:hover {
+  border-color: color-mix(in srgb, var(--primary) 40%, var(--border));
+  box-shadow: var(--shadow-hover);
+  transform: translateX(3px);
 }
 
 .workspace-nav-row.active {
   border-color: var(--primary);
-  box-shadow: 0 0 0 3px rgba(11, 127, 117, 0.12);
+  background: color-mix(in srgb, var(--primary) 8%, var(--surface));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 13%, transparent), var(--shadow-soft);
+}
+
+.workspace-nav-row.active::before {
+  opacity: 1;
+  transform: scaleY(1);
 }
 
 .workspace-nav-row > svg {
@@ -62,6 +94,7 @@
 .pack-library {
   display: grid;
   gap: 16px;
+  animation: sf-content-enter 260ms ease both;
 }
 
 .pack-library-header {
@@ -119,6 +152,8 @@
 }
 
 .pack-album-card {
+  position: relative;
+  overflow: hidden;
   width: 100%;
   display: grid;
   gap: 12px;
@@ -127,7 +162,32 @@
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 8px;
-  box-shadow: var(--shadow);
+  box-shadow: var(--shadow-soft);
+  transition:
+    transform 180ms ease,
+    border-color 180ms ease,
+    box-shadow 180ms ease;
+}
+
+.pack-album-card::after {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-radius: inherit;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--primary) 9%, transparent), transparent 42%);
+  content: '';
+  opacity: 0;
+  transition: opacity 180ms ease;
+}
+
+.pack-album-card:hover {
+  border-color: color-mix(in srgb, var(--primary) 46%, var(--border));
+  box-shadow: var(--shadow-hover);
+  transform: translateY(-4px);
+}
+
+.pack-album-card:hover::after {
+  opacity: 1;
 }
 
 .pack-album-card.selected {
@@ -187,6 +247,12 @@
   height: min(78%, 132px);
   object-fit: contain;
   filter: drop-shadow(0 10px 18px rgba(25, 33, 36, 0.16));
+  transition: transform 220ms ease, filter 220ms ease;
+}
+
+.pack-album-card:hover .pack-cover img {
+  filter: drop-shadow(0 14px 22px rgba(25, 33, 36, 0.22));
+  transform: scale(1.06) rotate(1deg);
 }
 
 @keyframes skeleton-shimmer {
@@ -263,6 +329,11 @@
   background: var(--surface-muted);
   color: var(--muted);
   font-size: 12px;
+  transition: transform 160ms ease, border-color 160ms ease, background-color 160ms ease;
+}
+
+.pack-album-card:hover .status-pill {
+  border-color: color-mix(in srgb, var(--primary) 28%, var(--border));
 }
 
 .status-pill.public {
@@ -301,6 +372,7 @@
 .detail {
   display: grid;
   gap: 18px;
+  animation: sf-content-enter 260ms ease both;
 }
 
 .detail-header {
@@ -343,6 +415,13 @@
   color: var(--muted);
   background: transparent;
   font-weight: 800;
+  transition: color 160ms ease, background-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+}
+
+.detail-tabs button:hover {
+  color: var(--text);
+  background: color-mix(in srgb, var(--surface) 62%, transparent);
+  transform: translateY(-1px);
 }
 
 .detail-tabs button.active {
@@ -375,11 +454,19 @@
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 8px;
+  box-shadow: var(--shadow-soft);
+  transition: transform 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.metric:hover {
+  border-color: color-mix(in srgb, var(--primary) 38%, var(--border));
+  box-shadow: var(--shadow-hover);
+  transform: translateY(-3px);
 }
 
 .metric span {
   display: block;
-  color: var(--muted);
+  color: var(--muted-foreground);
   font-size: 12px;
 }
 
@@ -550,6 +637,18 @@
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--surface-muted);
+  transition: transform 160ms ease, border-color 160ms ease, background-color 160ms ease;
+}
+
+.member-row:hover,
+.team-row:hover,
+.invite-row:hover,
+.session-row:hover,
+.activity-row:hover,
+.audit-row:hover {
+  border-color: color-mix(in srgb, var(--primary) 34%, var(--border));
+  background: color-mix(in srgb, var(--primary) 5%, var(--surface-muted));
+  transform: translateX(2px);
 }
 
 .team-panel {
@@ -677,6 +776,20 @@
   margin-top: 14px;
   padding-top: 14px;
   border-top: 1px solid var(--border);
+}
+
+.settings-page {
+  animation: sf-content-enter 260ms ease both;
+}
+
+@keyframes sf-content-enter {
+  from {
+    transform: translateY(5px);
+  }
+
+  to {
+    transform: translateY(0);
+  }
 }
 
 .job-progress-panel h4 {
@@ -871,7 +984,14 @@
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 10px;
-  box-shadow: var(--shadow);
+  box-shadow: var(--shadow-soft);
+  transition: transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
+}
+
+.settings-card:hover {
+  border-color: color-mix(in srgb, var(--primary) 28%, var(--border));
+  box-shadow: var(--shadow-hover);
+  transform: translateY(-2px);
 }
 
 .settings-card .section-heading {

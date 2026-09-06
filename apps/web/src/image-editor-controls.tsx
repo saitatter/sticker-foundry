@@ -358,9 +358,9 @@ export function ImageEditControls({
               }
               value={options.serverBackgroundRemovalMode}
             >
+              <option value="ai">AI (rembg)</option>
+              <option value="threshold">Threshold fallback</option>
               <option value="none">Off</option>
-              <option value="threshold">Server threshold</option>
-              <option value="ai">AI fallback</option>
             </select>
           </label>
           <label className="checkbox-row image-edit-toggle">
@@ -746,9 +746,9 @@ export function ImageEditControls({
               }
               value={options.serverBackgroundRemovalMode}
             >
+              <option value="ai">AI (rembg)</option>
+              <option value="threshold">Threshold fallback</option>
               <option value="none">Off</option>
-              <option value="threshold">Server threshold</option>
-              <option value="ai">AI fallback</option>
             </select>
           </label>
         </div>
@@ -761,7 +761,7 @@ export function ImageEditControls({
       {showBackgroundPanel && showBackgroundControls ? (
         <div className="image-edit-sliders background-sliders">
           <label>
-            Threshold
+            {options.serverBackgroundRemovalMode === 'ai' ? 'Fallback threshold' : 'Threshold'}
             <input
               max="255"
               min="180"
@@ -772,7 +772,7 @@ export function ImageEditControls({
             />
           </label>
           <label>
-            Soft edge
+            {options.serverBackgroundRemovalMode === 'ai' ? 'Fallback soft edge' : 'Soft edge'}
             <input
               max="48"
               min="0"

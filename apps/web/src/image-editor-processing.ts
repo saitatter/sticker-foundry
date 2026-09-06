@@ -42,12 +42,12 @@ export function serverBackgroundRemovalMessage(
   mode: ImageEditOptions['serverBackgroundRemovalMode'],
   status?: AdminSettings['backgroundRemoval'],
 ) {
-  if (mode === 'threshold') return 'Server threshold cleanup uses the same threshold, soft edge, and speckle controls.';
+  if (mode === 'threshold') return 'Threshold cleanup uses the same threshold, soft edge, and speckle controls.';
   if (!status)
-    return 'Server AI availability is visible to admins; uploads fall back to threshold if no model is configured.';
+    return 'rembg is the primary remover; uploads fall back to threshold if the AI model is unavailable.';
   if (status.aiCommandConfigured)
-    return 'Server AI command is configured; failed AI runs fall back to threshold cleanup.';
-  return 'Server AI is not configured yet; this upload will use threshold fallback.';
+    return 'rembg is configured as primary; failed AI runs fall back to threshold cleanup.';
+  return 'rembg is not configured yet; this upload will use threshold fallback.';
 }
 
 export function stickerUploadOptionsFromEdit(

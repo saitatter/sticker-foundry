@@ -83,7 +83,7 @@ test('covers core web sticker workflows with mocked API', async ({ page }) => {
     mimeType: 'image/png',
     buffer: png1x1,
   });
-  await expect(stickerDialog.locator('.upload-edit-summary')).toContainText('Original image');
+  await expect(stickerDialog.locator('.upload-edit-summary')).toContainText('AI bg');
   await stickerDialog.locator('.upload-edit-summary').getByRole('button', { name: 'Edit' }).click();
   await expect(page.getByRole('dialog', { name: 'Sticker image editor' })).toBeVisible();
   await page.getByRole('tab', { name: 'Background' }).click();
@@ -220,7 +220,7 @@ test('submits optimizer and server background removal options', async ({ page })
   await expect(editor.locator('.optimizer-panel')).toContainText(/Output/);
   await editor.getByRole('tab', { name: 'Background' }).click();
   await editor.getByLabel('Background removal').selectOption('ai');
-  await expect(editor.getByText('Server AI command is configured')).toBeVisible();
+  await expect(editor.getByText('rembg is configured as primary; failed AI runs fall back to threshold cleanup.')).toBeVisible();
   await page.locator('.image-editor-modal').getByRole('button', { name: 'Apply edits' }).click();
 
   await page.locator('.upload-panel').getByRole('button', { name: 'Upload' }).click();

@@ -146,18 +146,19 @@
   border-radius: 8px;
   border: 1px solid var(--border);
   background: var(--surface);
+  animation: sf-slide-in 220ms ease both;
 }
 
 .notice.error {
   color: var(--danger);
-  background: #fff4f2;
-  border-color: #ffd4ce;
+  background: color-mix(in srgb, var(--danger) 10%, var(--surface));
+  border-color: color-mix(in srgb, var(--danger) 34%, var(--border));
 }
 
 .notice.success {
   color: var(--success);
-  background: #eefaf5;
-  border-color: #c8ecdd;
+  background: color-mix(in srgb, var(--success) 10%, var(--surface));
+  border-color: color-mix(in srgb, var(--success) 34%, var(--border));
 }
 
 .notice button {
