@@ -1,39 +1,31 @@
-import { Archive, Download, ImagePlus, KeyRound, Plus, ShieldCheck, Trash2, UserPlus, Users } from 'lucide-react';
+import { Archive, ImagePlus, KeyRound, Plus, Trash2, UserPlus, Users } from 'lucide-react';
 import { type FormEvent, useEffect, useState } from 'react';
 import {
-  AdminSettings,
-  AuditLogEntry,
   InstanceSettings,
   Pack,
   PackRole,
-  RegistrationMode,
   StickerFoundryApi,
   Team,
   TeamMember,
   UserSession,
 } from './api';
-import { downloadBlob, IconButton } from './ui';
+import { IconButton } from './ui';
 import { useConfirmDialog } from './components/ui/confirm-dialog';
-
-const DEFAULT_INSTANCE_SETTINGS: InstanceSettings = {
-  instanceName: 'Sticker Foundry',
-  instanceDescription: 'Self-hosted sticker pack management',
-};
 
 export type WorkspaceView = 'packs' | 'pack';
 
 export function AccountDialog({
   api,
   isAdmin,
-  instanceSettings,
   onClose,
+  onOpenAdmin,
   onChanged,
   onError,
 }: {
   api: StickerFoundryApi;
   isAdmin: boolean;
-  instanceSettings: InstanceSettings;
   onClose: () => void;
+  onOpenAdmin: () => void;
   onChanged: (message: string, settings?: InstanceSettings) => void;
   onError: (error: unknown) => void;
 }) {
@@ -41,39 +33,10 @@ export function AccountDialog({
   const [newPassword, setNewPassword] = useState('');
   const [sessions, setSessions] = useState<UserSession[]>([]);
   const [saving, setSaving] = useState(false);
-  const [adminSettings, setAdminSettings] = useState<AdminSettings | null>(null);
-  const [auditLog, setAuditLog] = useState<AuditLogEntry[]>([]);
-  const [registrationMode, setRegistrationMode] = useState<RegistrationMode>('open');
-  const [registrationInviteCode, setRegistrationInviteCode] = useState('');
-  const [storageQuotaMb, setStorageQuotaMb] = useState('');
-  const [auditRetentionDays, setAuditRetentionDays] = useState('');
-  const [instanceName, setInstanceName] = useState(instanceSettings.instanceName);
-  const [instanceDescription, setInstanceDescription] = useState(instanceSettings.instanceDescription);
-  const [savingAdmin, setSavingAdmin] = useState(false);
-  const [exportingAudit, setExportingAudit] = useState(false);
 
   useEffect(() => {
     api.sessions().then(setSessions).catch(onError);
   }, [api, onError]);
-
-  useEffect(() => {
-    if (!isAdmin) return;
-    api
-      .adminSettings()
-      .then((settings) => {
-        setAdminSettings(settings);
-        setRegistrationMode(settings.registrationMode);
-        setRegistrationInviteCode(settings.registrationInviteCode ?? '');
-        setStorageQuotaMb(
-          settings.storageQuotaBytes ? String(Math.round(settings.storageQuotaBytes / 1024 / 1024)) : '',
-        );
-        setAuditRetentionDays(settings.auditRetentionDays ? String(settings.auditRetentionDays) : '');
-        setInstanceName(settings.instanceName);
-        setInstanceDescription(settings.instanceDescription);
-      })
-      .catch(onError);
-    api.adminAuditLog().then(setAuditLog).catch(onError);
-  }, [api, isAdmin, onError]);
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -110,80 +73,21 @@ export function AccountDialog({
     }
   }
 
-  async function saveAdminSettings(event: FormEvent) {
-    event.preventDefault();
-    const trimmedQuota = storageQuotaMb.trim();
-    const quotaNumber = trimmedQuota ? Number(trimmedQuota) : null;
-    const trimmedAuditRetention = auditRetentionDays.trim();
-    const auditRetentionNumber = trimmedAuditRetention ? Number(trimmedAuditRetention) : null;
-    if (quotaNumber !== null && (!Number.isFinite(quotaNumber) || quotaNumber <= 0)) {
-      onError(new Error('Storage quota must be a positive number of MB'));
-      return;
-    }
-    if (auditRetentionNumber !== null && (!Number.isFinite(auditRetentionNumber) || auditRetentionNumber <= 0)) {
-      onError(new Error('Audit retention must be a positive number of days'));
-      return;
-    }
-
-    setSavingAdmin(true);
-    try {
-      const settings = await api.updateAdminSettings({
-        registrationMode,
-        registrationInviteCode: registrationInviteCode.trim() || null,
-        storageQuotaBytes: quotaNumber === null ? null : Math.round(quotaNumber * 1024 * 1024),
-        auditRetentionDays: auditRetentionNumber === null ? null : Math.round(auditRetentionNumber),
-        instanceName: instanceName.trim() || DEFAULT_INSTANCE_SETTINGS.instanceName,
-        instanceDescription: instanceDescription.trim() || DEFAULT_INSTANCE_SETTINGS.instanceDescription,
-      });
-      setAdminSettings(settings);
-      setRegistrationMode(settings.registrationMode);
-      setRegistrationInviteCode(settings.registrationInviteCode ?? '');
-      setStorageQuotaMb(settings.storageQuotaBytes ? String(Math.round(settings.storageQuotaBytes / 1024 / 1024)) : '');
-      setAuditRetentionDays(settings.auditRetentionDays ? String(settings.auditRetentionDays) : '');
-      setInstanceName(settings.instanceName);
-      setInstanceDescription(settings.instanceDescription);
-      setAuditLog(await api.adminAuditLog());
-      onChanged('Admin settings saved', {
-        instanceName: settings.instanceName,
-        instanceDescription: settings.instanceDescription,
-      });
-    } catch (error) {
-      onError(error);
-    } finally {
-      setSavingAdmin(false);
-    }
-  }
-
-  async function exportAuditLog() {
-    setExportingAudit(true);
-    try {
-      const blob = await api.exportAuditLog();
-      downloadBlob(blob, `stickerfoundry-audit-${new Date().toISOString().slice(0, 10)}.csv`);
-    } catch (error) {
-      onError(error);
-    } finally {
-      setExportingAudit(false);
-    }
-  }
-
-  async function cleanupAuditLog() {
-    try {
-      const result = await api.cleanupAuditLog();
-      setAuditLog(await api.adminAuditLog());
-      onChanged(`Audit cleanup deleted ${result.deleted} entr${result.deleted === 1 ? 'y' : 'ies'}`);
-    } catch (error) {
-      onError(error);
-    }
-  }
-
   return (
     <div className="modal-backdrop" role="presentation">
       <div className="modal-panel form-grid">
         <div className="section-heading">
           <h2>Account</h2>
-          <button className="secondary-button" onClick={onClose} type="button">
-            Close
-          </button>
+          <div className="panel-actions">
+            {isAdmin ? (
+              <button className="secondary-button" onClick={onOpenAdmin} type="button">
+                Admin settings
+              </button>
+            ) : null}
+            <button className="secondary-button" onClick={onClose} type="button">
+              Close
+            </button>
+          </div>
         </div>
         <form className="form-grid" onSubmit={submit}>
           <label>
@@ -234,118 +138,6 @@ export function AccountDialog({
             </div>
           ))}
         </div>
-        {isAdmin ? (
-          <form className="admin-settings form-grid" onSubmit={saveAdminSettings}>
-            <div className="section-heading">
-              <h3>Admin settings</h3>
-              <ShieldCheck size={18} />
-            </div>
-            {adminSettings ? (
-              <div className="admin-status-row">
-                <span>
-                  <strong>Background removal</strong>
-                  <small>
-                    Threshold ready ·{' '}
-                    {adminSettings.backgroundRemoval.aiCommandConfigured ? 'AI command configured' : 'AI fallback only'}
-                  </small>
-                </span>
-                <span
-                  className={
-                    adminSettings.backgroundRemoval.aiCommandConfigured ? 'status-pill ready' : 'status-pill warning'
-                  }
-                >
-                  {adminSettings.backgroundRemoval.aiCommandConfigured ? 'AI ready' : 'Threshold fallback'}
-                </span>
-              </div>
-            ) : null}
-            <label>
-              Instance name
-              <input maxLength={80} value={instanceName} onChange={(event) => setInstanceName(event.target.value)} />
-            </label>
-            <label>
-              Instance description
-              <input
-                maxLength={160}
-                value={instanceDescription}
-                onChange={(event) => setInstanceDescription(event.target.value)}
-              />
-            </label>
-            <label>
-              Registration
-              <select
-                value={registrationMode}
-                onChange={(event) => setRegistrationMode(event.target.value as RegistrationMode)}
-              >
-                <option value="open">Open</option>
-                <option value="invite-only">Invite only</option>
-                <option value="disabled">Disabled</option>
-              </select>
-            </label>
-            <label>
-              Invite code
-              <input
-                disabled={registrationMode !== 'invite-only'}
-                value={registrationInviteCode}
-                onChange={(event) => setRegistrationInviteCode(event.target.value)}
-              />
-            </label>
-            <label>
-              Storage quota per owner (MB)
-              <input
-                min="1"
-                placeholder="Unlimited"
-                type="number"
-                value={storageQuotaMb}
-                onChange={(event) => setStorageQuotaMb(event.target.value)}
-              />
-            </label>
-            <label>
-              Audit retention (days)
-              <input
-                min="1"
-                placeholder="Keep forever"
-                type="number"
-                value={auditRetentionDays}
-                onChange={(event) => setAuditRetentionDays(event.target.value)}
-              />
-            </label>
-            <button className="secondary-button" disabled={savingAdmin || !adminSettings} type="submit">
-              <ShieldCheck size={17} />
-              {savingAdmin ? 'Saving' : 'Save admin settings'}
-            </button>
-          </form>
-        ) : null}
-        {isAdmin ? (
-          <div className="audit-list">
-            <div className="section-heading">
-              <h3>Audit log</h3>
-              <button
-                className="secondary-button"
-                disabled={exportingAudit}
-                onClick={() => void exportAuditLog()}
-                type="button"
-              >
-                <Download size={17} />
-                {exportingAudit ? 'Exporting' : 'Export CSV'}
-              </button>
-              <button className="secondary-button" onClick={() => void cleanupAuditLog()} type="button">
-                <Trash2 size={17} />
-                Cleanup
-              </button>
-            </div>
-            {auditLog.map((entry) => (
-              <div className="audit-row" key={entry.id}>
-                <span>
-                  <strong>{auditActionLabel(entry.action)}</strong>
-                  <small>
-                    {entry.actor?.email ?? 'System'} · {new Date(entry.createdAt).toLocaleString()}
-                  </small>
-                </span>
-                <small>{entry.entityType}</small>
-              </div>
-            ))}
-          </div>
-        ) : null}
       </div>
     </div>
   );
@@ -620,7 +412,7 @@ export function TeamWorkspacePanel({
             <span>
               <strong>{team.name}</strong>
               <small>
-                {team.memberCount} members · {team.packCount} packs
+                {team.memberCount} members Â· {team.packCount} packs
               </small>
             </span>
             <span className="status-pill">{roleLabel(team.role)}</span>
@@ -846,7 +638,7 @@ export function WorkspaceNav({
           <span>
             <strong>{selectedPack.name}</strong>
             <small>
-              {selectedPack.stickerCount}/30 · {roleLabel(selectedPack.role)}
+              {selectedPack.stickerCount}/30 Â· {roleLabel(selectedPack.role)}
             </small>
           </span>
         </button>
@@ -860,11 +652,4 @@ function roleLabel(role?: PackRole) {
   if (role === 'EDITOR') return 'Editor';
   if (role === 'VIEWER') return 'Viewer';
   return 'Private';
-}
-
-function auditActionLabel(action: string) {
-  return action
-    .split('.')
-    .map((part) => part.slice(0, 1).toUpperCase() + part.slice(1))
-    .join(' ');
 }

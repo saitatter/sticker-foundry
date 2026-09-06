@@ -114,6 +114,12 @@ const auditSettingsRoute = createRoute({
   component: () => <SettingsRoute section="audit" />,
 });
 
+const adminSettingsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/app/settings/admin',
+  component: () => <SettingsRoute section="admin" />,
+});
+
 const teamRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/app/teams/$teamId',
@@ -137,6 +143,7 @@ const routeTree = rootRoute.addChildren([
   instanceSettingsRoute,
   processingSettingsRoute,
   auditSettingsRoute,
+  adminSettingsRoute,
   teamRoute,
 ]);
 
@@ -175,7 +182,7 @@ function ShareRoute() {
   return <App route={{ kind: 'share', packId }} />;
 }
 
-function SettingsRoute({ section }: { section: 'account' | 'security' | 'instance' | 'processing' | 'audit' }) {
+function SettingsRoute({ section }: { section: 'account' | 'security' | 'instance' | 'processing' | 'audit' | 'admin' }) {
   return <App route={{ kind: 'settings', section }} />;
 }
 

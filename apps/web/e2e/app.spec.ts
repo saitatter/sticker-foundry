@@ -150,6 +150,24 @@ test('packs workspace has no obvious accessibility violations', async ({ page })
   expect(results.violations).toEqual([]);
 });
 
+test('opens admin settings as a dedicated page and switches to dark theme', async ({ page }) => {
+  const state = createMockState();
+  await mockApi(page, state);
+  await login(page, { openFirstPack: false });
+
+  await page.getByRole('button', { name: 'Account settings' }).click();
+  await page.locator('.modal-panel').getByRole('button', { name: 'Admin settings' }).click();
+
+  await expect(page).toHaveURL(/\/app\/settings\/admin$/);
+  await expect(page.getByRole('heading', { name: 'Admin settings' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Instance settings' })).toBeVisible();
+  await expect(page.locator('.modal-panel')).toHaveCount(0);
+
+  await page.getByRole('button', { name: 'Use dark theme' }).click();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+  await expect(page.locator('.settings-card').first()).toHaveCSS('background-color', 'rgb(24, 36, 34)');
+});
+
 test('keeps password reset links public when a refresh cookie exists', async ({ page }) => {
   const state = createMockState();
   await mockApi(page, state);
@@ -306,6 +324,9 @@ async function mockApi(page: Page, state: ReturnType<typeof createMockState>) {
     }
     if (method === 'GET' && path === '/auth/me') {
       return json(route, { id: 'user-1', email: 'demo@stickerfoundry.local', displayName: 'Demo', isAdmin: true });
+    }
+    if (method === 'GET' && path === '/auth/sessions') {
+      return json(route, []);
     }
     if (method === 'GET' && path === '/admin/settings') {
       return json(route, {

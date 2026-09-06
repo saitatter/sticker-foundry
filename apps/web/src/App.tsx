@@ -12,6 +12,7 @@ import { queryKeys } from './lib/query-keys';
 import { PackLibrary } from './pack-library';
 import { AuthScreen, ResetPasswordScreen, SharePage } from './screens';
 import { PackDetail } from './pack-detail';
+import { AdminSettingsPage } from './admin-settings-page';
 import { AccountDialog, WorkspaceNav, WorkspaceToolsDrawer } from './workspace-panels';
 import { ThemeToggle } from './components/layout/theme-toggle';
 import { clearAccessToken, getAccessToken, setAccessToken } from './lib/api/auth-session';
@@ -24,7 +25,7 @@ const DEFAULT_INSTANCE_SETTINGS: InstanceSettings = {
 
 export type AppRoute =
   | { kind: 'login' }
-  | { kind: 'settings'; section: 'account' | 'security' | 'instance' | 'processing' | 'audit' }
+  | { kind: 'settings'; section: 'account' | 'security' | 'instance' | 'processing' | 'audit' | 'admin' }
   | { kind: 'team'; teamId: string }
   | {
       kind: 'workspace';
@@ -249,7 +250,21 @@ export function App({ route }: { route: AppRoute }) {
 
         <main className="content">
           {notice ? <NoticeBar notice={notice} onClose={() => setNotice(null)} /> : null}
-          {workspaceView === 'packs' ? (
+          {route.kind === 'settings' && route.section === 'admin' ? (
+            <AdminSettingsPage
+              api={api}
+              isAdmin={Boolean(user?.isAdmin)}
+              instanceSettings={instanceSettings}
+              onClose={() => {
+                void navigate({ to: '/app/packs', search: { q: undefined, visibility: undefined, sort: undefined } });
+              }}
+              onChanged={(message, settings) => {
+                if (settings) queryClient.setQueryData(queryKeys.instance, settings);
+                setNotice({ tone: 'success', text: message });
+              }}
+              onError={reportError}
+            />
+          ) : workspaceView === 'packs' ? (
             <PackLibrary
               api={api}
               packs={packs}
@@ -332,14 +347,17 @@ export function App({ route }: { route: AppRoute }) {
           }}
         />
       ) : null}
-      {showAccountDialog || route.kind === 'settings' ? (
+      {showAccountDialog || (route.kind === 'settings' && route.section !== 'admin') ? (
         <AccountDialog
           api={api}
           isAdmin={Boolean(user?.isAdmin)}
-          instanceSettings={instanceSettings}
           onClose={() => {
             setShowAccountDialog(false);
             if (route.kind === 'settings') void navigate({ to: '/app/packs', search: { q: undefined, visibility: undefined, sort: undefined } });
+          }}
+          onOpenAdmin={() => {
+            setShowAccountDialog(false);
+            void navigate({ to: '/app/settings/admin' });
           }}
           onChanged={(message, settings) => {
             if (settings) queryClient.setQueryData(queryKeys.instance, settings);
