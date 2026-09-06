@@ -1,17 +1,26 @@
 import { AlertCircle, Archive, CheckCircle2, Copy, Download, FileJson, ImagePlus, RotateCcw, Trash2, X } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
-import { AdminSettings, AuditLogEntry, JobResponse, Pack, PackRole, Sticker, StickerFoundryApi } from './api';
+import { DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
+import { SortableContext, rectSortingStrategy, sortableKeyboardCoordinates, useSortable } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import { useQueryClient } from '@tanstack/react-query';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { AdminSettings, AuditLogEntry, Pack, PackRole, Sticker, StickerFoundryApi } from './api';
+import { useJobQuery } from './features/jobs/queries';
+import { queryKeys } from './lib/query-keys';
+import { useConfirmDialog } from './components/ui/confirm-dialog';
 import { CollaborationPanel, PackEditForm, TrayIconPanel, UploadPanel } from './pack-detail-panels';
 import { reviewStatusLabel, StickerTile } from './sticker-tile';
 import { exportFileName, IconButton, Metric } from './ui';
 
-type PackDetailTab = 'overview' | 'stickers' | 'collaboration' | 'settings';
+export type PackDetailTab = 'overview' | 'stickers' | 'collaboration' | 'activity' | 'settings';
 
 export function PackDetail({
   api,
   backgroundRemovalStatus,
   pack,
   packs,
+  initialTab = 'overview',
+  onSectionChange,
   onChanged,
   onDeleted,
   onCloned,
@@ -22,6 +31,8 @@ export function PackDetail({
   backgroundRemovalStatus?: AdminSettings['backgroundRemoval'];
   pack: Pack;
   packs: Pack[];
+  initialTab?: PackDetailTab;
+  onSectionChange?: (section: PackDetailTab) => void;
   onChanged: (message: string) => Promise<void>;
   onDeleted: () => void;
   onCloned: (pack: Pack) => void;
@@ -38,9 +49,9 @@ export function PackDetail({
   const canExport = exportStickerCount >= 3 && exportStickerCount <= 30;
   const exportStatusText = exportReadinessMessage(exportStickerCount, pack.requiresApproval, pack.isAnimated);
   const exportActionHintId = `export-actions-${pack.id}`;
+  const queryClient = useQueryClient();
   const [exporting, setExporting] = useState(false);
-  const [exportProgress, setExportProgress] = useState(0);
-  const [exportJob, setExportJob] = useState<JobResponse | null>(null);
+  const [exportJobId, setExportJobId] = useState<string | null>(null);
   const [exportActionId, setExportActionId] = useState<string | null>(null);
   const [contentsPreview, setContentsPreview] = useState<string | null>(null);
   const [loadingContents, setLoadingContents] = useState(false);
@@ -49,14 +60,23 @@ export function PackDetail({
   const [bulkEmojis, setBulkEmojis] = useState('');
   const [bulkTargetPackId, setBulkTargetPackId] = useState('');
   const [bulkSaving, setBulkSaving] = useState(false);
-  const [activeTab, setActiveTab] = useState<PackDetailTab>('overview');
+  const [activeTab, setActiveTab] = useState<PackDetailTab>(initialTab);
+  const { confirm, dialog } = useConfirmDialog();
+  const exportJobQuery = useJobQuery(api, exportJobId);
+  const exportJob = exportJobQuery.data ?? null;
+  const exportProgress = exportJob?.progress ?? 0;
   const selectedStickerSet = useMemo(() => new Set(selectedStickerIds), [selectedStickerIds]);
   const hasBulkSelection = selectedStickerIds.length > 0;
   const transferTargets = packs.filter((item) => item.canEdit && item.id !== pack.id);
+  const dndSensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
   const detailTabs = useMemo<Array<{ id: PackDetailTab; label: string }>>(() => {
     const tabs: Array<{ id: PackDetailTab; label: string }> = [
       { id: 'overview', label: 'Overview' },
       { id: 'stickers', label: `Stickers (${stickers.length})` },
+      { id: 'activity', label: 'Activity' },
     ];
 
     if (canManage) tabs.push({ id: 'collaboration', label: 'Collaboration' });
@@ -72,10 +92,13 @@ export function PackDetail({
     setBulkTargetPackId('');
     setOptimisticStickers(null);
     setContentsPreview(null);
-    setExportJob(null);
-    setExportProgress(0);
-    setActiveTab('overview');
-  }, [pack.id]);
+    setExportJobId(null);
+    setActiveTab(initialTab);
+  }, [initialTab, pack.id]);
+
+  useEffect(() => {
+    setActiveTab(initialTab);
+  }, [initialTab]);
 
   useEffect(() => {
     setOptimisticStickers(null);
@@ -100,32 +123,15 @@ export function PackDetail({
     onNotice('Export ZIP downloaded');
   }
 
-  async function waitForExport(jobId: string) {
-    const completed = await api.waitForJob(jobId, (job) => {
-      setExportJob(job);
-      setExportProgress(job.progress);
-    });
-    if (completed.status === 'CANCELLED') {
-      onNotice('Export cancelled');
-      return;
-    }
-    if (completed.status !== 'COMPLETED') {
-      throw new Error(completed.error ?? 'Export could not be completed');
-    }
-    await downloadCompletedExport();
-  }
-
   async function exportPack() {
     setExporting(true);
-    setExportProgress(0);
     try {
       const queued = await api.queueExportPack(pack.id);
-      setExportJob(queued);
-      await waitForExport(queued.id);
+      setExportJobId(queued.id);
+      queryClient.setQueryData(queryKeys.jobs.detail(queued.id), queued);
     } catch (error) {
-      onError(error);
-    } finally {
       setExporting(false);
+      onError(error);
     }
   }
 
@@ -133,7 +139,8 @@ export function PackDetail({
     if (!exportJob) return;
     setExportActionId(exportJob.id);
     try {
-      setExportJob(await api.cancelJob(exportJob.id));
+      const cancelled = await api.cancelJob(exportJob.id);
+      queryClient.setQueryData(queryKeys.jobs.detail(exportJob.id), cancelled);
     } catch (error) {
       onError(error);
     } finally {
@@ -147,19 +154,36 @@ export function PackDetail({
     setExportActionId(exportJob.id);
     try {
       const queued = await api.retryJob(exportJob.id);
-      setExportJob(queued);
-      setExportProgress(0);
-      await waitForExport(queued.id);
+      setExportJobId(queued.id);
+      queryClient.setQueryData(queryKeys.jobs.detail(queued.id), queued);
     } catch (error) {
+      setExporting(false);
       onError(error);
     } finally {
       setExportActionId(null);
-      setExporting(false);
     }
   }
 
+  useEffect(() => {
+    if (!exporting || !exportJob) return;
+    if (exportJob.status === 'COMPLETED') {
+      setExporting(false);
+      void downloadCompletedExport().catch(onError);
+    } else if (exportJob.status === 'CANCELLED') {
+      setExporting(false);
+      onNotice('Export cancelled');
+    } else if (exportJob.status === 'FAILED') {
+      setExporting(false);
+      onError(new Error(exportJob.error ?? 'Export could not be completed'));
+    }
+  }, [exportJob, exporting]);
+
   async function deletePack() {
-    if (!confirm(`Delete "${pack.name}"?`)) return;
+    if (!(await confirm({
+      title: 'Delete pack?',
+      description: `This permanently deletes “${pack.name}” and its stickers.`,
+      confirmLabel: 'Delete pack',
+    }))) return;
     try {
       await api.deletePack(pack.id);
       onDeleted();
@@ -214,10 +238,10 @@ export function PackDetail({
     }
   }
 
-  async function reorderStickerTo(targetStickerId: string) {
-    if (!draggingStickerId || draggingStickerId === targetStickerId) return;
+  async function reorderStickerTo(targetStickerId: string, sourceStickerId = draggingStickerId) {
+    if (!sourceStickerId || sourceStickerId === targetStickerId) return;
 
-    const currentIndex = stickers.findIndex((sticker) => sticker.id === draggingStickerId);
+    const currentIndex = stickers.findIndex((sticker) => sticker.id === sourceStickerId);
     const targetIndex = stickers.findIndex((sticker) => sticker.id === targetStickerId);
     if (currentIndex < 0 || targetIndex < 0) return;
 
@@ -239,6 +263,11 @@ export function PackDetail({
     } finally {
       setDraggingStickerId(null);
     }
+  }
+
+  function handleDndEnd(event: DragEndEvent) {
+    if (!event.over || event.active.id === event.over.id) return;
+    void reorderStickerTo(String(event.over.id), String(event.active.id));
   }
 
   function toggleStickerSelection(stickerId: string, selected: boolean) {
@@ -290,7 +319,12 @@ export function PackDetail({
   }
 
   async function bulkDeleteStickers() {
-    if (selectedStickerIds.length === 0 || !confirm(`Delete ${selectedStickerIds.length} selected sticker(s)?`)) return;
+    if (selectedStickerIds.length === 0) return;
+    if (!(await confirm({
+      title: 'Delete selected stickers?',
+      description: `This permanently deletes ${selectedStickerIds.length} selected sticker(s).`,
+      confirmLabel: 'Delete stickers',
+    }))) return;
     setBulkSaving(true);
     try {
       for (const stickerId of selectedStickerIds) {
@@ -498,6 +532,19 @@ export function PackDetail({
         </div>
       </div>
 
+      {canEdit ? (
+        <div hidden={activeTab !== 'stickers'}>
+          <UploadPanel
+            api={api}
+            backgroundRemovalStatus={backgroundRemovalStatus}
+            pack={pack}
+            remainingSlots={Math.max(0, 30 - stickers.length)}
+            onChanged={onChanged}
+            onError={onError}
+          />
+        </div>
+      ) : null}
+
       <div className="detail-tabs" role="tablist" aria-label="Pack sections">
         {detailTabs.map((tab) => (
           <button
@@ -506,7 +553,10 @@ export function PackDetail({
             className={activeTab === tab.id ? 'active' : undefined}
             id={tabButtonId(tab.id)}
             key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
+            onClick={() => {
+              setActiveTab(tab.id);
+              onSectionChange?.(tab.id);
+            }}
             role="tab"
             type="button"
           >
@@ -551,17 +601,6 @@ export function PackDetail({
           id={tabPanelId('stickers')}
           role="tabpanel"
         >
-          {canEdit ? (
-            <UploadPanel
-              api={api}
-              backgroundRemovalStatus={backgroundRemovalStatus}
-              pack={pack}
-              remainingSlots={Math.max(0, 30 - stickers.length)}
-              onChanged={onChanged}
-              onError={onError}
-            />
-          ) : null}
-
           <section className="stickers-section">
             <div className="section-heading">
               <h3>Stickers</h3>
@@ -653,34 +692,39 @@ export function PackDetail({
               </div>
             ) : null}
             {stickers.length > 0 ? (
-              <div className="sticker-grid">
-                {stickers.map((sticker, index) => (
-                  <StickerTile
-                    api={api}
-                    backgroundRemovalStatus={backgroundRemovalStatus}
-                    isAnimatedPack={pack.isAnimated}
-                    key={sticker.id}
-                    packId={pack.id}
-                    transferTargets={transferTargets}
-                    sticker={sticker}
-                    version={pack.imageDataVersion}
-                    canEdit={canEdit}
-                    canMoveDown={index < stickers.length - 1}
-                    canMoveUp={index > 0}
-                    isDragging={draggingStickerId === sticker.id}
-                    isSelected={selectedStickerSet.has(sticker.id)}
-                    onChanged={() => onChanged('Sticker updated')}
-                    onDeleted={() => onChanged('Sticker deleted')}
-                    onDragEnd={() => setDraggingStickerId(null)}
-                    onDragStart={() => setDraggingStickerId(sticker.id)}
-                    onDrop={() => void reorderStickerTo(sticker.id)}
-                    onError={onError}
-                    onMoveDown={() => moveSticker(sticker.id, 1)}
-                    onMoveUp={() => moveSticker(sticker.id, -1)}
-                    onSelectedChange={(selected) => toggleStickerSelection(sticker.id, selected)}
-                  />
-                ))}
-              </div>
+              <DndContext collisionDetection={closestCenter} onDragEnd={handleDndEnd} sensors={dndSensors}>
+                <SortableContext items={stickers.map((sticker) => sticker.id)} strategy={rectSortingStrategy}>
+                  <div className="sticker-grid">
+                    {stickers.map((sticker, index) => (
+                      <SortableSticker key={sticker.id} id={sticker.id}>
+                        <StickerTile
+                          api={api}
+                          backgroundRemovalStatus={backgroundRemovalStatus}
+                          isAnimatedPack={pack.isAnimated}
+                          packId={pack.id}
+                          transferTargets={transferTargets}
+                          sticker={sticker}
+                          version={pack.imageDataVersion}
+                          canEdit={canEdit}
+                          canMoveDown={index < stickers.length - 1}
+                          canMoveUp={index > 0}
+                          isDragging={draggingStickerId === sticker.id}
+                          isSelected={selectedStickerSet.has(sticker.id)}
+                          onChanged={() => onChanged('Sticker updated')}
+                          onDeleted={() => onChanged('Sticker deleted')}
+                          onDragEnd={() => setDraggingStickerId(null)}
+                          onDragStart={() => setDraggingStickerId(sticker.id)}
+                          onDrop={() => void reorderStickerTo(sticker.id)}
+                          onError={onError}
+                          onMoveDown={() => moveSticker(sticker.id, 1)}
+                          onMoveUp={() => moveSticker(sticker.id, -1)}
+                          onSelectedChange={(selected) => toggleStickerSelection(sticker.id, selected)}
+                        />
+                      </SortableSticker>
+                    ))}
+                  </div>
+                </SortableContext>
+              </DndContext>
             ) : (
               <div className="empty-inline">
                 <ImagePlus size={22} />
@@ -702,6 +746,17 @@ export function PackDetail({
         </div>
       ) : null}
 
+      {activeTab === 'activity' ? (
+        <div
+          aria-labelledby={tabButtonId('activity')}
+          className="detail-tab-panel"
+          id={tabPanelId('activity')}
+          role="tabpanel"
+        >
+          <ActivityPanel api={api} pack={pack} onError={onError} />
+        </div>
+      ) : null}
+
       {activeTab === 'settings' && (canEdit || canManage) ? (
         <div
           aria-labelledby={tabButtonId('settings')}
@@ -714,7 +769,22 @@ export function PackDetail({
           {canEdit ? <TrayIconPanel api={api} pack={pack} onChanged={onChanged} onError={onError} /> : null}
         </div>
       ) : null}
+      {dialog}
     </section>
+  );
+}
+
+function SortableSticker({ id, children }: { id: string; children: ReactNode }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
+  return (
+    <div
+      ref={setNodeRef}
+      style={{ transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.55 : 1 }}
+      {...attributes}
+      {...listeners}
+    >
+      {children}
+    </div>
   );
 }
 

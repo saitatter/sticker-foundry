@@ -16,6 +16,7 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { Throttle } from '@nestjs/throttler';
 import { Response } from 'express';
 import { CurrentUser, RequestUser } from '../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
@@ -119,13 +120,31 @@ export class PacksController {
 
   @Get(':id/tray-icon')
   async trayIcon(@CurrentUser() user: RequestUser, @Param('id') id: string, @Res() response: Response) {
-    const stream = await this.packsService.getTrayIconFilePath(user.sub, id);
+    const cover = await this.packsService.getCoverFilePath(user.sub, id);
     response.setHeader('Content-Type', 'image/webp');
-    response.setHeader('Cache-Control', 'private, max-age=300');
-    return stream.pipe(response);
+    response.setHeader('Cache-Control', 'private, max-age=3600');
+    response.setHeader('ETag', `"${cover.version}"`);
+    return cover.stream.pipe(response);
+  }
+
+  @Get(':id/cover')
+  async cover(
+    @CurrentUser() user: RequestUser,
+    @Param('id') id: string,
+    @Headers('if-none-match') ifNoneMatch: string | undefined,
+    @Res() response: Response,
+  ) {
+    const cover = await this.packsService.getCoverFilePath(user.sub, id);
+    const etag = `"${cover.version}"`;
+    response.setHeader('Content-Type', 'image/webp');
+    response.setHeader('Cache-Control', 'private, max-age=3600, immutable');
+    response.setHeader('ETag', etag);
+    if (ifNoneMatch === etag) return response.status(HttpStatus.NOT_MODIFIED).send();
+    return cover.stream.pipe(response);
   }
 
   @Post(':id/tray-icon')
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
   @UseInterceptors(FileInterceptor('file', trayIconUploadOptions))
   async uploadTrayIcon(
     @CurrentUser() user: RequestUser,
@@ -151,6 +170,7 @@ export class PacksController {
   }
 
   @Put(':id/stickers/:stickerId/file')
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
   @UseInterceptors(FileInterceptor('file', stickerUploadOptions))
   async replaceStickerImage(
     @CurrentUser() user: RequestUser,
@@ -165,6 +185,7 @@ export class PacksController {
   }
 
   @Post(':id/stickers')
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
   @UseInterceptors(FileInterceptor('file', stickerUploadOptions))
   async uploadSticker(
     @CurrentUser() user: RequestUser,
@@ -178,6 +199,7 @@ export class PacksController {
   }
 
   @Post(':id/stickers/jobs')
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
   @HttpCode(HttpStatus.ACCEPTED)
   @UseInterceptors(FileInterceptor('file', stickerUploadOptions))
   queueStickerUpload(
@@ -257,6 +279,7 @@ export class PacksController {
   }
 
   @Post(':id/export/jobs')
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @HttpCode(HttpStatus.ACCEPTED)
   queueExport(@CurrentUser() user: RequestUser, @Param('id') id: string) {
     return this.packsService.queueExport(user.sub, id);

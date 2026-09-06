@@ -1,6 +1,9 @@
 import { AlertCircle, Archive, CheckCircle2, Film, Globe2, Lock, Search } from 'lucide-react';
+import { useNavigate } from '@tanstack/react-router';
+import { useQuery } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
 import type { Pack, StickerFoundryApi } from './api';
+import { queryKeys } from './lib/query-keys';
 import { Metric } from './ui';
 
 export type PackFilter = 'all' | 'public' | 'private' | 'ready' | 'needs-work';
@@ -11,17 +14,20 @@ export function PackLibrary({
   packs,
   selectedPackId,
   loading,
+  filters,
   onSelect,
 }: {
   api: StickerFoundryApi;
   packs: Pack[];
   selectedPackId: string | null;
   loading: boolean;
+  filters?: { q?: string; visibility?: PackFilter; sort?: PackSort };
   onSelect: (packId: string) => void;
 }) {
-  const [query, setQuery] = useState('');
-  const [filter, setFilter] = useState<PackFilter>('all');
-  const [sort, setSort] = useState<PackSort>('updated');
+  const navigate = useNavigate();
+  const query = filters?.q ?? '';
+  const filter = filters?.visibility ?? 'all';
+  const sort = filters?.sort ?? 'updated';
   const readyCount = packs.filter((pack) => pack.stickerCount >= 3).length;
   const publicCount = packs.filter((pack) => pack.isPublic).length;
   const privateCount = packs.length - publicCount;
@@ -68,14 +74,14 @@ export function PackLibrary({
             aria-label="Search packs"
             placeholder="Search packs"
             value={query}
-            onChange={(event) => setQuery(event.target.value)}
+            onChange={(event) => void updateSearch(navigate, { q: event.target.value || undefined })}
           />
         </label>
         <div className="pack-library-selects">
           <select
             aria-label="Filter packs"
             value={filter}
-            onChange={(event) => setFilter(event.target.value as PackFilter)}
+            onChange={(event) => void updateSearch(navigate, { visibility: event.target.value as PackFilter })}
           >
             <option value="all">All</option>
             <option value="public">Public</option>
@@ -83,7 +89,7 @@ export function PackLibrary({
             <option value="ready">Ready</option>
             <option value="needs-work">Needs work</option>
           </select>
-          <select aria-label="Sort packs" value={sort} onChange={(event) => setSort(event.target.value as PackSort)}>
+          <select aria-label="Sort packs" value={sort} onChange={(event) => void updateSearch(navigate, { sort: event.target.value as PackSort })}>
             <option value="updated">Updated</option>
             <option value="name">Name</option>
             <option value="stickers">Stickers</option>
@@ -137,49 +143,28 @@ export function PackLibrary({
 
 function PackCover({ api, pack }: { api: StickerFoundryApi; pack: Pack }) {
   const [coverUrl, setCoverUrl] = useState<string | null>(null);
-  const [loadingCover, setLoadingCover] = useState(false);
+  const coverQuery = useQuery({
+    queryKey: queryKeys.packs.cover(pack.id, pack.imageDataVersion),
+    queryFn: () => api.coverBlob(pack.id),
+    staleTime: Infinity,
+    retry: false,
+    refetchOnWindowFocus: false,
+  });
 
   useEffect(() => {
-    let alive = true;
-    let objectUrl: string | null = null;
-    setCoverUrl(null);
-    setLoadingCover(true);
-
-    async function loadCover() {
-      try {
-        const blob = await api.trayIconBlob(pack.id);
-        if (!alive) return;
-        objectUrl = URL.createObjectURL(blob);
-        setCoverUrl(objectUrl);
-        setLoadingCover(false);
-        return;
-      } catch {
-        // The tray icon can be missing on older packs; fall back to the first sticker preview.
-      }
-
-      try {
-        const detailedPack = pack.stickers?.length ? pack : await api.pack(pack.id);
-        const firstSticker = detailedPack.stickers?.[0];
-        if (!firstSticker) return;
-
-        const blob = await api.stickerBlob(pack.id, firstSticker.id);
-        if (!alive) return;
-        objectUrl = URL.createObjectURL(blob);
-        setCoverUrl(objectUrl);
-      } catch {
-        if (alive) setCoverUrl(null);
-      } finally {
-        if (alive) setLoadingCover(false);
-      }
+    if (!coverQuery.data) {
+      setCoverUrl(null);
+      return undefined;
     }
 
-    void loadCover();
-
+    const objectUrl = URL.createObjectURL(coverQuery.data);
+    setCoverUrl(objectUrl);
     return () => {
-      alive = false;
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
+      URL.revokeObjectURL(objectUrl);
     };
-  }, [api, pack.id, pack.imageDataVersion]);
+  }, [coverQuery.data]);
+
+  const loadingCover = coverQuery.isPending;
 
   return (
     <span className={`pack-cover ${coverUrl ? 'has-image' : ''} ${loadingCover ? 'loading' : ''}`}>
@@ -211,4 +196,18 @@ function roleLabel(role?: Pack['role']) {
   if (role === 'EDITOR') return 'Editor';
   if (role === 'VIEWER') return 'Viewer';
   return 'Private';
+}
+
+function updateSearch(
+  navigate: ReturnType<typeof useNavigate>,
+  next: { q?: string; visibility?: PackFilter; sort?: PackSort },
+) {
+  return navigate({
+    to: '/app/packs',
+    search: (current) => ({
+      q: 'q' in next ? next.q : current.q,
+      visibility: 'visibility' in next ? next.visibility : current.visibility,
+      sort: 'sort' in next ? next.sort : current.sort,
+    }),
+  });
 }

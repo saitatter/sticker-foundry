@@ -8,7 +8,11 @@ import {
   UserPlus,
   Users,
 } from 'lucide-react';
-import { type DragEvent, type FormEvent, useCallback, useEffect, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { type DragEvent, type FormEvent, useCallback, useEffect, useRef, useState } from 'react';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { useForm } from 'react-hook-form';
+import { z } from 'zod';
 import {
   AdminSettings,
   JobResponse,
@@ -28,6 +32,9 @@ import {
   UploadEditSummary,
 } from './image-editor';
 import { IconButton } from './ui';
+import { useJobQuery } from './features/jobs/queries';
+import { queryKeys } from './lib/query-keys';
+import { useConfirmDialog } from './components/ui/confirm-dialog';
 
 export function CollaborationPanel({
   api,
@@ -48,6 +55,7 @@ export function CollaborationPanel({
   const [expiresAt, setExpiresAt] = useState('');
   const [inviteFilter, setInviteFilter] = useState<'all' | 'pending' | 'accepted' | 'expired'>('all');
   const [invite, setInvite] = useState<PackInvite | null>(null);
+  const { confirm, dialog } = useConfirmDialog();
   const [loading, setLoading] = useState(false);
   const [creating, setCreating] = useState(false);
   const visibleInvites = invites.filter((item) => {
@@ -113,7 +121,11 @@ export function CollaborationPanel({
   }
 
   async function removeMember(memberId: string) {
-    if (!confirm('Remove this member from the pack?')) return;
+    if (!(await confirm({
+      title: 'Remove pack member?',
+      description: 'This member will lose access to the pack immediately.',
+      confirmLabel: 'Remove member',
+    }))) return;
     try {
       await api.removePackMember(pack.id, memberId);
       setMembers((current) => current.filter((member) => member.id !== memberId));
@@ -236,6 +248,7 @@ export function CollaborationPanel({
           ) : null}
         </div>
       </div>
+      {dialog}
     </section>
   );
 }
@@ -251,48 +264,46 @@ export function PackEditForm({
   onChanged: (message: string) => Promise<void>;
   onError: (error: unknown) => void;
 }) {
-  const [name, setName] = useState(pack.name);
-  const [publisher, setPublisher] = useState(pack.publisher);
-  const [description, setDescription] = useState(pack.description ?? '');
-  const [isPublic, setIsPublic] = useState(pack.isPublic);
-  const [requiresApproval, setRequiresApproval] = useState(pack.requiresApproval);
-  const [isAnimated, setIsAnimated] = useState(pack.isAnimated);
-  const [saving, setSaving] = useState(false);
+  const schema = z.object({
+    name: z.string().trim().min(1, 'Name is required').max(128),
+    publisher: z.string().trim().min(1, 'Publisher is required').max(128),
+    description: z.string().max(500),
+    isPublic: z.boolean(),
+    requiresApproval: z.boolean(),
+    isAnimated: z.boolean(),
+  });
+  type FormValues = z.infer<typeof schema>;
+  const { register, reset, handleSubmit, formState } = useForm<FormValues>({
+    resolver: zodResolver(schema),
+    defaultValues: {
+      name: pack.name,
+      publisher: pack.publisher,
+      description: pack.description ?? '',
+      isPublic: pack.isPublic,
+      requiresApproval: pack.requiresApproval,
+      isAnimated: pack.isAnimated,
+    },
+  });
 
   useEffect(() => {
-    setName(pack.name);
-    setPublisher(pack.publisher);
-    setDescription(pack.description ?? '');
-    setIsPublic(pack.isPublic);
-    setRequiresApproval(pack.requiresApproval);
-    setIsAnimated(pack.isAnimated);
-  }, [pack.description, pack.isAnimated, pack.isPublic, pack.name, pack.publisher, pack.requiresApproval]);
+    reset({
+      name: pack.name,
+      publisher: pack.publisher,
+      description: pack.description ?? '',
+      isPublic: pack.isPublic,
+      requiresApproval: pack.requiresApproval,
+      isAnimated: pack.isAnimated,
+    });
+  }, [pack.description, pack.isAnimated, pack.isPublic, pack.name, pack.publisher, pack.requiresApproval, reset]);
 
-  const dirty =
-    name !== pack.name ||
-    publisher !== pack.publisher ||
-    description !== (pack.description ?? '') ||
-    isPublic !== pack.isPublic ||
-    requiresApproval !== pack.requiresApproval ||
-    isAnimated !== pack.isAnimated;
-
-  async function submit(event: FormEvent) {
-    event.preventDefault();
-    setSaving(true);
+  async function submit(values: FormValues) {
     try {
       await api.updatePack(pack.id, {
-        name,
-        publisher,
-        description,
-        isPublic,
-        requiresApproval,
-        isAnimated,
+        ...values,
       });
       await onChanged('Pack updated');
     } catch (error) {
       onError(error);
-    } finally {
-      setSaving(false);
     }
   }
 
@@ -302,38 +313,36 @@ export function PackEditForm({
         <h3>Details</h3>
         <Edit3 size={18} />
       </div>
-      <form className="edit-form" onSubmit={submit}>
+      <form className="edit-form" onSubmit={handleSubmit(submit)}>
         <label>
           Name
-          <input value={name} onChange={(event) => setName(event.target.value)} maxLength={128} required />
+          <input {...register('name')} maxLength={128} required />
+          {formState.errors.name ? <small className="field-error">{formState.errors.name.message}</small> : null}
         </label>
         <label>
           Publisher
-          <input value={publisher} onChange={(event) => setPublisher(event.target.value)} maxLength={128} required />
+          <input {...register('publisher')} maxLength={128} required />
+          {formState.errors.publisher ? <small className="field-error">{formState.errors.publisher.message}</small> : null}
         </label>
         <label>
           Description
-          <input value={description} onChange={(event) => setDescription(event.target.value)} maxLength={500} />
+          <input {...register('description')} maxLength={500} />
         </label>
         <label className="checkbox-row edit-toggle">
-          <input checked={isPublic} onChange={(event) => setIsPublic(event.target.checked)} type="checkbox" />
+          <input {...register('isPublic')} type="checkbox" />
           Public
         </label>
         <label className="checkbox-row edit-toggle">
-          <input
-            checked={requiresApproval}
-            onChange={(event) => setRequiresApproval(event.target.checked)}
-            type="checkbox"
-          />
+          <input {...register('requiresApproval')} type="checkbox" />
           Require approval
         </label>
         <label className="checkbox-row edit-toggle">
-          <input checked={isAnimated} onChange={(event) => setIsAnimated(event.target.checked)} type="checkbox" />
+          <input {...register('isAnimated')} type="checkbox" />
           Animated pack
         </label>
-        <button className="secondary-button" disabled={!dirty || saving} type="submit">
+        <button className="secondary-button" disabled={!formState.isDirty || formState.isSubmitting} type="submit">
           <Edit3 size={17} />
-          Save
+          {formState.isSubmitting ? 'Saving' : 'Save'}
         </button>
       </form>
     </section>
@@ -435,70 +444,104 @@ export function UploadPanel({
   const [uploadedCount, setUploadedCount] = useState(0);
   const [jobs, setJobs] = useState<JobResponse[]>([]);
   const [jobActionId, setJobActionId] = useState<string | null>(null);
+  const [uploadPlan, setUploadPlan] = useState<Array<{ file: File; index: number }>>([]);
+  const [activeUpload, setActiveUpload] = useState<{ index: number; jobId: string } | null>(null);
+  const [retryJobId, setRetryJobId] = useState<string | null>(null);
+  const uploadStarting = useRef(false);
+  const queryClient = useQueryClient();
   const [isFileDragActive, setIsFileDragActive] = useState(false);
   const [editorOpen, setEditorOpen] = useState(false);
   const [editorDraft, setEditorDraft] = useState<ImageEditOptions>(defaultImageEditOptions);
   const disabled = remainingSlots <= 0;
+  const polledJobId = activeUpload?.jobId ?? retryJobId;
+  const polledJobQuery = useJobQuery(api, polledJobId);
 
   async function submit(event: FormEvent) {
     event.preventDefault();
     if (files.length === 0) return;
     setUploading(true);
     setUploadedCount(0);
-    let completedCount = 0;
-    try {
-      const uploadEmojis = emojis
-        .split(',')
-        .map((emoji) => emoji.trim())
-        .filter(Boolean)
-        .slice(0, 3);
+    setUploadPlan(files.map((file, index) => ({ file, index })));
+  }
 
-      for (const [index, file] of files.entries()) {
-        const uploadFile = await editableUploadFile(file, pack.isAnimated, editOptions);
+  useEffect(() => {
+    if (!uploading || activeUpload || uploadPlan.length === 0 || uploadStarting.current) return;
+    uploadStarting.current = true;
+    const next = uploadPlan[0];
+    const uploadEmojis = emojis
+      .split(',')
+      .map((emoji) => emoji.trim())
+      .filter(Boolean)
+      .slice(0, 3);
+
+    void (async () => {
+      try {
+        const uploadFile = await editableUploadFile(next.file, pack.isAnimated, editOptions);
         const queuedJob = await api.queueStickerUpload(
           pack.id,
           uploadFile,
           uploadEmojis,
           accessibilityText,
-          stickerUploadOptionsFromEdit(file, pack.isAnimated, editOptions),
+          stickerUploadOptionsFromEdit(next.file, pack.isAnimated, editOptions),
         );
+        queryClient.setQueryData(queryKeys.jobs.detail(queuedJob.id), queuedJob);
         setJobs((current) => [...current.filter((job) => job.id !== queuedJob.id), queuedJob].slice(-6));
-        const completedJob = await api.waitForJob(queuedJob.id, (updatedJob) => {
-          setJobs((current) => current.map((job) => (job.id === updatedJob.id ? updatedJob : job)));
-        });
-        if (completedJob.status !== 'COMPLETED') {
-          throw new Error(completedJob.error ?? `Sticker job ${completedJob.status.toLowerCase()}`);
-        }
-        completedCount += 1;
-        setUploadedCount(index + 1);
+        setActiveUpload({ index: next.index, jobId: queuedJob.id });
+      } catch (error) {
+        setUploadPlan([]);
+        setUploading(false);
+        onError(error);
+      } finally {
+        uploadStarting.current = false;
       }
+    })();
+  }, [accessibilityText, api, editOptions, emojis, onError, pack.id, pack.isAnimated, queryClient, uploadPlan, uploading, activeUpload]);
 
-      const count = files.length;
-      setFiles([]);
-      setEditOptions(defaultImageEditOptions);
-      setEmojis('');
-      setAccessibilityText('');
-      await onChanged(count === 1 ? 'Sticker uploaded' : `${count} stickers uploaded`);
-    } catch (error) {
-      if (completedCount > 0) {
-        try {
-          await onChanged(`${completedCount} sticker${completedCount === 1 ? '' : 's'} uploaded`);
-        } catch (refreshError) {
-          onError(refreshError);
-        }
-      }
-      onError(error);
-    } finally {
-      setUploading(false);
-      setUploadedCount(0);
+  useEffect(() => {
+    const job = polledJobQuery.data;
+    if (!job) return;
+    setJobs((current) => [...current.filter((item) => item.id !== job.id), job].slice(-6));
+    if (job.status !== 'COMPLETED' && job.status !== 'FAILED' && job.status !== 'CANCELLED') return;
+
+    if (retryJobId === job.id) {
+      setRetryJobId(null);
+      setJobActionId(null);
+      if (job.status === 'COMPLETED') void onChanged('Sticker job completed');
+      else onError(new Error(job.error ?? `Sticker job ${job.status.toLowerCase()}`));
+      return;
     }
-  }
+
+    if (activeUpload?.jobId !== job.id) return;
+    if (job.status === 'COMPLETED') {
+      setUploadedCount(activeUpload.index + 1);
+      setUploadPlan((current) => current.slice(1));
+      setActiveUpload(null);
+      return;
+    }
+
+    setUploadPlan([]);
+    setActiveUpload(null);
+    setUploading(false);
+    onError(new Error(job.error ?? `Sticker job ${job.status.toLowerCase()}`));
+  }, [activeUpload, onError, onChanged, polledJobQuery.data, retryJobId]);
+
+  useEffect(() => {
+    if (!uploading || activeUpload || uploadPlan.length > 0) return;
+    const count = files.length;
+    setUploading(false);
+    setFiles([]);
+    setEditOptions(defaultImageEditOptions);
+    setEmojis('');
+    setAccessibilityText('');
+    void onChanged(count === 1 ? 'Sticker uploaded' : `${count} stickers uploaded`);
+  }, [activeUpload, files.length, onChanged, uploadPlan.length, uploading]);
 
   async function cancelJob(jobId: string) {
     setJobActionId(jobId);
     try {
       const cancelledJob = await api.cancelJob(jobId);
       setJobs((current) => current.map((job) => (job.id === jobId ? cancelledJob : job)));
+      queryClient.setQueryData(queryKeys.jobs.detail(jobId), cancelledJob);
     } catch (error) {
       onError(error);
     } finally {
@@ -511,17 +554,12 @@ export function UploadPanel({
     try {
       const queuedJob = await api.retryJob(jobId);
       setJobs((current) => current.map((job) => (job.id === jobId ? queuedJob : job)));
-      const completedJob = await api.waitForJob(jobId, (updatedJob) => {
-        setJobs((current) => current.map((job) => (job.id === updatedJob.id ? updatedJob : job)));
-      });
-      if (completedJob.status !== 'COMPLETED') {
-        throw new Error(completedJob.error ?? `Sticker job ${completedJob.status.toLowerCase()}`);
-      }
-      await onChanged('Sticker job completed');
+      queryClient.setQueryData(queryKeys.jobs.detail(jobId), queuedJob);
+      setRetryJobId(jobId);
     } catch (error) {
       onError(error);
     } finally {
-      setJobActionId(null);
+      if (!retryJobId) setJobActionId(null);
     }
   }
 

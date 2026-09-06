@@ -1,6 +1,10 @@
 import { BadRequestException, ConflictException, ForbiddenException } from '@nestjs/common';
 import { PackRole, StickerReviewStatus } from '@prisma/client';
 import { PacksService } from './packs.service';
+import { PackAccessService } from './pack-access.service';
+import { PacksCollaborationService } from './packs-collaboration.service';
+import { PacksStickerService } from './packs-sticker.service';
+import { StickerMediaReadService } from './sticker-media-read.service';
 
 jest.mock('crypto', () => ({
   ...jest.requireActual('crypto'),
@@ -95,15 +99,30 @@ function createService() {
   const mediaQueue = {
     enqueue: jest.fn((task: () => Promise<unknown>) => task()),
   };
-
-  const service = new PacksService(
+  const jobs = { enqueue: jest.fn() };
+  const access = new PackAccessService(prisma as never, config as never);
+  const stickerService = new PacksStickerService(
     prisma as never,
     imageService as never,
     backgroundRemoval as never,
-    config as never,
     audit as never,
     mediaQueue as never,
     storage as never,
+    access,
+    jobs as never,
+  );
+  const collaboration = new PacksCollaborationService(prisma as never, audit as never, access);
+  const stickerMediaRead = new StickerMediaReadService(prisma as never, storage as never);
+
+  const service = new PacksService(
+    prisma as never,
+    audit as never,
+    storage as never,
+    jobs as never,
+    access,
+    stickerService,
+    collaboration,
+    stickerMediaRead,
   );
   return { service, prisma, imageService, backgroundRemoval, audit, storage };
 }

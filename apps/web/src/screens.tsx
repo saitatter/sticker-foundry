@@ -1,5 +1,6 @@
 import { Archive, Download, Eye, EyeOff, Globe2, KeyRound, Lock } from 'lucide-react';
 import { type FormEvent, useEffect, useState } from 'react';
+import { Link } from '@tanstack/react-router';
 import {
   type AuthResponse,
   type InstanceSettings,
@@ -265,13 +266,13 @@ export function AuthScreen({
             <div className="public-pack-list">
               {publicPacks.length > 0 ? (
                 publicPacks.map((pack) => (
-                  <a className="public-pack-link" href={`/share/${pack.id}`} key={pack.id}>
+                  <Link className="public-pack-link" params={{ packId: pack.id }} to="/share/$packId" key={pack.id}>
                     <span>
                       <strong>{pack.name}</strong>
                       <small>{pack.publisher}</small>
                     </span>
                     <small>{pack.exportStickerCount ?? pack.stickerCount}/30</small>
-                  </a>
+                  </Link>
                 ))
               ) : (
                 <div className="empty-inline">

@@ -1,54 +1,65 @@
 import { ImagePlus, KeyRound, LogOut, Plus, RefreshCw } from 'lucide-react';
+import { useQueryClient } from '@tanstack/react-query';
+import { useNavigate } from '@tanstack/react-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { AdminSettings, ApiError, AuthResponse, InstanceSettings, Pack, StickerFoundryApi, Team, User } from './api';
+import { ApiError, AuthResponse, InstanceSettings, Pack, StickerFoundryApi, Team, User } from './api';
+import { useMeQuery } from './features/auth/queries';
+import { useAdminSettingsQuery } from './features/admin/queries';
+import { usePackQuery, usePacksQuery } from './features/packs/queries';
+import { useInstanceQuery } from './features/settings/queries';
+import { useTeamsQuery } from './features/teams/queries';
+import { queryKeys } from './lib/query-keys';
 import { PackLibrary } from './pack-library';
 import { AuthScreen, ResetPasswordScreen, SharePage } from './screens';
 import { PackDetail } from './pack-detail';
 import { AccountDialog, WorkspaceNav, WorkspaceToolsDrawer } from './workspace-panels';
+import { ThemeToggle } from './components/layout/theme-toggle';
+import { clearAccessToken, getAccessToken, setAccessToken } from './lib/api/auth-session';
 import { BrandMark, IconButton, NoticeBar, type Notice } from './ui';
 
-const TOKEN_KEY = 'stickerfoundry.token';
-const REFRESH_TOKEN_KEY = 'stickerfoundry.refreshToken';
 const DEFAULT_INSTANCE_SETTINGS: InstanceSettings = {
   instanceName: 'Sticker Foundry',
   instanceDescription: 'Self-hosted sticker pack management',
 };
 
-type WorkspaceView = 'packs' | 'pack';
-export function App() {
-  const [token, setToken] = useState(() => localStorage.getItem(TOKEN_KEY));
-  const [user, setUser] = useState<User | null>(null);
-  const [instanceSettings, setInstanceSettings] = useState<InstanceSettings>(DEFAULT_INSTANCE_SETTINGS);
-  const [packs, setPacks] = useState<Pack[]>([]);
-  const [teams, setTeams] = useState<Team[]>([]);
-  const [selectedPackId, setSelectedPackId] = useState<string | null>(null);
-  const [selectedPack, setSelectedPack] = useState<Pack | null>(null);
-  const [workspaceView, setWorkspaceView] = useState<WorkspaceView>('packs');
-  const [backgroundRemovalStatus, setBackgroundRemovalStatus] = useState<
-    AdminSettings['backgroundRemoval'] | undefined
-  >(undefined);
+export type AppRoute =
+  | { kind: 'login' }
+  | { kind: 'settings'; section: 'account' | 'security' | 'instance' | 'processing' | 'audit' }
+  | { kind: 'team'; teamId: string }
+  | {
+      kind: 'workspace';
+      view: 'packs' | 'pack';
+      packId?: string;
+      section?: 'overview' | 'stickers' | 'collaboration' | 'activity' | 'settings';
+      filters?: { q?: string; visibility?: 'all' | 'public' | 'private' | 'ready' | 'needs-work'; sort?: 'updated' | 'name' | 'stickers' };
+    }
+  | { kind: 'share'; packId: string }
+  | { kind: 'reset'; token: string | null };
+
+export function App({ route }: { route: AppRoute }) {
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const [token, setToken] = useState(() => getAccessToken());
+  const [authBootstrapped, setAuthBootstrapped] = useState(() => Boolean(getAccessToken()));
+  const [sessionUser, setSessionUser] = useState<User | null>(null);
   const [notice, setNotice] = useState<Notice | null>(null);
-  const [loading, setLoading] = useState(false);
   const [showAccountDialog, setShowAccountDialog] = useState(false);
   const [showMobileTools, setShowMobileTools] = useState(false);
-  const passwordResetToken = useMemo(() => {
-    const params = new URLSearchParams(window.location.search);
-    return window.location.pathname === '/reset-password' ? params.get('token') : null;
-  }, []);
+  const selectedPackId = route.kind === 'workspace' && route.view === 'pack' ? route.packId ?? null : null;
+  const workspaceView = route.kind === 'workspace' ? route.view : 'packs';
+  const isPublicRoute = route.kind === 'login' || route.kind === 'share' || route.kind === 'reset';
 
   const saveAuth = useCallback((auth: AuthResponse | null) => {
     if (!auth) {
-      localStorage.removeItem(TOKEN_KEY);
-      localStorage.removeItem(REFRESH_TOKEN_KEY);
+      clearAccessToken();
       setToken(null);
-      setUser(null);
+      setSessionUser(null);
       return;
     }
 
-    localStorage.setItem(TOKEN_KEY, auth.accessToken);
-    localStorage.removeItem(REFRESH_TOKEN_KEY);
+    setAccessToken(auth.accessToken);
     setToken(auth.accessToken);
-    setUser(auth.user);
+    setSessionUser(auth.user);
   }, []);
 
   const api = useMemo(
@@ -59,84 +70,86 @@ export function App() {
       ),
     [saveAuth, token],
   );
+  const packsQuery = usePacksQuery(api, Boolean(token));
+  const teamsQuery = useTeamsQuery(api, Boolean(token));
+  const selectedPackQuery = usePackQuery(api, selectedPackId);
+  const meQuery = useMeQuery(api, Boolean(token));
+  const instanceQuery = useInstanceQuery(api);
+  const adminSettingsQuery = useAdminSettingsQuery(
+    api,
+    Boolean(token && (meQuery.data?.isAdmin || sessionUser?.isAdmin)),
+  );
+  const packs = packsQuery.data ?? [];
+  const teams = teamsQuery.data ?? [];
+  const selectedPack = selectedPackQuery.data ?? null;
+  const user = meQuery.data ?? sessionUser;
+  const instanceSettings = instanceQuery.data ?? DEFAULT_INSTANCE_SETTINGS;
+  const backgroundRemovalStatus = adminSettingsQuery.data?.backgroundRemoval;
 
   const reportError = useCallback((error: unknown) => {
     const text = error instanceof ApiError || error instanceof Error ? error.message : 'Something went wrong';
     setNotice({ tone: 'error', text });
   }, []);
 
-  const refreshPacks = useCallback(async () => {
+  const refetchWorkspaceQueries = useCallback(async () => {
     if (!token) return;
-    setLoading(true);
-    try {
-      const [nextPacks, nextTeams] = await Promise.all([api.packs(), api.teams()]);
-      setPacks(nextPacks);
-      setTeams(nextTeams);
-      setSelectedPackId((current) => (current && nextPacks.some((pack) => pack.id === current) ? current : null));
-    } catch (error) {
-      reportError(error);
-    } finally {
-      setLoading(false);
+    await Promise.all([packsQuery.refetch(), teamsQuery.refetch()]);
+  }, [packsQuery.refetch, teamsQuery.refetch, token]);
+
+  const invalidateWorkspace = useCallback(async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: queryKeys.packs.all }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.teams.all }),
+      selectedPackId
+        ? queryClient.invalidateQueries({ queryKey: queryKeys.packs.detail(selectedPackId) })
+        : Promise.resolve(),
+    ]);
+  }, [queryClient, selectedPackId]);
+
+  useEffect(() => {
+    if (token || isPublicRoute) return;
+    void api
+      .refreshSession()
+      .then((auth) => {
+        if (auth) saveAuth(auth);
+      })
+      .catch(() => undefined)
+      .finally(() => setAuthBootstrapped(true));
+  }, [api, isPublicRoute, saveAuth, token]);
+
+  useEffect(() => {
+    if (token) setAuthBootstrapped(true);
+  }, [token]);
+
+  useEffect(() => {
+    const protectedRoute = route.kind === 'workspace' || route.kind === 'settings' || route.kind === 'team';
+    if (protectedRoute && authBootstrapped && !token) {
+      void navigate({ to: '/login' });
     }
-  }, [api, reportError, token]);
+  }, [authBootstrapped, navigate, route.kind, token]);
 
-  const refreshSelectedPack = useCallback(async () => {
-    if (!selectedPackId) {
-      setSelectedPack(null);
-      return;
-    }
-    try {
-      setSelectedPack(await api.pack(selectedPackId));
-    } catch (error) {
-      reportError(error);
-    }
-  }, [api, reportError, selectedPackId]);
-
-  useEffect(() => {
-    api
-      .instanceSettings()
-      .then(setInstanceSettings)
-      .catch(() => undefined);
-  }, [api]);
-
-  useEffect(() => {
-    if (!token) return;
-    api
-      .me()
-      .then(setUser)
-      .catch(() => {
-        localStorage.removeItem(TOKEN_KEY);
-        localStorage.removeItem(REFRESH_TOKEN_KEY);
-        setToken(null);
-      });
-  }, [api, token]);
-
-  useEffect(() => {
-    void refreshPacks();
-  }, [refreshPacks]);
-
-  useEffect(() => {
-    if (!user?.isAdmin) {
-      setBackgroundRemovalStatus(undefined);
-      return;
-    }
-    api
-      .adminSettings()
-      .then((settings) => setBackgroundRemovalStatus(settings.backgroundRemoval))
-      .catch(reportError);
-  }, [api, reportError, user?.isAdmin]);
-
-  useEffect(() => {
-    void refreshSelectedPack();
-  }, [refreshSelectedPack]);
-
-  const sharePackId = sharePackIdFromPath();
-  if (sharePackId) {
+  if (route.kind === 'share') {
     return (
       <SharePage
         api={api}
         instanceSettings={instanceSettings}
-        packId={sharePackId}
+        packId={route.packId}
+        onError={reportError}
+        notice={notice}
+      />
+    );
+  }
+
+  if (route.kind === 'reset' && route.token) {
+    return (
+      <ResetPasswordScreen
+        api={api}
+        instanceSettings={instanceSettings}
+        token={route.token}
+        onChanged={() => {
+          void navigate({ to: '/login' });
+          setNotice({ tone: 'success', text: 'Password reset complete. You can log in now.' });
+        }}
         onError={reportError}
         notice={notice}
       />
@@ -146,51 +159,34 @@ export function App() {
   const saveSession = (auth: AuthResponse) => {
     saveAuth(auth);
     setNotice({ tone: 'success', text: 'Signed in' });
+    void navigate({ to: '/app/packs', search: { q: undefined, visibility: undefined, sort: undefined } });
   };
 
   const signOut = () => {
     void api.logout().catch(() => undefined);
-    localStorage.removeItem(TOKEN_KEY);
-    localStorage.removeItem(REFRESH_TOKEN_KEY);
+    clearAccessToken();
     setToken(null);
-    setUser(null);
-    setPacks([]);
-    setSelectedPack(null);
-    setSelectedPackId(null);
-    setWorkspaceView('packs');
-    setBackgroundRemovalStatus(undefined);
+    setSessionUser(null);
+    queryClient.removeQueries({ queryKey: queryKeys.packs.all });
+    queryClient.removeQueries({ queryKey: queryKeys.teams.all });
+    queryClient.removeQueries({ queryKey: queryKeys.me });
+    void navigate({ to: '/login' });
   };
 
   const openPacksView = () => {
-    setWorkspaceView('packs');
     setShowMobileTools(false);
+    void navigate({ to: '/app/packs', search: { q: undefined, visibility: undefined, sort: undefined } });
   };
 
   const openPack = (packId: string) => {
-    setSelectedPackId(packId);
-    setWorkspaceView('pack');
     setShowMobileTools(false);
+    void navigate({ to: '/app/packs/$packId', params: { packId } });
   };
 
+  const loading = packsQuery.isPending;
   const selectedPackSummary = packs.find((pack) => pack.id === selectedPackId) ?? selectedPack;
 
   if (!token) {
-    if (passwordResetToken) {
-      return (
-        <ResetPasswordScreen
-          api={api}
-          instanceSettings={instanceSettings}
-          token={passwordResetToken}
-          onChanged={() => {
-            window.history.replaceState(null, '', '/');
-            setNotice({ tone: 'success', text: 'Password reset complete. You can log in now.' });
-          }}
-          onError={reportError}
-          notice={notice}
-        />
-      );
-    }
-
     return (
       <AuthScreen
         api={api}
@@ -214,10 +210,11 @@ export function App() {
           </div>
         </div>
         <div className="topbar-actions">
+          <ThemeToggle />
           <IconButton label="Account settings" onClick={() => setShowAccountDialog(true)}>
             <KeyRound size={18} />
           </IconButton>
-          <IconButton label="Refresh packs" onClick={() => void refreshPacks()}>
+          <IconButton label="Refresh packs" onClick={() => void refetchWorkspaceQueries()}>
             <RefreshCw size={18} />
           </IconButton>
           <IconButton label="Sign out" onClick={signOut}>
@@ -258,6 +255,7 @@ export function App() {
               packs={packs}
               selectedPackId={selectedPackId}
               loading={loading}
+              filters={route.kind === 'workspace' ? route.filters : undefined}
               onSelect={openPack}
             />
           ) : selectedPack ? (
@@ -266,20 +264,34 @@ export function App() {
               backgroundRemovalStatus={backgroundRemovalStatus}
               pack={selectedPack}
               packs={packs}
+              initialTab={route.kind === 'workspace' ? route.section ?? 'overview' : 'overview'}
+              onSectionChange={(section) => {
+                if (section === 'overview') {
+                  void navigate({ to: '/app/packs/$packId', params: { packId: selectedPack.id } });
+                } else if (section === 'stickers') {
+                  void navigate({ to: '/app/packs/$packId/stickers', params: { packId: selectedPack.id } });
+                } else if (section === 'collaboration') {
+                  void navigate({ to: '/app/packs/$packId/collaboration', params: { packId: selectedPack.id } });
+                } else if (section === 'activity') {
+                  void navigate({ to: '/app/packs/$packId/activity', params: { packId: selectedPack.id } });
+                } else if (section === 'settings') {
+                  void navigate({ to: '/app/packs/$packId/settings', params: { packId: selectedPack.id } });
+                }
+              }}
               onChanged={async (message) => {
-                await refreshPacks();
-                await refreshSelectedPack();
+                await invalidateWorkspace();
                 setNotice({ tone: 'success', text: message });
               }}
               onDeleted={() => {
-                setPacks((current) => current.filter((pack) => pack.id !== selectedPack.id));
-                setSelectedPackId(packs.find((pack) => pack.id !== selectedPack.id)?.id ?? null);
-                setSelectedPack(null);
-                setWorkspaceView('packs');
+                queryClient.setQueryData<Pack[]>(queryKeys.packs.list, (current = []) =>
+                  current.filter((pack) => pack.id !== selectedPack.id),
+                );
+                queryClient.removeQueries({ queryKey: queryKeys.packs.detail(selectedPack.id) });
+                void navigate({ to: '/app/packs', search: { q: undefined, visibility: undefined, sort: undefined } });
                 setNotice({ tone: 'success', text: 'Pack deleted' });
               }}
               onCloned={(pack) => {
-                setPacks((current) => [pack, ...current]);
+                queryClient.setQueryData<Pack[]>(queryKeys.packs.list, (current = []) => [pack, ...current]);
                 openPack(pack.id);
                 setNotice({ tone: 'success', text: 'Pack cloned' });
               }}
@@ -291,38 +303,46 @@ export function App() {
           )}
         </main>
       </div>
-      {showMobileTools ? (
+      {showMobileTools || route.kind === 'team' ? (
         <WorkspaceToolsDrawer
           api={api}
           teams={teams}
           onAccepted={async (pack) => {
-            await refreshPacks();
+            await invalidateWorkspace();
             openPack(pack.id);
             setNotice({ tone: 'success', text: 'Invite accepted' });
           }}
-          onChanged={refreshPacks}
-          onClose={() => setShowMobileTools(false)}
+          onChanged={invalidateWorkspace}
+          onClose={() => {
+            setShowMobileTools(false);
+            if (route.kind === 'team') void navigate({ to: '/app/packs', search: { q: undefined, visibility: undefined, sort: undefined } });
+          }}
           onError={reportError}
           onNotice={(message) => setNotice({ tone: 'success', text: message })}
           onPackCreated={(pack) => {
-            setPacks((current) => [pack, ...current]);
+            queryClient.setQueryData<Pack[]>(queryKeys.packs.list, (current = []) => [pack, ...current]);
             openPack(pack.id);
             setNotice({ tone: 'success', text: 'Pack created' });
           }}
           onTeamCreated={async (team) => {
-            setTeams((current) => [team, ...current].sort((left, right) => left.name.localeCompare(right.name)));
+            queryClient.setQueryData<Team[]>(queryKeys.teams.all, (current = []) =>
+              [team, ...current].sort((left, right) => left.name.localeCompare(right.name)),
+            );
             setNotice({ tone: 'success', text: 'Team created' });
           }}
         />
       ) : null}
-      {showAccountDialog ? (
+      {showAccountDialog || route.kind === 'settings' ? (
         <AccountDialog
           api={api}
           isAdmin={Boolean(user?.isAdmin)}
           instanceSettings={instanceSettings}
-          onClose={() => setShowAccountDialog(false)}
+          onClose={() => {
+            setShowAccountDialog(false);
+            if (route.kind === 'settings') void navigate({ to: '/app/packs', search: { q: undefined, visibility: undefined, sort: undefined } });
+          }}
           onChanged={(message, settings) => {
-            if (settings) setInstanceSettings(settings);
+            if (settings) queryClient.setQueryData(queryKeys.instance, settings);
             setNotice({ tone: 'success', text: message });
           }}
           onError={reportError}
@@ -331,7 +351,6 @@ export function App() {
     </div>
   );
 }
-
 function EmptyState() {
   return (
     <section className="empty-state">
@@ -340,9 +359,4 @@ function EmptyState() {
       <p>Create or select a pack.</p>
     </section>
   );
-}
-
-function sharePackIdFromPath() {
-  const match = window.location.pathname.match(/^\/share\/([^/?#]+)/);
-  return match ? decodeURIComponent(match[1]) : null;
 }

@@ -5,7 +5,6 @@
   "description": "Self-hosted collaborative WhatsApp sticker pack management platform.",
   "workspaces": [
     "apps/backend",
-    "apps/worker",
     "apps/web",
     "packages/shared-types"
   ],
@@ -13,7 +12,7 @@
     "dev": "concurrently -n backend,worker,web -c cyan,magenta,green \"npm run dev:backend\" \"npm run dev:worker\" \"npm run dev:web\"",
     "dev:seeded": "npm run prisma:migrate && npm run prisma:seed && npm run dev",
     "dev:backend": "npm --workspace apps/backend run start:dev",
-    "dev:worker": "npm --workspace apps/worker run start:dev",
+    "dev:worker": "npm --workspace apps/backend run start:worker:dev",
     "dev:web": "npm --workspace apps/web run dev",
     "build:backend": "npm --workspace apps/backend run build",
     "build:web": "npm run build:shared-types && npm --workspace apps/web run build",
@@ -23,18 +22,23 @@
     "test:backend": "npm --workspace apps/backend run test",
     "test:e2e:backend": "npm --workspace apps/backend run test:e2e",
     "test:web": "playwright test",
+    "test:web:unit": "npm --workspace apps/web run test:unit",
+    "compose:validate": "node scripts/validate-compose.mjs",
     "lint:backend": "npm --workspace apps/backend run lint",
     "lint:web": "npm --workspace apps/web run lint",
     "format:web": "npm --workspace apps/web run format",
     "verify:backup": "node scripts/verify-backup.mjs",
     "package:release": "node scripts/prepare-release-assets.mjs",
     "build:shared-types": "npm --workspace packages/shared-types run build",
+    "api:generate": "openapi-typescript http://localhost:3000/api/docs-json -o apps/web/src/lib/api/generated/schema.d.ts",
+    "postinstall": "npm run prisma:generate",
     "release:dry-run": "semantic-release --dry-run"
   },
   "engines": {
     "node": ">=20"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
     "@playwright/test": "^1.59.1",
     "@semantic-release/changelog": "^6.0.3",
     "@semantic-release/commit-analyzer": "^13.0.1",
@@ -44,6 +48,7 @@
     "@semantic-release/release-notes-generator": "^14.1.1",
     "concurrently": "^9.2.1",
     "conventional-changelog-conventionalcommits": "^9.3.1",
+    "openapi-typescript": "^7.13.0",
     "semantic-release": "^25.0.3"
   }
 }

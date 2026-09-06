@@ -1,4 +1,4 @@
-import { Controller, Get, NotFoundException, Param, Res } from '@nestjs/common';
+import { Controller, Get, Headers, NotFoundException, Param, Res } from '@nestjs/common';
 import { Response } from 'express';
 import { PackExportService } from '../exports/pack-export.service';
 import { PacksService } from './packs.service';
@@ -18,6 +18,21 @@ export class PublicPacksController {
   @Get(':id')
   pack(@Param('id') id: string) {
     return this.packsService.publicPack(id);
+  }
+
+  @Get(':id/cover')
+  async cover(
+    @Param('id') id: string,
+    @Headers('if-none-match') ifNoneMatch: string | undefined,
+    @Res() response: Response,
+  ) {
+    const cover = await this.packsService.getPublicCoverFilePath(id);
+    const etag = `"${cover.version}"`;
+    response.setHeader('Content-Type', 'image/webp');
+    response.setHeader('Cache-Control', 'public, max-age=3600, immutable');
+    response.setHeader('ETag', etag);
+    if (ifNoneMatch === etag) return response.status(304).send();
+    return cover.stream.pipe(response);
   }
 
   @Get(':id/export')

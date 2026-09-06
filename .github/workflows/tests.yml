@@ -64,10 +64,16 @@ jobs:
         run: npm run lint:web
 
       - name: Install Playwright browsers
-        run: npx playwright install --with-deps chromium
+        run: npx playwright install --with-deps
 
       - name: Test web smoke flows
         run: npm run test:web
+
+      - name: Test web units
+        run: npm run test:web:unit
+
+      - name: Validate Compose configurations
+        run: npm run compose:validate
 
       - name: Build shared types
         run: npm --workspace packages/shared-types run build
@@ -95,3 +101,35 @@ jobs:
       - name: Build Android debug APK
         working-directory: apps/android
         run: ./gradlew :app:assembleDebug
+
+  docker:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Boot Compose stack
+        run: docker compose up -d --build
+
+      - name: Wait for backend readiness
+        shell: bash
+        run: |
+          for attempt in {1..60}; do
+            if curl --fail --silent http://localhost:3000/api/health/ready >/dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          docker compose ps
+          docker compose logs backend worker
+          exit 1
+
+      - name: Verify web and service status
+        run: |
+          curl --fail --silent http://localhost:8080/ >/dev/null
+          docker compose ps
+
+      - name: Tear down Compose stack
+        if: always()
+        run: docker compose down -v

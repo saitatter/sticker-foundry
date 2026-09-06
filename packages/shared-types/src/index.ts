@@ -52,6 +52,9 @@ export type PackDto = {
   stickers?: StickerDto[];
 };
 
+export type PackSummaryDto = Omit<PackDto, 'stickers'>;
+export type PackDetailDto = PackDto & { stickers: StickerDto[] };
+
 export type SyncPackDto = {
   id: string;
   name: string;

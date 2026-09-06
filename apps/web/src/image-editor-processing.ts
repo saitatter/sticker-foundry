@@ -111,6 +111,8 @@ export function hasColorAdjustments(options: ImageEditOptions) {
 }
 
 export function renderImageEditCanvas(image: HTMLImageElement, options: ImageEditOptions) {
+  if (image.naturalWidth <= 0 || image.naturalHeight <= 0) return null;
+
   const sourceSize = options.cropSquare
     ? Math.min(image.naturalWidth, image.naturalHeight) / Math.max(options.zoom, 1)
     : undefined;
@@ -203,7 +205,7 @@ export function ensurePreviewCanvasSize(canvas: HTMLCanvasElement) {
 
 export function drawEditedPreview(canvas: HTMLCanvasElement, editedCanvas: HTMLCanvasElement) {
   const context = canvas.getContext('2d');
-  if (!context) return null;
+  if (!context || editedCanvas.width <= 0 || editedCanvas.height <= 0) return null;
 
   drawCheckerboard(context, canvas.width, canvas.height, 16);
   const scale = Math.min(canvas.width / editedCanvas.width, canvas.height / editedCanvas.height);

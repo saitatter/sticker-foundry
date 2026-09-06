@@ -59,7 +59,7 @@ jobs:
         run: npm run lint:web
 
       - name: Install Playwright browsers
-        run: npx playwright install --with-deps chromium
+        run: npx playwright install --with-deps
 
       - name: Test web smoke flows
         run: npm run test:web

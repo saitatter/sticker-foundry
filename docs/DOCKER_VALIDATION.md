@@ -2,6 +2,12 @@
 
 Docker is not available in the current local workspace, so use this checklist on a host with Docker installed.
 
+Validate all Compose combinations without starting containers:
+
+```bash
+npm run compose:validate
+```
+
 ## Source Compose Boot
 
 ```bash
@@ -44,7 +50,7 @@ Disk and S3 use the same layout: `<S3_PREFIX>/<packId>/cover.webp` for the tray 
 
 ## Optional AI Background Removal Boot
 
-For source builds, the AI override builds a backend image with `rembg[cpu]` and sets `BACKGROUND_REMOVAL_COMMAND` automatically:
+For source builds, the AI override builds the backend/worker image with `rembg[cpu]` and sets `BACKGROUND_REMOVAL_COMMAND` automatically:
 
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.ai.yml up -d --build

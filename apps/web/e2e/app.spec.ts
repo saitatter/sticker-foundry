@@ -1,4 +1,5 @@
 import { expect, Locator, Page, Route, test } from '@playwright/test';
+import AxeBuilder from '@axe-core/playwright';
 
 const png1x1 = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=',
@@ -102,6 +103,7 @@ test('covers core web sticker workflows with mocked API', async ({ page }) => {
     buffer: png1x1,
   });
   await page.locator('.upload-panel').getByRole('button', { name: 'Upload' }).click();
+  await expect.poll(() => state.uploads.length).toBe(1);
   await page.getByRole('tab', { name: 'Overview' }).click();
   await expect(page.locator('.stats-grid')).toContainText('1/30');
 
@@ -112,6 +114,51 @@ test('covers core web sticker workflows with mocked API', async ({ page }) => {
   await page.locator('.bulk-toolbar').getByLabel('Target').selectOption({ label: 'Scratch Pack (1/30)' });
   await page.locator('.bulk-toolbar').getByRole('button', { name: 'Copy' }).click();
   await expect(page.getByText('Selected stickers copied')).toBeVisible();
+});
+
+test('supports direct workspace navigation, refresh, and browser history', async ({ page }) => {
+  const state = createMockState();
+  await mockApi(page, state);
+  await login(page, { openFirstPack: false });
+
+  await page.goto('/app/packs/pack-ready');
+  await expect(page).toHaveURL(/\/app\/packs\/pack-ready$/);
+  await expect(page.getByRole('heading', { name: 'Smoke Ready' })).toBeVisible();
+
+  await page.reload();
+  await expect(page.getByRole('heading', { name: 'Smoke Ready' })).toBeVisible();
+
+  await page.goto('/app/packs');
+  await expect(page.getByRole('heading', { name: 'Packs' })).toBeVisible();
+  await page.getByRole('button', { name: 'Open pack Smoke Ready' }).click();
+  await expect(page).toHaveURL(/\/app\/packs\/pack-ready$/);
+  await page.goBack();
+  await expect(page).toHaveURL(/\/app\/packs$/);
+  await expect(page.getByRole('heading', { name: 'Packs' })).toBeVisible();
+
+  await page.goForward();
+  await expect(page).toHaveURL(/\/app\/packs\/pack-ready$/);
+  await expect(page.getByRole('heading', { name: 'Smoke Ready' })).toBeVisible();
+});
+
+test('packs workspace has no obvious accessibility violations', async ({ page }) => {
+  const state = createMockState();
+  await mockApi(page, state);
+  await login(page, { openFirstPack: false });
+
+  const results = await new AxeBuilder({ page }).analyze();
+  expect(results.violations).toEqual([]);
+});
+
+test('keeps password reset links public when a refresh cookie exists', async ({ page }) => {
+  const state = createMockState();
+  await mockApi(page, state);
+
+  await page.goto('/reset-password?token=reset-token');
+
+  await expect(page).toHaveURL(/\/reset-password\?token=reset-token$/);
+  await expect(page.getByText('Choose a new password')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Reset password' })).toBeVisible();
 });
 
 test('supports brush editing undo redo and before after compare', async ({ page }) => {
@@ -234,9 +281,13 @@ function createMockState() {
 }
 
 async function mockApi(page: Page, state: ReturnType<typeof createMockState>) {
-  await page.route('**/api/**', async (route) => {
+  await page.route('**/*', async (route) => {
     const request = route.request();
     const url = new URL(request.url());
+    if (!url.pathname.startsWith('/api/')) {
+      await route.continue();
+      return;
+    }
     const path = url.pathname.replace('/api', '');
     const method = request.method();
 
@@ -244,6 +295,12 @@ async function mockApi(page: Page, state: ReturnType<typeof createMockState>) {
       return json(route, {
         accessToken: 'access-token',
         refreshToken: 'refresh-token-that-is-long-enough',
+        user: { id: 'user-1', email: 'demo@stickerfoundry.local', displayName: 'Demo', isAdmin: true },
+      });
+    }
+    if (method === 'POST' && path === '/auth/refresh') {
+      return json(route, {
+        accessToken: 'access-token',
         user: { id: 'user-1', email: 'demo@stickerfoundry.local', displayName: 'Demo', isAdmin: true },
       });
     }
@@ -332,12 +389,12 @@ async function mockApi(page: Page, state: ReturnType<typeof createMockState>) {
       });
     }
 
-    const trayIconMatch = path.match(/^\/packs\/([^/]+)\/tray-icon$/);
-    if (method === 'GET' && trayIconMatch && state.failTrayIconFor.has(trayIconMatch[1])) {
+    const trayIconMatch = path.match(/^\/packs\/([^/]+)\/(tray-icon|cover)$/);
+    if (method === 'GET' && trayIconMatch && trayIconMatch[2] === 'tray-icon' && state.failTrayIconFor.has(trayIconMatch[1])) {
       return json(route, { message: 'Tray icon not found' }, 404);
     }
 
-    if (method === 'GET' && path.match(/^\/packs\/[^/]+\/(tray-icon|stickers\/[^/]+\/file)$/)) {
+    if (method === 'GET' && path.match(/^\/packs\/[^/]+\/(tray-icon|cover|stickers\/[^/]+\/file)$/)) {
       return route.fulfill({ status: 200, contentType: 'image/png', body: png1x1 });
     }
 
@@ -456,6 +513,7 @@ async function login(page: Page, options: { openFirstPack?: boolean } = {}) {
   await page.getByLabel('Email').fill('demo@stickerfoundry.local');
   await page.getByRole('textbox', { name: /Password/ }).fill('stickerfoundry123');
   await page.locator('form').getByRole('button', { name: 'Login' }).click();
+  await expect(page).toHaveURL(/\/app\/packs$/);
   if (options.openFirstPack ?? true) {
     await page.getByRole('button', { name: 'Open pack Smoke Ready' }).click();
     await openStickersTab(page);

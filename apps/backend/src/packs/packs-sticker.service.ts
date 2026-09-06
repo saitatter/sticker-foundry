@@ -4,8 +4,6 @@ import {
   Injectable,
   Logger,
   NotFoundException,
-  Optional,
-  ServiceUnavailableException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { randomUUID } from 'crypto';
@@ -36,7 +34,7 @@ export class PacksStickerService {
     private readonly mediaQueue: MediaQueueService,
     private readonly storage: PackStorageService,
     private readonly access: PackAccessService,
-    @Optional() private readonly jobs?: JobsService,
+    private readonly jobs: JobsService,
   ) {}
 
   async uploadSticker(ownerId: string, packId: string, file: Express.Multer.File | undefined, dto: UploadStickerDto) {
@@ -135,9 +133,6 @@ export class PacksStickerService {
   }
 
   async queueStickerUpload(ownerId: string, packId: string, file: Express.Multer.File | undefined, dto: UploadStickerDto) {
-    if (!this.jobs) {
-      throw new ServiceUnavailableException('Media job queue is not available');
-    }
     if (!file) {
       throw new BadRequestException('A multipart file field named "file" is required');
     }
@@ -224,24 +219,6 @@ export class PacksStickerService {
     });
     await this.audit.record({ actorId: ownerId, action: 'pack.trayIcon.replace', entityType: 'pack', entityId: packId });
     return updated;
-  }
-
-  async readTrayIcon(packId: string) {
-    return this.storage.readStream(packId, 'tray_icon.webp');
-  }
-
-  async readStickerFile(packId: string, stickerId: string) {
-    const sticker = await this.prisma.sticker.findFirst({
-      where: { id: stickerId, packId },
-    });
-    if (!sticker) {
-      throw new NotFoundException('Sticker not found');
-    }
-
-    return {
-      fileName: sticker.fileName,
-      stream: await this.storage.readStreamByKey(sticker.storageKey),
-    };
   }
 
   async deleteSticker(ownerId: string, packId: string, stickerId: string) {

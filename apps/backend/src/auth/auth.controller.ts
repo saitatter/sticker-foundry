@@ -11,6 +11,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { Throttle } from '@nestjs/throttler';
 import { CookieOptions, Response } from 'express';
 import { CurrentUser, RequestUser } from '../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
@@ -30,6 +31,7 @@ export class AuthController {
   ) {}
 
   @Post('register')
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   async register(
     @Body() dto: RegisterDto,
     @Headers('x-refresh-cookie') refreshCookieHeader: string | undefined,
@@ -41,6 +43,7 @@ export class AuthController {
   }
 
   @Post('login')
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   async login(
     @Body() dto: LoginDto,
     @Headers('x-refresh-cookie') refreshCookieHeader: string | undefined,
@@ -52,6 +55,7 @@ export class AuthController {
   }
 
   @Post('refresh')
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
   async refresh(
     @Body() dto: RefreshTokenDto,
     @Headers('cookie') cookieHeader: string | undefined,
@@ -87,6 +91,7 @@ export class AuthController {
   }
 
   @Post('password/reset/request')
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
   requestPasswordReset(@Body() dto: RequestPasswordResetDto) {
     return this.authService.requestPasswordReset(dto);
   }

@@ -30,7 +30,7 @@
 ```bash
 npm install
 cp .env.example .env
-docker compose up -d postgres
+docker compose up -d postgres redis
 npm run prisma:migrate
 npm run prisma:seed
 npm run dev

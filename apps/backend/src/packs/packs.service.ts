@@ -3,16 +3,12 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
-  Optional,
-  ServiceUnavailableException,
 } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { StickerReviewStatus } from '@prisma/client';
 import { randomUUID } from 'crypto';
 import { AuditService } from '../audit/audit.service';
 import { JobsService } from '../jobs/jobs.service';
 import { PrismaService } from '../prisma.service';
-import { BackgroundRemovalService } from '../media/background-removal.service';
 import { CreatePackInviteDto } from './dto/create-pack-invite.dto';
 import { CreatePackDto } from './dto/create-pack.dto';
 import { CreateStickerCommentDto } from './dto/create-sticker-comment.dto';
@@ -22,39 +18,25 @@ import { UpdatePackMemberDto } from './dto/update-pack-member.dto';
 import { UpdatePackDto } from './dto/update-pack.dto';
 import { UpdateStickerDto } from './dto/update-sticker.dto';
 import { UploadStickerDto } from './dto/upload-sticker.dto';
-import { MediaQueueService } from './media-queue.service';
 import { PacksCollaborationService } from './packs-collaboration.service';
 import { PackAccessService } from './pack-access.service';
 import { PacksStickerService } from './packs-sticker.service';
+import { StickerMediaReadService } from './sticker-media-read.service';
 import { PackStorageService } from '../storage/pack-storage.service';
-import { StickerImageService } from '../media/sticker-image.service';
 import { WHATSAPP_LIMITS } from './whatsapp-constraints';
 
 @Injectable()
 export class PacksService {
-  private readonly access: PackAccessService;
-  private readonly stickerService: PacksStickerService;
-  private readonly collaboration: PacksCollaborationService;
-
   constructor(
     private readonly prisma: PrismaService,
-    private readonly imageService: StickerImageService,
-    private readonly backgroundRemoval: BackgroundRemovalService,
-    private readonly config: ConfigService,
     private readonly audit: AuditService,
-    private readonly mediaQueue: MediaQueueService,
     private readonly storage: PackStorageService,
-    @Optional() private readonly jobs?: JobsService,
-    @Optional() access?: PackAccessService,
-    @Optional() stickerService?: PacksStickerService,
-    @Optional() collaboration?: PacksCollaborationService,
-  ) {
-    this.access = access ?? new PackAccessService(prisma, config);
-    this.stickerService =
-      stickerService ??
-      new PacksStickerService(prisma, imageService, backgroundRemoval, audit, mediaQueue, storage, this.access, jobs);
-    this.collaboration = collaboration ?? new PacksCollaborationService(prisma, audit, this.access);
-  }
+    private readonly jobs: JobsService,
+    private readonly access: PackAccessService,
+    private readonly stickerService: PacksStickerService,
+    private readonly collaboration: PacksCollaborationService,
+    private readonly stickerMediaRead: StickerMediaReadService,
+  ) {}
 
   async create(ownerId: string, dto: CreatePackDto) {
     if (dto.teamId) {
@@ -336,9 +318,6 @@ export class PacksService {
   }
 
   async queueExport(userId: string, packId: string) {
-    if (!this.jobs) {
-      throw new ServiceUnavailableException('Job queue is not available');
-    }
     await this.assertCanExport(userId, packId);
     return this.jobs.enqueue({
       type: 'export',
@@ -354,13 +333,35 @@ export class PacksService {
   }
 
   async getTrayIconFilePath(userId: string, packId: string) {
-    await this.get(userId, packId);
-    return this.stickerService.readTrayIcon(packId);
+    const cover = await this.getCoverFilePath(userId, packId);
+    return cover.stream;
+  }
+
+  async getCoverFilePath(userId: string, packId: string) {
+    const pack = await this.get(userId, packId);
+    return {
+      stream: await this.stickerMediaRead.readTrayIcon(packId),
+      version: pack.imageDataVersion,
+    };
+  }
+
+  async getPublicCoverFilePath(packId: string) {
+    const pack = await this.prisma.pack.findUnique({
+      where: { id: packId },
+      select: { isPublic: true, imageDataVersion: true },
+    });
+    if (!pack?.isPublic) {
+      throw new NotFoundException('Public pack not found');
+    }
+    return {
+      stream: await this.stickerMediaRead.readTrayIcon(packId),
+      version: pack.imageDataVersion,
+    };
   }
 
   async getStickerFilePath(userId: string, packId: string, stickerId: string) {
     await this.get(userId, packId);
-    return this.stickerService.readStickerFile(packId, stickerId);
+    return this.stickerMediaRead.readStickerFile(packId, stickerId);
   }
 
   async deleteSticker(ownerId: string, packId: string, stickerId: string) {

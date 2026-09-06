@@ -7,6 +7,9 @@ import type {
   StickerDto,
   StickerReviewStatus as SharedStickerReviewStatus,
 } from '@sticker-foundry/shared-types';
+import { HttpClient } from './lib/api/http';
+
+export { ApiError } from './lib/api/http';
 
 export type User = {
   id: string;
@@ -163,28 +166,6 @@ export type CreatePackInput = {
 
 export type UpdatePackInput = Partial<CreatePackInput>;
 
-const API_BASE_URL = import.meta.env.VITE_API_URL ?? '/api';
-
-export class ApiError extends Error {
-  constructor(
-    message: string,
-    public readonly status: number,
-  ) {
-    super(message);
-  }
-}
-
-async function readError(response: Response) {
-  const fallback = `${response.status} ${response.statusText}`;
-  try {
-    const body = (await response.json()) as { message?: string | string[] };
-    if (Array.isArray(body.message)) return body.message.join(', ');
-    return body.message ?? fallback;
-  } catch {
-    return fallback;
-  }
-}
-
 function appendStickerUploadOptions(form: FormData, options?: StickerUploadOptions) {
   if (!options) return;
   for (const [key, value] of Object.entries(options)) {
@@ -194,12 +175,14 @@ function appendStickerUploadOptions(form: FormData, options?: StickerUploadOptio
 }
 
 export class StickerFoundryApi {
-  private refreshPromise: Promise<string | null> | null = null;
+  private readonly http: HttpClient<AuthResponse>;
 
   constructor(
     private readonly getToken: () => string | null,
     private readonly onAuth: (auth: AuthResponse | null) => void = () => undefined,
-  ) {}
+  ) {
+    this.http = new HttpClient<AuthResponse>(getToken, onAuth);
+  }
 
   async register(email: string, displayName: string, password: string, inviteCode?: string) {
     return this.request<AuthResponse>('/auth/register', {
@@ -219,6 +202,10 @@ export class StickerFoundryApi {
 
   async me() {
     return this.request<User>('/auth/me', { auth: true });
+  }
+
+  async refreshSession() {
+    return this.http.refreshResponse();
   }
 
   async changePassword(currentPassword: string, newPassword: string) {
@@ -289,14 +276,7 @@ export class StickerFoundryApi {
   }
 
   async exportAuditLog(limit = 1000) {
-    const response = await fetch(`${API_BASE_URL}/admin/audit-log/export?limit=${limit}`, {
-      headers: new Headers(this.authHeaders()),
-      credentials: 'include',
-    });
-    if (!response.ok) {
-      throw new ApiError(await readError(response), response.status);
-    }
-    return response.blob();
+    return this.http.blob(`/admin/audit-log/export?limit=${limit}`, { auth: true });
   }
 
   async cleanupAuditLog() {
@@ -319,11 +299,7 @@ export class StickerFoundryApi {
   }
 
   async publicExportPack(packId: string) {
-    const response = await fetch(`${API_BASE_URL}/public/packs/${packId}/export`);
-    if (!response.ok) {
-      throw new ApiError(await readError(response), response.status);
-    }
-    return response.blob();
+    return this.http.blob(`/public/packs/${packId}/export`);
   }
 
   async teams() {
@@ -506,17 +482,6 @@ export class StickerFoundryApi {
     });
   }
 
-  async waitForJob(id: string, onUpdate?: (job: JobResponse) => void) {
-    for (;;) {
-      const job = await this.job(id);
-      onUpdate?.(job);
-      if (job.status === 'COMPLETED' || job.status === 'FAILED' || job.status === 'CANCELLED') {
-        return job;
-      }
-      await new Promise((resolve) => window.setTimeout(resolve, 750));
-    }
-  }
-
   async uploadTrayIcon(packId: string, file: File) {
     const form = new FormData();
     form.append('file', file);
@@ -530,14 +495,15 @@ export class StickerFoundryApi {
   }
 
   async trayIconBlob(packId: string) {
-    const response = await fetch(`${API_BASE_URL}/packs/${packId}/tray-icon`, {
-      headers: new Headers(this.authHeaders()),
-      credentials: 'include',
-    });
-    if (!response.ok) {
-      throw new ApiError(await readError(response), response.status);
-    }
-    return response.blob();
+    return this.http.blob(`/packs/${packId}/tray-icon`, { auth: true });
+  }
+
+  async coverBlob(packId: string) {
+    return this.http.blob(`/packs/${packId}/cover`, { auth: true });
+  }
+
+  async publicCoverBlob(packId: string) {
+    return this.http.blob(`/public/packs/${packId}/cover`);
   }
 
   async deleteSticker(packId: string, stickerId: string) {
@@ -622,25 +588,11 @@ export class StickerFoundryApi {
   }
 
   async stickerBlob(packId: string, stickerId: string) {
-    const response = await fetch(`${API_BASE_URL}/packs/${packId}/stickers/${stickerId}/file`, {
-      headers: new Headers(this.authHeaders()),
-      credentials: 'include',
-    });
-    if (!response.ok) {
-      throw new ApiError(await readError(response), response.status);
-    }
-    return response.blob();
+    return this.http.blob(`/packs/${packId}/stickers/${stickerId}/file`, { auth: true });
   }
 
   async exportPack(packId: string) {
-    const response = await fetch(`${API_BASE_URL}/packs/${packId}/export`, {
-      headers: new Headers(this.authHeaders()),
-      credentials: 'include',
-    });
-    if (!response.ok) {
-      throw new ApiError(await readError(response), response.status);
-    }
-    return response.blob();
+    return this.http.blob(`/packs/${packId}/export`, { auth: true });
   }
 
   async queueExportPack(packId: string) {
@@ -658,69 +610,6 @@ export class StickerFoundryApi {
     path: string,
     options: RequestInit & { auth?: boolean; isMultipart?: boolean } = {},
   ): Promise<T> {
-    const headers = new Headers(options.headers);
-    if (!options.isMultipart) {
-      headers.set('Content-Type', 'application/json');
-    }
-    if (options.auth) {
-      for (const [key, value] of Object.entries(this.authHeaders())) {
-        headers.set(key, value);
-      }
-    }
-
-    let response = await fetch(`${API_BASE_URL}${path}`, {
-      ...options,
-      headers,
-      credentials: 'include',
-    });
-
-    const refreshedToken = response.status === 401 && options.auth ? await this.refreshAuth() : null;
-    if (refreshedToken) {
-      const retryHeaders = new Headers(options.headers);
-      if (!options.isMultipart) {
-        retryHeaders.set('Content-Type', 'application/json');
-      }
-      retryHeaders.set('Authorization', `Bearer ${refreshedToken}`);
-      response = await fetch(`${API_BASE_URL}${path}`, {
-        ...options,
-        headers: retryHeaders,
-        credentials: 'include',
-      });
-    }
-
-    if (!response.ok) {
-      throw new ApiError(await readError(response), response.status);
-    }
-
-    return response.json() as Promise<T>;
-  }
-
-  private authHeaders(): Record<string, string> {
-    const token = this.getToken();
-    return token ? { Authorization: `Bearer ${token}` } : {};
-  }
-
-  private async refreshAuth() {
-    if (this.refreshPromise) return this.refreshPromise;
-    this.refreshPromise = (async () => {
-      const response = await fetch(`${API_BASE_URL}/auth/refresh`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-Refresh-Cookie': 'true' },
-        credentials: 'include',
-      });
-      if (!response.ok) {
-        this.onAuth(null);
-        return null;
-      }
-
-      const auth = (await response.json()) as AuthResponse;
-      this.onAuth(auth);
-      return auth.accessToken;
-    })();
-    try {
-      return await this.refreshPromise;
-    } finally {
-      this.refreshPromise = null;
-    }
+    return this.http.request<T>(path, options);
   }
 }

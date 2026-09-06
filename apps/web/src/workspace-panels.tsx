@@ -13,6 +13,7 @@ import {
   UserSession,
 } from './api';
 import { downloadBlob, IconButton } from './ui';
+import { useConfirmDialog } from './components/ui/confirm-dialog';
 
 const DEFAULT_INSTANCE_SETTINGS: InstanceSettings = {
   instanceName: 'Sticker Foundry',
@@ -519,6 +520,7 @@ export function TeamWorkspacePanel({
   const [role, setRole] = useState<Exclude<PackRole, 'OWNER'>>('EDITOR');
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const { confirm, dialog } = useConfirmDialog();
   const selectedTeam = teams.find((team) => team.id === selectedTeamId) ?? teams[0];
 
   useEffect(() => {
@@ -583,7 +585,12 @@ export function TeamWorkspacePanel({
   }
 
   async function removeMember(memberId: string) {
-    if (!selectedTeam || !confirm('Remove this member from the team?')) return;
+    if (!selectedTeam) return;
+    if (!(await confirm({
+      title: 'Remove team member?',
+      description: 'This member will lose access to the team and its shared packs.',
+      confirmLabel: 'Remove member',
+    }))) return;
     try {
       await api.removeTeamMember(selectedTeam.id, memberId);
       setMembers((current) => current.filter((member) => member.id !== memberId));
@@ -673,6 +680,7 @@ export function TeamWorkspacePanel({
       ) : selectedTeam ? (
         <span className="muted-row">You can use this team for shared packs.</span>
       ) : null}
+      {dialog}
     </section>
   );
 }

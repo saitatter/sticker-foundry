@@ -13,6 +13,7 @@ import { PackAccessService } from './pack-access.service';
 import { PacksStickerService } from './packs-sticker.service';
 import { MediaQueueService } from './media-queue.service';
 import { PublicPacksController } from './public-packs.controller';
+import { StickerMediaReadService } from './sticker-media-read.service';
 
 @Module({
   imports: [
@@ -34,6 +35,7 @@ import { PublicPacksController } from './public-packs.controller';
     PackAccessService,
     PacksStickerService,
     MediaQueueService,
+    StickerMediaReadService,
     PrismaService,
   ],
 })
