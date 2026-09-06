@@ -155,8 +155,12 @@ test('opens admin settings as a dedicated page and switches to dark theme', asyn
   await mockApi(page, state);
   await login(page, { openFirstPack: false });
 
-  await page.getByRole('button', { name: 'Account settings' }).click();
-  await page.locator('.modal-panel').getByRole('button', { name: 'Admin settings' }).click();
+  await page.locator('.workspace-nav').getByRole('button', { name: 'Open account settings' }).click();
+  await expect(page).toHaveURL(/\/app\/settings\/account$/);
+  await expect(page.getByRole('heading', { name: 'Account settings' })).toBeVisible();
+  await expect(page.locator('.modal-panel')).toHaveCount(0);
+
+  await page.locator('.workspace-nav').getByRole('button', { name: 'Open admin settings' }).click();
 
   await expect(page).toHaveURL(/\/app\/settings\/admin$/);
   await expect(page.getByRole('heading', { name: 'Admin settings' })).toBeVisible();

@@ -1,147 +1,17 @@
-import { Archive, ImagePlus, KeyRound, Plus, Trash2, UserPlus, Users } from 'lucide-react';
+import { Archive, ImagePlus, KeyRound, Plus, ShieldCheck, Trash2, UserPlus, Users } from 'lucide-react';
 import { type FormEvent, useEffect, useState } from 'react';
 import {
-  InstanceSettings,
   Pack,
   PackRole,
   StickerFoundryApi,
   Team,
   TeamMember,
-  UserSession,
 } from './api';
 import { IconButton } from './ui';
 import { useConfirmDialog } from './components/ui/confirm-dialog';
 
 export type WorkspaceView = 'packs' | 'pack';
-
-export function AccountDialog({
-  api,
-  isAdmin,
-  onClose,
-  onOpenAdmin,
-  onChanged,
-  onError,
-}: {
-  api: StickerFoundryApi;
-  isAdmin: boolean;
-  onClose: () => void;
-  onOpenAdmin: () => void;
-  onChanged: (message: string, settings?: InstanceSettings) => void;
-  onError: (error: unknown) => void;
-}) {
-  const [currentPassword, setCurrentPassword] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [sessions, setSessions] = useState<UserSession[]>([]);
-  const [saving, setSaving] = useState(false);
-
-  useEffect(() => {
-    api.sessions().then(setSessions).catch(onError);
-  }, [api, onError]);
-
-  async function submit(event: FormEvent) {
-    event.preventDefault();
-    setSaving(true);
-    try {
-      await api.changePassword(currentPassword, newPassword);
-      onChanged('Password changed');
-      onClose();
-    } catch (error) {
-      onError(error);
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function revokeSession(id: string) {
-    try {
-      await api.revokeSession(id);
-      setSessions((current) =>
-        current.map((session) => (session.id === id ? { ...session, revokedAt: new Date().toISOString() } : session)),
-      );
-    } catch (error) {
-      onError(error);
-    }
-  }
-
-  async function revokeAllSessions() {
-    try {
-      await api.revokeAllSessions();
-      const revokedAt = new Date().toISOString();
-      setSessions((current) => current.map((session) => ({ ...session, revokedAt: session.revokedAt ?? revokedAt })));
-    } catch (error) {
-      onError(error);
-    }
-  }
-
-  return (
-    <div className="modal-backdrop" role="presentation">
-      <div className="modal-panel form-grid">
-        <div className="section-heading">
-          <h2>Account</h2>
-          <div className="panel-actions">
-            {isAdmin ? (
-              <button className="secondary-button" onClick={onOpenAdmin} type="button">
-                Admin settings
-              </button>
-            ) : null}
-            <button className="secondary-button" onClick={onClose} type="button">
-              Close
-            </button>
-          </div>
-        </div>
-        <form className="form-grid" onSubmit={submit}>
-          <label>
-            Current password
-            <input
-              value={currentPassword}
-              onChange={(event) => setCurrentPassword(event.target.value)}
-              type="password"
-              required
-            />
-          </label>
-          <label>
-            New password
-            <input
-              value={newPassword}
-              onChange={(event) => setNewPassword(event.target.value)}
-              type="password"
-              minLength={8}
-              required
-            />
-          </label>
-          <button className="primary-button" disabled={saving} type="submit">
-            <KeyRound size={17} />
-            {saving ? 'Saving' : 'Change password'}
-          </button>
-        </form>
-        <div className="session-list">
-          <div className="section-heading">
-            <h3>Sessions</h3>
-            <button className="secondary-button danger-button" onClick={() => void revokeAllSessions()} type="button">
-              Revoke all
-            </button>
-          </div>
-          {sessions.map((session) => (
-            <div className="session-row" key={session.id}>
-              <span>
-                <strong>{session.revokedAt ? 'Revoked' : 'Active'}</strong>
-                <small>Expires {new Date(session.expiresAt).toLocaleDateString()}</small>
-              </span>
-              <button
-                className="secondary-button danger-button"
-                disabled={Boolean(session.revokedAt)}
-                onClick={() => void revokeSession(session.id)}
-                type="button"
-              >
-                Revoke
-              </button>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
+type WorkspaceNavView = WorkspaceView | 'admin' | 'account';
 
 export function PackCreateForm({
   api,
@@ -412,7 +282,7 @@ export function TeamWorkspacePanel({
             <span>
               <strong>{team.name}</strong>
               <small>
-                {team.memberCount} members Â· {team.packCount} packs
+                {team.memberCount} members · {team.packCount} packs
               </small>
             </span>
             <span className="status-pill">{roleLabel(team.role)}</span>
@@ -602,47 +472,88 @@ export function WorkspaceToolsDrawer({
 
 export function WorkspaceNav({
   activeView,
+  isAdmin,
   packCount,
   selectedPack,
+  onOpenAccount,
+  onOpenAdmin,
   onOpenPack,
   onOpenPacks,
 }: {
-  activeView: WorkspaceView;
+  activeView: WorkspaceNavView;
+  isAdmin: boolean;
   packCount: number;
   selectedPack?: Pack | null;
+  onOpenAccount: () => void;
+  onOpenAdmin: () => void;
   onOpenPack: () => void;
   onOpenPacks: () => void;
 }) {
   return (
     <nav className="workspace-nav" aria-label="Workspace">
-      <button
-        aria-label="Open packs"
-        className={`workspace-nav-row ${activeView === 'packs' ? 'active' : ''}`}
-        onClick={onOpenPacks}
-        type="button"
-      >
-        <Archive size={18} />
-        <span>
-          <strong>Packs</strong>
-          <small>{packCount} total</small>
-        </span>
-      </button>
-      {selectedPack ? (
+      <div className="workspace-nav-group">
+        <p className="workspace-nav-label">Library</p>
         <button
-          aria-label={`Open current pack ${selectedPack.name}`}
-          className={`workspace-nav-row ${activeView === 'pack' ? 'active' : ''}`}
-          onClick={onOpenPack}
+          aria-label="Open packs"
+          className={`workspace-nav-row ${activeView === 'packs' ? 'active' : ''}`}
+          onClick={onOpenPacks}
           type="button"
         >
-          <ImagePlus size={18} />
+          <Archive size={18} />
           <span>
-            <strong>{selectedPack.name}</strong>
-            <small>
-              {selectedPack.stickerCount}/30 Â· {roleLabel(selectedPack.role)}
-            </small>
+            <strong>Packs</strong>
+            <small>{packCount} total</small>
           </span>
         </button>
+        {selectedPack ? (
+          <button
+            aria-label={`Open current pack ${selectedPack.name}`}
+            className={`workspace-nav-row ${activeView === 'pack' ? 'active' : ''}`}
+            onClick={onOpenPack}
+            type="button"
+          >
+            <ImagePlus size={18} />
+            <span>
+              <strong>{selectedPack.name}</strong>
+              <small>
+                {selectedPack.stickerCount}/30 · {roleLabel(selectedPack.role)}
+              </small>
+            </span>
+          </button>
+        ) : null}
+      </div>
+      {isAdmin ? (
+        <div className="workspace-nav-group">
+          <p className="workspace-nav-label">Administration</p>
+          <button
+            aria-label="Open admin settings"
+            className={`workspace-nav-row ${activeView === 'admin' ? 'active' : ''}`}
+            onClick={onOpenAdmin}
+            type="button"
+          >
+            <ShieldCheck size={18} />
+            <span>
+              <strong>Admin settings</strong>
+              <small>Instance and audit</small>
+            </span>
+          </button>
+        </div>
       ) : null}
+      <div className="workspace-nav-group">
+        <p className="workspace-nav-label">Account</p>
+        <button
+          aria-label="Open account settings"
+          className={`workspace-nav-row ${activeView === 'account' ? 'active' : ''}`}
+          onClick={onOpenAccount}
+          type="button"
+        >
+          <KeyRound size={18} />
+          <span>
+            <strong>Account settings</strong>
+            <small>Password and sessions</small>
+          </span>
+        </button>
+      </div>
     </nav>
   );
 }

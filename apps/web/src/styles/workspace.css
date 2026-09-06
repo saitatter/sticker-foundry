@@ -3,6 +3,20 @@
   gap: 8px;
 }
 
+.workspace-nav-group {
+  display: grid;
+  gap: 7px;
+}
+
+.workspace-nav-label {
+  margin: 8px 4px 0;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
 .workspace-nav-row {
   width: 100%;
   min-height: 58px;
