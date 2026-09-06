@@ -21,7 +21,15 @@ import {
   stickerUploadOptionsFromEdit,
   UploadEditSummary,
 } from './image-editor';
-import { IconButton, Metric } from './ui';
+import { LabeledIconButton as IconButton } from './components/ui/labeled-icon-button';
+import { Button } from './components/ui/button';
+import { Checkbox } from './components/ui/checkbox';
+import { Field } from './components/ui/field';
+import { Input } from './components/ui/input';
+import { Metric } from './components/ui/metric';
+import { Select } from './components/ui/select';
+import { StatusPill } from './components/ui/status-pill';
+import { Textarea } from './components/ui/textarea';
 
 export function StickerTile({
   api,
@@ -228,35 +236,34 @@ export function StickerTile({
     if (!canEdit || transferTargets.length === 0) return null;
     return (
       <div className="sticker-transfer-form">
-        <label>
-          Target pack
-          <select value={transferTargetPackId} onChange={(event) => setTransferTargetPackId(event.target.value)}>
+        <Field label="Target pack" htmlFor={`transfer-target-${sticker.id}`}>
+          <Select id={`transfer-target-${sticker.id}`} value={transferTargetPackId} onChange={(event) => setTransferTargetPackId(event.target.value)}>
             <option value="">Choose pack</option>
             {transferTargets.map((target) => (
               <option key={target.id} value={target.id}>
                 {target.name} ({target.stickerCount}/30)
               </option>
             ))}
-          </select>
-        </label>
-        <button
-          className="secondary-button"
+          </Select>
+        </Field>
+        <Button
           disabled={!transferTargetPackId}
           onClick={() => void transferSticker('copy')}
           type="button"
+          variant="secondary"
         >
           <Copy size={16} />
           Copy
-        </button>
-        <button
-          className="secondary-button"
+        </Button>
+        <Button
           disabled={!transferTargetPackId}
           onClick={() => void transferSticker('move')}
           type="button"
+          variant="secondary"
         >
           <MoveRight size={16} />
           Move
-        </button>
+        </Button>
       </div>
     );
   }
@@ -289,7 +296,7 @@ export function StickerTile({
             </IconButton>
           </div>
           <label className="sticker-select">
-            <input checked={isSelected} onChange={(event) => onSelectedChange(event.target.checked)} type="checkbox" />
+            <Checkbox checked={isSelected} onChange={(event) => onSelectedChange(event.target.checked)} />
             <span>Select</span>
           </label>
           <IconButton label="Delete sticker" onClick={() => void deleteSticker()} danger>
@@ -297,32 +304,33 @@ export function StickerTile({
           </IconButton>
         </div>
       ) : null}
-      <button className="sticker-preview sticker-preview-button" onClick={() => setDetailOpen(true)} type="button">
+      <Button className="sticker-preview sticker-preview-button" onClick={() => setDetailOpen(true)} type="button" variant="unstyled">
         {url ? <img alt={sticker.accessibilityText ?? sticker.fileName} src={url} /> : null}
         <span>
           <Eye size={16} />
         </span>
-      </button>
+      </Button>
       <div className="sticker-meta">
         <span>{formatBytes(sticker.sizeBytes)}</span>
         <span>{sticker.emojis.join(' ') || 'No emoji'}</span>
       </div>
-      <span className={`status-pill ${reviewStatusClass(sticker.reviewStatus)}`}>
+      <StatusPill className={reviewStatusClass(sticker.reviewStatus)}>
         {reviewStatusLabel(sticker.reviewStatus)}
-      </span>
+      </StatusPill>
       <div className="sticker-tile-actions">
-        <button className="secondary-button" onClick={() => setDetailOpen(true)} type="button">
+        <Button onClick={() => setDetailOpen(true)} type="button" variant="secondary">
           <Edit3 size={16} />
           Edit
-        </button>
-        <button
-          className="secondary-button sticker-comments-toggle"
+        </Button>
+        <Button
+          className="sticker-comments-toggle"
           onClick={() => void toggleComments()}
           type="button"
+          variant="secondary"
         >
           <MessageSquare size={16} />
           Comments
-        </button>
+        </Button>
       </div>
       {commentsOpen ? (
         <div className="sticker-comments">
@@ -341,16 +349,16 @@ export function StickerTile({
           ))}
           {!commentsLoading && comments.length === 0 ? <span className="muted-row">No comments yet.</span> : null}
           <form className="comment-form" onSubmit={addComment}>
-            <textarea
+            <Textarea
               maxLength={1000}
               onChange={(event) => setCommentBody(event.target.value)}
               placeholder="Add a note"
               value={commentBody}
             />
-            <button className="secondary-button" disabled={!commentBody.trim() || commentSaving} type="submit">
+            <Button disabled={!commentBody.trim() || commentSaving} type="submit" variant="secondary">
               <MessageSquare size={16} />
               Add
-            </button>
+            </Button>
           </form>
         </div>
       ) : null}
@@ -364,9 +372,9 @@ export function StickerTile({
           >
             <div className="section-heading">
               <h2>Sticker detail</h2>
-              <button className="secondary-button" onClick={() => setDetailOpen(false)} type="button">
+              <Button onClick={() => setDetailOpen(false)} type="button" variant="secondary">
                 Close
-              </button>
+              </Button>
             </div>
             <div className="sticker-detail-layout">
               <div className="sticker-detail-preview">
@@ -380,43 +388,43 @@ export function StickerTile({
               </div>
               {canEdit ? (
                 <form className="form-grid" onSubmit={saveMetadata}>
-                  <label>
-                    Emojis
-                    <input
+                  <Field label="Emojis" htmlFor={`sticker-emojis-${sticker.id}`}>
+                    <Input
+                      id={`sticker-emojis-${sticker.id}`}
                       value={emojis}
                       onChange={(event) => setEmojis(event.target.value)}
                       placeholder="smile,laugh"
                     />
-                  </label>
-                  <label>
-                    Alt text
-                    <input
+                  </Field>
+                  <Field label="Alt text" htmlFor={`sticker-alt-${sticker.id}`}>
+                    <Input
+                      id={`sticker-alt-${sticker.id}`}
                       value={accessibilityText}
                       onChange={(event) => setAccessibilityText(event.target.value)}
                       maxLength={125}
                     />
-                  </label>
-                  <label>
-                    Review
-                    <select
+                  </Field>
+                  <Field label="Review" htmlFor={`sticker-review-${sticker.id}`}>
+                    <Select
+                      id={`sticker-review-${sticker.id}`}
                       value={reviewStatus}
                       onChange={(event) => setReviewStatus(event.target.value as Sticker['reviewStatus'])}
                     >
                       <option value="PENDING">Pending</option>
                       <option value="APPROVED">Approved</option>
                       <option value="NEEDS_WORK">Needs work</option>
-                    </select>
-                  </label>
-                  <button className="primary-button" disabled={!dirty || saving} type="submit">
+                    </Select>
+                  </Field>
+                  <Button disabled={!dirty || saving} type="submit">
                     <Edit3 size={17} />
                     Save metadata
-                  </button>
+                  </Button>
                 </form>
               ) : null}
               {canEdit ? (
                 <form className="sticker-replace-form" onSubmit={replaceImage}>
                   <label className="file-drop sticker-replace-drop">
-                    <input
+                    <Input
                       accept="image/*"
                       onChange={(event) => {
                         setReplacementFile(event.target.files?.[0] ?? null);
@@ -429,13 +437,14 @@ export function StickerTile({
                     <ImagePlus size={18} />
                     <span>{replacementFile ? replacementFile.name : 'Replace image'}</span>
                   </label>
-                  <button
-                    className="secondary-button sticker-save"
+                  <Button
+                    className="sticker-save"
                     disabled={!replacementFile || replacing}
                     type="submit"
+                    variant="secondary"
                   >
                     {replacing ? 'Replacing' : 'Replace'}
-                  </button>
+                  </Button>
                 </form>
               ) : null}
               {replacementFile ? (

@@ -149,6 +149,27 @@
   animation: sf-slide-in 220ms ease both;
 }
 
+.segmented .ui-tabs-list {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0;
+  width: 100%;
+}
+
+.segmented .ui-tabs-trigger {
+  width: 100%;
+  min-height: 36px;
+  color: var(--muted);
+  background: transparent;
+  border-radius: 6px;
+  font-weight: 700;
+}
+
+.segmented .ui-tabs-trigger[aria-selected='true'] {
+  color: var(--text);
+  background: var(--surface);
+}
+
 .notice.error {
   color: var(--danger);
   background: color-mix(in srgb, var(--danger) 10%, var(--surface));

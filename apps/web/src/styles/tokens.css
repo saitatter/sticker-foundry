@@ -61,6 +61,35 @@
   padding: 1rem;
 }
 
+.ui-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 1rem;
+}
+
+.ui-field {
+  display: grid;
+  gap: 0.375rem;
+}
+
+.ui-field > label {
+  color: var(--muted);
+  font-size: 0.8125rem;
+}
+
+.ui-field-hint {
+  color: var(--muted-foreground);
+  font-size: 0.75rem;
+}
+
+.ui-checkbox-field {
+  display: flex;
+  align-items: center;
+  gap: 0.5625rem;
+}
+
 .ui-input,
 .ui-select {
   min-height: 2.25rem;

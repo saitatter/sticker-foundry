@@ -7,7 +7,13 @@ import type {
   RegistrationMode,
   StickerFoundryApi,
 } from './api';
-import { downloadBlob } from './ui';
+import { downloadBlob } from './lib/download';
+import { PageHeader } from './components/layout/page-header';
+import { Button } from './components/ui/button';
+import { Card } from './components/ui/card';
+import { Field } from './components/ui/field';
+import { Input } from './components/ui/input';
+import { Select } from './components/ui/select';
 
 const DEFAULT_INSTANCE_SETTINGS: InstanceSettings = {
   instanceName: 'Sticker Foundry',
@@ -134,30 +140,31 @@ export function AdminSettingsPage({
         <ShieldCheck size={34} />
         <h2>Admin access required</h2>
         <p>This page is available only to instance administrators.</p>
-        <button className="secondary-button" onClick={onClose} type="button">
+        <Button className="secondary-button" onClick={onClose} type="button" variant="secondary">
           <ArrowLeft size={17} />
           Back to workspace
-        </button>
+        </Button>
       </section>
     );
   }
 
   return (
     <section className="settings-page">
-      <header className="settings-page-header">
-        <div>
-          <p className="eyebrow">Administration</p>
-          <h2>Admin settings</h2>
-          <p>Configure the instance and review its audit history in one readable workspace.</p>
-        </div>
-        <button className="secondary-button" onClick={onClose} type="button">
-          <ArrowLeft size={17} />
-          Back to workspace
-        </button>
-      </header>
+      <PageHeader
+        actions={
+          <Button className="secondary-button" onClick={onClose} type="button" variant="secondary">
+            <ArrowLeft size={17} />
+            Back to workspace
+          </Button>
+        }
+        className="settings-page-header"
+        description="Configure the instance and review its audit history in one readable workspace."
+        eyebrow="Administration"
+        title="Admin settings"
+      />
 
       <div className="settings-page-grid">
-        <form className="settings-card form-grid" onSubmit={saveSettings}>
+        <Card as="form" className="settings-card form-grid" onSubmit={saveSettings}>
           <div className="section-heading">
             <div>
               <p className="eyebrow">Configuration</p>
@@ -186,66 +193,64 @@ export function AdminSettingsPage({
           )}
 
           <div className="settings-form-grid">
-            <label>
-              Instance name
-              <input maxLength={80} value={instanceName} onChange={(event) => setInstanceName(event.target.value)} />
-            </label>
-            <label>
-              Instance description
-              <input
+            <Field label="Instance name" htmlFor="instance-name">
+              <Input id="instance-name" maxLength={80} value={instanceName} onChange={(event) => setInstanceName(event.target.value)} />
+            </Field>
+            <Field label="Instance description" htmlFor="instance-description">
+              <Input
+                id="instance-description"
                 maxLength={160}
                 value={instanceDescription}
                 onChange={(event) => setInstanceDescription(event.target.value)}
               />
-            </label>
-            <label>
-              Registration
-              <select value={registrationMode} onChange={(event) => setRegistrationMode(event.target.value as RegistrationMode)}>
+            </Field>
+            <Field label="Registration" htmlFor="registration-mode">
+              <Select id="registration-mode" value={registrationMode} onChange={(event) => setRegistrationMode(event.target.value as RegistrationMode)}>
                 <option value="open">Open</option>
                 <option value="invite-only">Invite only</option>
                 <option value="disabled">Disabled</option>
-              </select>
-            </label>
-            <label>
-              Invite code
-              <input
+              </Select>
+            </Field>
+            <Field label="Invite code" htmlFor="registration-invite-code">
+              <Input
+                id="registration-invite-code"
                 disabled={registrationMode !== 'invite-only'}
                 value={registrationInviteCode}
                 onChange={(event) => setRegistrationInviteCode(event.target.value)}
               />
-            </label>
-            <label>
-              Storage quota per owner (MB)
-              <input
+            </Field>
+            <Field label="Storage quota per owner (MB)" htmlFor="storage-quota">
+              <Input
+                id="storage-quota"
                 min="1"
                 placeholder="Unlimited"
                 type="number"
                 value={storageQuotaMb}
                 onChange={(event) => setStorageQuotaMb(event.target.value)}
               />
-            </label>
-            <label>
-              Audit retention (days)
-              <input
+            </Field>
+            <Field label="Audit retention (days)" htmlFor="audit-retention">
+              <Input
+                id="audit-retention"
                 min="1"
                 placeholder="Keep forever"
                 type="number"
                 value={auditRetentionDays}
                 onChange={(event) => setAuditRetentionDays(event.target.value)}
               />
-            </label>
+            </Field>
           </div>
 
           <div className="settings-card-actions">
             <span className="muted-row">Changes apply to the whole Sticker Foundry instance.</span>
-            <button className="primary-button" disabled={saving || !adminSettings} type="submit">
+            <Button className="primary-button" disabled={saving || !adminSettings} type="submit">
               <ShieldCheck size={17} />
               {saving ? 'Saving' : 'Save settings'}
-            </button>
+            </Button>
           </div>
-        </form>
+        </Card>
 
-        <section className="settings-card settings-info-card">
+        <Card className="settings-card settings-info-card">
           <div className="section-heading">
             <div>
               <p className="eyebrow">Overview</p>
@@ -260,24 +265,24 @@ export function AdminSettingsPage({
             <li><strong>Storage</strong><span>Limit storage per owner or leave it unlimited.</span></li>
             <li><strong>Audit retention</strong><span>Keep audit history forever or prune it by age.</span></li>
           </ul>
-        </section>
+        </Card>
       </div>
 
-      <section className="settings-card audit-panel">
+      <Card className="settings-card audit-panel">
         <div className="section-heading">
           <div>
             <p className="eyebrow">Security</p>
             <h3>Audit log</h3>
           </div>
           <div className="settings-card-actions compact-actions">
-            <button className="secondary-button" disabled={exportingAudit} onClick={() => void exportAuditLog()} type="button">
+            <Button className="secondary-button" disabled={exportingAudit} onClick={() => void exportAuditLog()} type="button" variant="secondary">
               <Download size={17} />
               {exportingAudit ? 'Exporting' : 'Export CSV'}
-            </button>
-            <button className="secondary-button danger-button" onClick={() => void cleanupAuditLog()} type="button">
+            </Button>
+            <Button className="secondary-button danger-button" onClick={() => void cleanupAuditLog()} type="button" variant="secondary">
               <Trash2 size={17} />
               Cleanup
-            </button>
+            </Button>
           </div>
         </div>
         <div className="audit-list">
@@ -297,7 +302,7 @@ export function AdminSettingsPage({
             <p className="muted-row">No audit events yet.</p>
           )}
         </div>
-      </section>
+      </Card>
     </section>
   );
 }

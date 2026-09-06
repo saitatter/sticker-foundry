@@ -1,6 +1,11 @@
 import { ArrowLeft, KeyRound } from 'lucide-react';
 import { type FormEvent, useEffect, useState } from 'react';
 import type { StickerFoundryApi, UserSession } from './api';
+import { PageHeader } from './components/layout/page-header';
+import { Button } from './components/ui/button';
+import { Card } from './components/ui/card';
+import { Field } from './components/ui/field';
+import { Input } from './components/ui/input';
 
 export function AccountSettingsPage({
   api,
@@ -61,20 +66,21 @@ export function AccountSettingsPage({
 
   return (
     <section className="settings-page">
-      <header className="settings-page-header">
-        <div>
-          <p className="eyebrow">Account</p>
-          <h2>Account settings</h2>
-          <p>Manage your password and the devices currently signed in to Sticker Foundry.</p>
-        </div>
-        <button className="secondary-button" onClick={onClose} type="button">
-          <ArrowLeft size={17} />
-          Back to workspace
-        </button>
-      </header>
+      <PageHeader
+        actions={
+          <Button className="secondary-button" onClick={onClose} type="button" variant="secondary">
+            <ArrowLeft size={17} />
+            Back to workspace
+          </Button>
+        }
+        className="settings-page-header"
+        description="Manage your password and the devices currently signed in to Sticker Foundry."
+        eyebrow="Account"
+        title="Account settings"
+      />
 
       <div className="settings-page-grid">
-        <form className="settings-card form-grid" onSubmit={submit}>
+        <Card as="form" className="settings-card form-grid" onSubmit={submit}>
           <div className="section-heading">
             <div>
               <p className="eyebrow">Security</p>
@@ -82,19 +88,19 @@ export function AccountSettingsPage({
             </div>
             <KeyRound size={20} />
           </div>
-          <label>
-            Current password
-            <input
+          <Field label="Current password" htmlFor="current-password">
+            <Input
+              id="current-password"
               autoComplete="current-password"
               value={currentPassword}
               onChange={(event) => setCurrentPassword(event.target.value)}
               type="password"
               required
             />
-          </label>
-          <label>
-            New password
-            <input
+          </Field>
+          <Field label="New password" htmlFor="new-password">
+            <Input
+              id="new-password"
               autoComplete="new-password"
               value={newPassword}
               onChange={(event) => setNewPassword(event.target.value)}
@@ -102,25 +108,25 @@ export function AccountSettingsPage({
               minLength={8}
               required
             />
-          </label>
+          </Field>
           <div className="settings-card-actions">
             <span className="muted-row">Use at least 8 characters.</span>
-            <button className="primary-button" disabled={saving} type="submit">
+            <Button className="primary-button" disabled={saving} type="submit">
               <KeyRound size={17} />
               {saving ? 'Saving' : 'Change password'}
-            </button>
+            </Button>
           </div>
-        </form>
+        </Card>
 
-        <section className="settings-card">
+        <Card className="settings-card">
           <div className="section-heading">
             <div>
               <p className="eyebrow">Sessions</p>
               <h3>Signed-in devices</h3>
             </div>
-            <button className="secondary-button danger-button" onClick={() => void revokeAllSessions()} type="button">
+            <Button className="secondary-button danger-button" onClick={() => void revokeAllSessions()} type="button" variant="secondary">
               Revoke all
-            </button>
+            </Button>
           </div>
           <div className="session-list">
             {sessions.length > 0 ? (
@@ -130,21 +136,22 @@ export function AccountSettingsPage({
                     <strong>{session.revokedAt ? 'Revoked' : 'Active'}</strong>
                     <small>Expires {new Date(session.expiresAt).toLocaleDateString()}</small>
                   </span>
-                  <button
+                  <Button
                     className="secondary-button danger-button"
                     disabled={Boolean(session.revokedAt)}
                     onClick={() => void revokeSession(session.id)}
                     type="button"
+                    variant="secondary"
                   >
                     Revoke
-                  </button>
+                  </Button>
                 </div>
               ))
             ) : (
               <p className="muted-row">No sessions found.</p>
             )}
           </div>
-        </section>
+        </Card>
       </div>
     </section>
   );

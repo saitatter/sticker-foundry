@@ -31,7 +31,14 @@ import {
   stickerUploadOptionsFromEdit,
   UploadEditSummary,
 } from './image-editor';
-import { IconButton } from './ui';
+import { LabeledIconButton as IconButton } from './components/ui/labeled-icon-button';
+import { Button } from './components/ui/button';
+import { Card } from './components/ui/card';
+import { Checkbox } from './components/ui/checkbox';
+import { CheckboxField, Field } from './components/ui/field';
+import { Input } from './components/ui/input';
+import { Select } from './components/ui/select';
+import { StatusPill } from './components/ui/status-pill';
 import { useJobQuery } from './features/jobs/queries';
 import { queryKeys } from './lib/query-keys';
 import { useConfirmDialog } from './components/ui/confirm-dialog';
@@ -147,7 +154,7 @@ export function CollaborationPanel({
   }
 
   return (
-    <section className="collaboration-panel">
+    <Card className="collaboration-panel">
       <div className="section-heading">
         <h3>Collaboration</h3>
         <Users size={18} />
@@ -162,7 +169,7 @@ export function CollaborationPanel({
                 <small>{member.user.email}</small>
               </span>
               <span className="member-actions">
-                <select
+                <Select
                   aria-label={`Role for ${member.user.email}`}
                   value={member.role}
                   onChange={(event) =>
@@ -171,7 +178,7 @@ export function CollaborationPanel({
                 >
                   <option value="EDITOR">Editor</option>
                   <option value="VIEWER">Viewer</option>
-                </select>
+                </Select>
                 <IconButton label="Remove member" onClick={() => void removeMember(member.id)} danger>
                   <Trash2 size={16} />
                 </IconButton>
@@ -183,39 +190,37 @@ export function CollaborationPanel({
           ) : null}
         </div>
         <form className="invite-form" onSubmit={createInvite}>
-          <label>
-            Email
-            <input
+          <Field label="Email" htmlFor="pack-invite-email">
+            <Input
+              id="pack-invite-email"
               value={email}
               onChange={(event) => setEmail(event.target.value)}
               placeholder="optional@email.com"
               type="email"
             />
-          </label>
-          <label>
-            Role
-            <select value={role} onChange={(event) => setRole(event.target.value as Exclude<PackRole, 'OWNER'>)}>
+          </Field>
+          <Field label="Role" htmlFor="pack-invite-role">
+            <Select id="pack-invite-role" value={role} onChange={(event) => setRole(event.target.value as Exclude<PackRole, 'OWNER'>)}>
               <option value="EDITOR">Editor</option>
               <option value="VIEWER">Viewer</option>
-            </select>
-          </label>
-          <label>
-            Expires
-            <input value={expiresAt} onChange={(event) => setExpiresAt(event.target.value)} type="datetime-local" />
-          </label>
-          <button className="secondary-button" disabled={creating} type="submit">
+            </Select>
+          </Field>
+          <Field label="Expires" htmlFor="pack-invite-expires">
+            <Input id="pack-invite-expires" value={expiresAt} onChange={(event) => setExpiresAt(event.target.value)} type="datetime-local" />
+          </Field>
+          <Button disabled={creating} type="submit" variant="secondary">
             <UserPlus size={17} />
             Invite
-          </button>
+          </Button>
           {invite ? (
-            <button className="invite-code-button" onClick={() => void copyInviteCode()} type="button">
+            <Button className="invite-code-button" onClick={() => void copyInviteCode()} type="button" variant="ghost">
               <span>{invite.code}</span>
-            </button>
+            </Button>
           ) : null}
         </form>
         <div className="invite-list">
           <div className="invite-filter-row">
-            <select
+            <Select
               value={inviteFilter}
               onChange={(event) => setInviteFilter(event.target.value as typeof inviteFilter)}
             >
@@ -223,7 +228,7 @@ export function CollaborationPanel({
               <option value="pending">Pending</option>
               <option value="accepted">Accepted</option>
               <option value="expired">Expired</option>
-            </select>
+            </Select>
             <span className="counter">{visibleInvites.length}</span>
           </div>
           {visibleInvites.map((item) => (
@@ -233,9 +238,9 @@ export function CollaborationPanel({
                 <small>{inviteStatusLabel(item)}</small>
               </span>
               {item.acceptedAt ? (
-                <span className="status-pill ready">Accepted</span>
+                <StatusPill className="ready">Accepted</StatusPill>
               ) : isExpiredInvite(item) ? (
-                <span className="status-pill needs-work">Expired</span>
+                <StatusPill className="needs-work">Expired</StatusPill>
               ) : (
                 <IconButton label="Revoke invite" onClick={() => void revokeInvite(item.id)} danger>
                   <Trash2 size={16} />
@@ -249,7 +254,7 @@ export function CollaborationPanel({
         </div>
       </div>
       {dialog}
-    </section>
+    </Card>
   );
 }
 
@@ -308,44 +313,38 @@ export function PackEditForm({
   }
 
   return (
-    <section className="edit-panel">
+    <Card className="edit-panel">
       <div className="section-heading">
         <h3>Details</h3>
         <Edit3 size={18} />
       </div>
       <form className="edit-form" onSubmit={handleSubmit(submit)}>
-        <label>
-          Name
-          <input {...register('name')} maxLength={128} required />
+        <Field label="Name" htmlFor="pack-name">
+          <Input id="pack-name" {...register('name')} maxLength={128} required />
           {formState.errors.name ? <small className="field-error">{formState.errors.name.message}</small> : null}
-        </label>
-        <label>
-          Publisher
-          <input {...register('publisher')} maxLength={128} required />
+        </Field>
+        <Field label="Publisher" htmlFor="pack-publisher">
+          <Input id="pack-publisher" {...register('publisher')} maxLength={128} required />
           {formState.errors.publisher ? <small className="field-error">{formState.errors.publisher.message}</small> : null}
-        </label>
-        <label>
-          Description
-          <input {...register('description')} maxLength={500} />
-        </label>
-        <label className="checkbox-row edit-toggle">
-          <input {...register('isPublic')} type="checkbox" />
-          Public
-        </label>
-        <label className="checkbox-row edit-toggle">
-          <input {...register('requiresApproval')} type="checkbox" />
-          Require approval
-        </label>
-        <label className="checkbox-row edit-toggle">
-          <input {...register('isAnimated')} type="checkbox" />
-          Animated pack
-        </label>
-        <button className="secondary-button" disabled={!formState.isDirty || formState.isSubmitting} type="submit">
+        </Field>
+        <Field label="Description" htmlFor="pack-description">
+          <Input id="pack-description" {...register('description')} maxLength={500} />
+        </Field>
+        <CheckboxField className="edit-toggle" label="Public">
+          <Checkbox {...register('isPublic')} />
+        </CheckboxField>
+        <CheckboxField className="edit-toggle" label="Require approval">
+          <Checkbox {...register('requiresApproval')} />
+        </CheckboxField>
+        <CheckboxField className="edit-toggle" label="Animated pack">
+          <Checkbox {...register('isAnimated')} />
+        </CheckboxField>
+        <Button disabled={!formState.isDirty || formState.isSubmitting} type="submit" variant="secondary">
           <Edit3 size={17} />
           {formState.isSubmitting ? 'Saving' : 'Save'}
-        </button>
+        </Button>
       </form>
-    </section>
+    </Card>
   );
 }
 
@@ -398,7 +397,7 @@ export function TrayIconPanel({
   }
 
   return (
-    <section className="tray-panel">
+    <Card className="tray-panel">
       <div className="section-heading">
         <h3>Tray icon</h3>
         <ImagePlus size={18} />
@@ -408,16 +407,16 @@ export function TrayIconPanel({
           {url ? <img alt={`${pack.name} tray icon`} src={url} /> : <ImagePlus size={24} />}
         </div>
         <label className="file-drop compact-drop">
-          <input accept="image/*" onChange={(event) => setFile(event.target.files?.[0] ?? null)} type="file" />
+          <Input accept="image/*" onChange={(event) => setFile(event.target.files?.[0] ?? null)} type="file" />
           <ImagePlus size={20} />
           <span>{file ? file.name : 'Choose tray image'}</span>
         </label>
-        <button className="secondary-button" disabled={!file || uploading} type="submit">
+        <Button disabled={!file || uploading} type="submit" variant="secondary">
           <Upload size={17} />
           Replace
-        </button>
+        </Button>
       </form>
-    </section>
+    </Card>
   );
 }
 
@@ -588,7 +587,7 @@ export function UploadPanel({
         : `${files.length} images selected`;
 
   return (
-    <section className="upload-panel">
+    <Card className="upload-panel">
       <div className="section-heading">
         <h3>Upload</h3>
         <span className="counter">{remainingSlots}</span>
@@ -607,7 +606,7 @@ export function UploadPanel({
           onDragOver={(event) => event.preventDefault()}
           onDrop={dropFiles}
         >
-          <input
+          <Input
             accept="image/*"
             disabled={disabled}
             multiple
@@ -617,23 +616,22 @@ export function UploadPanel({
           <ImagePlus size={22} />
           <span>{fileLabel}</span>
         </label>
-        <label>
-          Default emojis
-          <input value={emojis} onChange={(event) => setEmojis(event.target.value)} placeholder="smile,laugh,heart" />
-        </label>
-        <label>
-          Default alt text
-          <input
+        <Field label="Default emojis" htmlFor="upload-emojis">
+          <Input id="upload-emojis" value={emojis} onChange={(event) => setEmojis(event.target.value)} placeholder="smile,laugh,heart" />
+        </Field>
+        <Field label="Default alt text" htmlFor="upload-alt-text">
+          <Input
+            id="upload-alt-text"
             value={accessibilityText}
             onChange={(event) => setAccessibilityText(event.target.value)}
             maxLength={125}
             placeholder="Short sticker description"
           />
-        </label>
-        <button className="primary-button" disabled={files.length === 0 || disabled || uploading} type="submit">
+        </Field>
+        <Button disabled={files.length === 0 || disabled || uploading} type="submit">
           <Upload size={17} />
           {uploading ? `Uploading ${uploadedCount}/${files.length}` : 'Upload'}
-        </button>
+        </Button>
       </form>
       {files[0] ? (
         <UploadEditSummary
@@ -683,25 +681,27 @@ export function UploadPanel({
                       <small>{job.progress}%</small>
                     </span>
                     {active ? (
-                      <button
+                      <Button
                         className="ghost-button"
                         disabled={jobActionId === job.id}
                         onClick={() => void cancelJob(job.id)}
                         type="button"
+                        variant="ghost"
                       >
                         <AlertCircle size={15} />
                         Cancel
-                      </button>
+                      </Button>
                     ) : retryable ? (
-                      <button
+                      <Button
                         className="ghost-button"
                         disabled={jobActionId === job.id}
                         onClick={() => void retryJob(job.id)}
                         type="button"
+                        variant="ghost"
                       >
                         <RotateCcw size={15} />
                         Retry
-                      </button>
+                      </Button>
                     ) : null}
                   </div>
                   <progress max="100" value={job.progress} />
@@ -712,7 +712,7 @@ export function UploadPanel({
           </div>
         </section>
       ) : null}
-    </section>
+    </Card>
   );
 }
 

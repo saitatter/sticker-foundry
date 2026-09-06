@@ -9,6 +9,8 @@ import {
   useState,
 } from 'react';
 import type { AdminSettings } from './api';
+import { Button } from './components/ui/button';
+import { IconButton } from './components/ui/icon-button';
 import type { BrushMode, BrushPoint, BrushStroke, ImageEditOptions } from './image-editor';
 import {
   clamp,
@@ -273,16 +275,17 @@ export function ImageEditControls({
             ['background', 'Background'],
             ['output', 'Output'],
           ].map(([panel, label]) => (
-            <button
+            <Button
               aria-selected={activePanel === panel}
               className={activePanel === panel ? 'active' : ''}
               key={panel}
               onClick={() => setActivePanel(panel as ImageEditPanel)}
               role="tab"
               type="button"
+              variant="unstyled"
             >
               {label}
-            </button>
+            </Button>
           ))}
         </div>
       ) : null}
@@ -414,14 +417,15 @@ export function ImageEditControls({
       {showBasicsPanel ? (
         <div className="preset-row" aria-label="Image edit presets">
           {imageEditPresets.map((preset) => (
-            <button
+            <Button
               className="secondary-button"
               key={preset.name}
               onClick={() => applyPreset(preset.options)}
               type="button"
+              variant="secondary"
             >
               {preset.name}
-            </button>
+            </Button>
           ))}
         </div>
       ) : null}
@@ -858,15 +862,14 @@ function EditorIconButton({
   disabled?: boolean;
 }) {
   return (
-    <button
+    <IconButton
       aria-label={label}
       className="icon-button"
       disabled={disabled}
       onClick={onClick}
       title={label}
-      type="button"
     >
       {children}
-    </button>
+    </IconButton>
   );
 }

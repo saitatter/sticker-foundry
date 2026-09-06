@@ -7,7 +7,17 @@ import {
   type Pack,
   type StickerFoundryApi,
 } from './api';
-import { BrandMark, downloadBlob, exportFileName, IconButton, Metric, NoticeBar, type Notice } from './ui';
+import { BrandMark } from './components/layout/brand-mark';
+import { Button } from './components/ui/button';
+import { LabeledIconButton as IconButton } from './components/ui/labeled-icon-button';
+import { Metric } from './components/ui/metric';
+import { NoticeBar } from './components/ui/notice-bar';
+import { downloadBlob, exportFileName } from './lib/download';
+import type { Notice } from './ui-types';
+import { Card } from './components/ui/card';
+import { Field } from './components/ui/field';
+import { Input } from './components/ui/input';
+import { Tabs, TabsList, TabsTrigger } from './components/ui/tabs';
 
 const DEMO_EMAIL = 'demo@stickerfoundry.local';
 const DEMO_PASSWORD = 'stickerfoundry123';
@@ -47,7 +57,7 @@ export function SharePage({
 
   return (
     <main className="share-layout">
-      <section className="share-panel">
+      <Card className="share-panel">
         <div className="brand share-brand">
           <BrandMark />
           <div>
@@ -74,15 +84,14 @@ export function SharePage({
               <span>Import through the Sticker Foundry Android app for WhatsApp.</span>
               <span>WhatsApp will ask for confirmation before adding the pack.</span>
             </div>
-            <button
-              className="primary-button"
+            <Button
               disabled={!pack.canExport || downloading}
               onClick={() => void download()}
               type="button"
             >
               <Download size={17} />
               {downloading ? 'Downloading' : 'Download ZIP'}
-            </button>
+            </Button>
           </>
         ) : (
           <div className="empty-inline">
@@ -90,7 +99,7 @@ export function SharePage({
             <span>Loading public pack</span>
           </div>
         )}
-      </section>
+      </Card>
     </main>
   );
 }
@@ -176,7 +185,7 @@ export function AuthScreen({
 
   return (
     <main className="auth-layout">
-      <section className="auth-panel">
+      <Card className="auth-panel">
         <div className="brand auth-brand">
           <BrandMark />
           <div>
@@ -185,43 +194,42 @@ export function AuthScreen({
           </div>
         </div>
 
-        <div className="segmented" role="tablist" aria-label="Authentication mode">
-          <button className={mode === 'login' ? 'active' : ''} onClick={() => setMode('login')} type="button">
+        <Tabs className="segmented" aria-label="Authentication mode">
+          <TabsList>
+            <TabsTrigger aria-selected={mode === 'login'} onClick={() => setMode('login')}>
             Login
-          </button>
-          <button className={mode === 'register' ? 'active' : ''} onClick={() => setMode('register')} type="button">
+            </TabsTrigger>
+            <TabsTrigger aria-selected={mode === 'register'} onClick={() => setMode('register')}>
             Register
-          </button>
-        </div>
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
 
-        <button className="secondary-button demo-login-button" onClick={useDemoCredentials} type="button">
+        <Button className="secondary-button demo-login-button" onClick={useDemoCredentials} type="button" variant="secondary">
           <KeyRound size={17} />
           Use demo account
-        </button>
+        </Button>
 
         {notice ? <NoticeBar notice={notice} /> : null}
 
         <form className="form-grid" onSubmit={submit}>
-          <label>
-            Email
-            <input value={email} onChange={(event) => setEmail(event.target.value)} type="email" required />
-          </label>
+          <Field label="Email" htmlFor="auth-email">
+            <Input id="auth-email" value={email} onChange={(event) => setEmail(event.target.value)} type="email" required />
+          </Field>
           {mode === 'register' ? (
-            <label>
-              Display name
-              <input value={displayName} onChange={(event) => setDisplayName(event.target.value)} />
-            </label>
+            <Field label="Display name" htmlFor="auth-display-name">
+              <Input id="auth-display-name" value={displayName} onChange={(event) => setDisplayName(event.target.value)} />
+            </Field>
           ) : null}
           {mode === 'register' ? (
-            <label>
-              Invite code
-              <input value={inviteCode} onChange={(event) => setInviteCode(event.target.value)} />
-            </label>
+            <Field label="Invite code" htmlFor="auth-invite-code">
+              <Input id="auth-invite-code" value={inviteCode} onChange={(event) => setInviteCode(event.target.value)} />
+            </Field>
           ) : null}
-          <label>
-            Password
+          <Field label="Password" htmlFor="auth-password">
             <span className="password-field">
-              <input
+              <Input
+                id="auth-password"
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
                 type={showPassword ? 'text' : 'password'}
@@ -235,33 +243,33 @@ export function AuthScreen({
                 {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
               </IconButton>
             </span>
-          </label>
-          <button className="primary-button" disabled={submitting} type="submit">
+          </Field>
+          <Button disabled={submitting} type="submit">
             <Lock size={17} />
             {mode === 'register' ? 'Create account' : 'Login'}
-          </button>
+          </Button>
           {mode === 'login' ? (
-            <button
-              className="secondary-button"
+            <Button
               disabled={requestingReset}
               onClick={() => void requestPasswordReset()}
               type="button"
+              variant="secondary"
             >
               <KeyRound size={17} />
               {requestingReset ? 'Sending reset' : 'Email reset link'}
-            </button>
+            </Button>
           ) : null}
         </form>
         <div className="public-pack-browser">
-          <button
-            className="secondary-button"
+          <Button
             disabled={loadingPublicPacks}
             onClick={() => void browsePublicPacks()}
             type="button"
+            variant="secondary"
           >
             <Globe2 size={17} />
             {loadingPublicPacks ? 'Loading public packs' : 'Browse public packs'}
-          </button>
+          </Button>
           {showPublicPacks ? (
             <div className="public-pack-list">
               {publicPacks.length > 0 ? (
@@ -283,7 +291,7 @@ export function AuthScreen({
             </div>
           ) : null}
         </div>
-      </section>
+      </Card>
     </main>
   );
 }
@@ -321,7 +329,7 @@ export function ResetPasswordScreen({
 
   return (
     <main className="auth-layout">
-      <section className="auth-panel">
+      <Card className="auth-panel">
         <div className="brand auth-brand">
           <BrandMark />
           <div>
@@ -333,22 +341,22 @@ export function ResetPasswordScreen({
         {notice ? <NoticeBar notice={notice} /> : null}
 
         <form className="form-grid" onSubmit={submit}>
-          <label>
-            New password
-            <input
+          <Field label="New password" htmlFor="reset-password">
+            <Input
+              id="reset-password"
               value={password}
               onChange={(event) => setPassword(event.target.value)}
               type="password"
               minLength={8}
               required
             />
-          </label>
-          <button className="primary-button" disabled={submitting} type="submit">
+          </Field>
+          <Button disabled={submitting} type="submit">
             <Lock size={17} />
             {submitting ? 'Saving' : 'Reset password'}
-          </button>
+          </Button>
         </form>
-      </section>
+      </Card>
     </main>
   );
 }

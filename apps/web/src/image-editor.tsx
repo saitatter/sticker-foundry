@@ -3,6 +3,7 @@ import { type Dispatch, type SetStateAction, useEffect, useState } from 'react';
 import type { AdminSettings } from './api';
 import { hasColorAdjustments, isAnimatedSourceFile } from './image-editor-processing';
 import { ImageEditControls as ExtractedImageEditControls } from './image-editor-controls';
+import { Button } from './components/ui/button';
 
 export { editableUploadFile, stickerUploadOptionsFromEdit } from './image-editor-processing';
 
@@ -193,13 +194,13 @@ export function UploadEditSummary({
           ))}
         </div>
       </div>
-      <button className="secondary-button" onClick={onEdit} type="button">
+      <Button className="secondary-button" onClick={onEdit} type="button" variant="secondary">
         <Edit3 size={17} />
         Edit
-      </button>
-      <button className="ghost-button" disabled={!hasEdits} onClick={onReset} type="button">
+      </Button>
+      <Button className="ghost-button" disabled={!hasEdits} onClick={onReset} type="button" variant="ghost">
         Reset
-      </button>
+      </Button>
     </div>
   );
 }
@@ -234,9 +235,9 @@ export function ImageEditModal({
             <h3>Edit Sticker</h3>
             <p>{file.name}</p>
           </div>
-          <button className="ghost-button" onClick={onClose} type="button">
+          <Button className="ghost-button" onClick={onClose} type="button" variant="ghost">
             Cancel
-          </button>
+          </Button>
         </header>
         <ExtractedImageEditControls
           backgroundRemovalStatus={backgroundRemovalStatus}
@@ -246,16 +247,16 @@ export function ImageEditModal({
           onChange={onChange}
         />
         <footer className="image-editor-footer">
-          <button className="ghost-button" onClick={onReset} type="button">
+          <Button className="ghost-button" onClick={onReset} type="button" variant="ghost">
             Reset edits
-          </button>
+          </Button>
           <div>
-            <button className="secondary-button" onClick={onClose} type="button">
+            <Button className="secondary-button" onClick={onClose} type="button" variant="secondary">
               Cancel
-            </button>
-            <button className="primary-button" onClick={onApply} type="button">
+            </Button>
+            <Button onClick={onApply} type="button">
               Apply edits
-            </button>
+            </Button>
           </div>
         </footer>
       </section>

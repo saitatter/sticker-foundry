@@ -16,8 +16,14 @@ import { AdminSettingsPage } from './admin-settings-page';
 import { AccountSettingsPage } from './account-settings-page';
 import { WorkspaceNav, WorkspaceToolsDrawer } from './workspace-panels';
 import { ThemeToggle } from './components/layout/theme-toggle';
+import { AppShell } from './components/layout/app-shell';
+import { Button } from './components/ui/button';
+import { EmptyState as EmptyStateComponent } from './components/ui/empty-state';
 import { clearAccessToken, getAccessToken, setAccessToken } from './lib/api/auth-session';
-import { BrandMark, IconButton, NoticeBar, type Notice } from './ui';
+import { BrandMark } from './components/layout/brand-mark';
+import { LabeledIconButton as IconButton } from './components/ui/labeled-icon-button';
+import { NoticeBar } from './components/ui/notice-bar';
+import type { Notice } from './ui-types';
 
 const DEFAULT_INSTANCE_SETTINGS: InstanceSettings = {
   instanceName: 'Sticker Foundry',
@@ -202,16 +208,9 @@ export function App({ route }: { route: AppRoute }) {
   }
 
   return (
-    <div className="app-shell">
-      <header className="topbar">
-        <div className="brand">
-          <BrandMark />
-          <div>
-            <h1>{instanceSettings.instanceName}</h1>
-            <p>{user?.email ?? 'Signed in'}</p>
-          </div>
-        </div>
-        <div className="topbar-actions">
+    <AppShell
+      actions={
+        <>
           <ThemeToggle />
           <IconButton label="Account settings" onClick={() => void navigate({ to: '/app/settings/account' })}>
             <KeyRound size={18} />
@@ -222,37 +221,75 @@ export function App({ route }: { route: AppRoute }) {
           <IconButton label="Sign out" onClick={signOut}>
             <LogOut size={18} />
           </IconButton>
-        </div>
-      </header>
-
-      <div className="workspace">
-        <aside className="sidebar">
-          <WorkspaceNav
-            activeView={sidebarView}
-            isAdmin={Boolean(user?.isAdmin)}
-            packCount={packs.length}
-            selectedPack={selectedPackSummary}
-            onOpenAccount={() => void navigate({ to: '/app/settings/account' })}
-            onOpenAdmin={() => void navigate({ to: '/app/settings/admin' })}
-            onOpenPack={() => {
-              if (selectedPackId) openPack(selectedPackId);
+        </>
+      }
+      brand={
+        <>
+          <BrandMark />
+          <div>
+            <h1>{instanceSettings.instanceName}</h1>
+            <p>{user?.email ?? 'Signed in'}</p>
+          </div>
+        </>
+      }
+      overlays={
+        showMobileTools || route.kind === 'team' ? (
+          <WorkspaceToolsDrawer
+            api={api}
+            teams={teams}
+            onAccepted={async (pack) => {
+              await invalidateWorkspace();
+              openPack(pack.id);
+              setNotice({ tone: 'success', text: 'Invite accepted' });
             }}
-            onOpenPacks={openPacksView}
+            onChanged={invalidateWorkspace}
+            onClose={() => {
+              setShowMobileTools(false);
+              if (route.kind === 'team') void navigate({ to: '/app/packs', search: { q: undefined, visibility: undefined, sort: undefined } });
+            }}
+            onError={reportError}
+            onNotice={(message) => setNotice({ tone: 'success', text: message })}
+            onPackCreated={(pack) => {
+              queryClient.setQueryData<Pack[]>(queryKeys.packs.list, (current = []) => [pack, ...current]);
+              openPack(pack.id);
+              setNotice({ tone: 'success', text: 'Pack created' });
+            }}
+            onTeamCreated={async (team) => {
+              queryClient.setQueryData<Team[]>(queryKeys.teams.all, (current = []) =>
+                [team, ...current].sort((left, right) => left.name.localeCompare(right.name)),
+              );
+              setNotice({ tone: 'success', text: 'Team created' });
+            }}
           />
-
-          <button
-            aria-controls="workspace-tools"
-            aria-expanded={showMobileTools}
-            className="secondary-button workspace-tools-trigger"
-            onClick={() => setShowMobileTools((visible) => !visible)}
-            type="button"
-          >
-            <Plus size={17} />
-            Create or join
-          </button>
-        </aside>
-
-        <main className="content">
+        ) : null
+      }
+      sidebar={
+        <WorkspaceNav
+          activeView={sidebarView}
+          isAdmin={Boolean(user?.isAdmin)}
+          packCount={packs.length}
+          selectedPack={selectedPackSummary}
+          onOpenAccount={() => void navigate({ to: '/app/settings/account' })}
+          onOpenAdmin={() => void navigate({ to: '/app/settings/admin' })}
+          onOpenPack={() => {
+            if (selectedPackId) openPack(selectedPackId);
+          }}
+          onOpenPacks={openPacksView}
+        />
+      }
+      toolsTrigger={
+        <Button
+          aria-controls="workspace-tools"
+          aria-expanded={showMobileTools}
+          className="workspace-tools-trigger"
+          onClick={() => setShowMobileTools((visible) => !visible)}
+          variant="secondary"
+        >
+          <Plus size={17} />
+          Create or join
+        </Button>
+      }
+    >
           {notice ? <NoticeBar notice={notice} onClose={() => setNotice(null)} /> : null}
           {route.kind === 'settings' && route.section === 'admin' ? (
             <AdminSettingsPage
@@ -327,48 +364,12 @@ export function App({ route }: { route: AppRoute }) {
               onNotice={(message) => setNotice({ tone: 'success', text: message })}
             />
           ) : (
-            <EmptyState />
+            <EmptyStateComponent
+              description="Create or select a pack."
+              icon={<ImagePlus size={34} />}
+              title="No pack selected"
+            />
           )}
-        </main>
-      </div>
-      {showMobileTools || route.kind === 'team' ? (
-        <WorkspaceToolsDrawer
-          api={api}
-          teams={teams}
-          onAccepted={async (pack) => {
-            await invalidateWorkspace();
-            openPack(pack.id);
-            setNotice({ tone: 'success', text: 'Invite accepted' });
-          }}
-          onChanged={invalidateWorkspace}
-          onClose={() => {
-            setShowMobileTools(false);
-            if (route.kind === 'team') void navigate({ to: '/app/packs', search: { q: undefined, visibility: undefined, sort: undefined } });
-          }}
-          onError={reportError}
-          onNotice={(message) => setNotice({ tone: 'success', text: message })}
-          onPackCreated={(pack) => {
-            queryClient.setQueryData<Pack[]>(queryKeys.packs.list, (current = []) => [pack, ...current]);
-            openPack(pack.id);
-            setNotice({ tone: 'success', text: 'Pack created' });
-          }}
-          onTeamCreated={async (team) => {
-            queryClient.setQueryData<Team[]>(queryKeys.teams.all, (current = []) =>
-              [team, ...current].sort((left, right) => left.name.localeCompare(right.name)),
-            );
-            setNotice({ tone: 'success', text: 'Team created' });
-          }}
-        />
-      ) : null}
-    </div>
-  );
-}
-function EmptyState() {
-  return (
-    <section className="empty-state">
-      <ImagePlus size={34} />
-      <h2>No pack selected</h2>
-      <p>Create or select a pack.</p>
-    </section>
+    </AppShell>
   );
 }

@@ -10,7 +10,15 @@ import { queryKeys } from './lib/query-keys';
 import { useConfirmDialog } from './components/ui/confirm-dialog';
 import { CollaborationPanel, PackEditForm, TrayIconPanel, UploadPanel } from './pack-detail-panels';
 import { reviewStatusLabel, StickerTile } from './sticker-tile';
-import { exportFileName, IconButton, Metric } from './ui';
+import { exportFileName } from './lib/download';
+import { LabeledIconButton as IconButton } from './components/ui/labeled-icon-button';
+import { Button } from './components/ui/button';
+import { Card } from './components/ui/card';
+import { Field } from './components/ui/field';
+import { Input } from './components/ui/input';
+import { Metric } from './components/ui/metric';
+import { Select } from './components/ui/select';
+import { Tabs, TabsList, TabsTrigger } from './components/ui/tabs';
 
 export type PackDetailTab = 'overview' | 'stickers' | 'collaboration' | 'activity' | 'settings';
 
@@ -469,49 +477,53 @@ export function PackDetail({
         <div className="detail-actions">
           <div className="detail-export-actions">
             <div className="detail-export-buttons">
-              <button
+              <Button
                 aria-describedby={!canExport ? exportActionHintId : undefined}
                 className="secondary-button"
                 disabled={!canExport || loadingContents}
                 onClick={() => void previewContents()}
                 title={!canExport ? exportStatusText : undefined}
                 type="button"
+                variant="secondary"
               >
                 <FileJson size={17} />
                 {contentsPreview ? 'Hide JSON' : 'Preview JSON'}
-              </button>
-              <button
+              </Button>
+              <Button
                 aria-describedby={!canExport ? exportActionHintId : undefined}
                 className="secondary-button"
                 disabled={!canExport || exporting}
                 onClick={() => void exportPack()}
                 title={!canExport ? exportStatusText : undefined}
                 type="button"
+                variant="secondary"
               >
                 <Download size={17} />
                 {exporting ? `Exporting ${exportProgress}%` : 'Download ZIP'}
-              </button>
+              </Button>
               {exporting && exportJob && (exportJob.status === 'QUEUED' || exportJob.status === 'PROCESSING') ? (
-                <button
+                <Button
                   className="secondary-button"
                   disabled={exportActionId === exportJob.id}
                   onClick={() => void cancelExport()}
                   type="button"
+                  variant="secondary"
                 >
                   <X size={17} />
                   Cancel export
-                </button>
+                </Button>
               ) : null}
               {!exporting && exportJob && (exportJob.status === 'FAILED' || exportJob.status === 'CANCELLED') ? (
-                <button
+                <Button
                   className="secondary-button"
                   disabled={exportActionId === exportJob.id}
                   onClick={() => void retryExport()}
                   type="button"
+                  variant="secondary"
                 >
                   <RotateCcw size={17} />
                   Retry export
-                </button>
+                </Button>
               ) : null}
             </div>
             {!canExport ? (
@@ -520,10 +532,10 @@ export function PackDetail({
               </span>
             ) : null}
           </div>
-          <button className="secondary-button" onClick={() => void clonePack()} type="button">
+          <Button className="secondary-button" onClick={() => void clonePack()} type="button" variant="secondary">
             <Copy size={17} />
             Clone
-          </button>
+          </Button>
           {canManage ? (
             <IconButton label="Delete pack" onClick={() => void deletePack()} danger>
               <Trash2 size={18} />
@@ -545,9 +557,10 @@ export function PackDetail({
         </div>
       ) : null}
 
-      <div className="detail-tabs" role="tablist" aria-label="Pack sections">
-        {detailTabs.map((tab) => (
-          <button
+      <Tabs className="detail-tabs" aria-label="Pack sections">
+        <TabsList>
+          {detailTabs.map((tab) => (
+          <TabsTrigger
             aria-controls={tabPanelId(tab.id)}
             aria-selected={activeTab === tab.id}
             className={activeTab === tab.id ? 'active' : undefined}
@@ -561,9 +574,10 @@ export function PackDetail({
             type="button"
           >
             {tab.label}
-          </button>
+          </TabsTrigger>
         ))}
-      </div>
+        </TabsList>
+      </Tabs>
 
       {activeTab === 'overview' ? (
         <div
@@ -601,7 +615,7 @@ export function PackDetail({
           id={tabPanelId('stickers')}
           role="tabpanel"
         >
-          <section className="stickers-section">
+          <Card className="stickers-section">
             <div className="section-heading">
               <h3>Stickers</h3>
               <Archive size={18} />
@@ -609,54 +623,55 @@ export function PackDetail({
             {canEdit && stickers.length > 0 ? (
               <div className={`bulk-toolbar ${hasBulkSelection ? 'active' : 'idle'}`}>
                 <span className="counter">{selectedStickerIds.length}</span>
-                <button className="secondary-button" disabled={bulkSaving} onClick={selectAllStickers} type="button">
+                <Button disabled={bulkSaving} onClick={selectAllStickers} type="button" variant="secondary">
                   Select all
-                </button>
+                </Button>
                 {hasBulkSelection ? (
                   <>
-                    <button
-                      className="secondary-button"
+                    <Button
                       disabled={bulkSaving}
                       onClick={() => setSelectedStickerIds([])}
                       type="button"
+                      variant="secondary"
                     >
                       Clear
-                    </button>
-                    <label>
-                      Emojis
-                      <input
+                    </Button>
+                    <Field label="Emojis" htmlFor="bulk-emojis">
+                      <Input
+                        id="bulk-emojis"
                         value={bulkEmojis}
                         onChange={(event) => setBulkEmojis(event.target.value)}
                         placeholder="smile,laugh"
                       />
-                    </label>
-                    <button
-                      className="secondary-button"
+                    </Field>
+                    <Button
                       disabled={!bulkEmojis.trim() || bulkSaving}
                       onClick={() => void bulkApplyEmojis()}
                       type="button"
+                      variant="secondary"
                     >
                       Apply emoji
-                    </button>
-                    <button
-                      className="secondary-button"
+                    </Button>
+                    <Button
                       disabled={bulkSaving}
                       onClick={() => void bulkGenerateAltText()}
                       type="button"
+                      variant="secondary"
                     >
                       Generate alt
-                    </button>
-                    <button
-                      className="secondary-button danger-button"
+                    </Button>
+                    <Button
+                      className="danger-button"
                       disabled={bulkSaving}
                       onClick={() => void bulkDeleteStickers()}
                       type="button"
+                      variant="secondary"
                     >
                       Delete selected
-                    </button>
-                    <label>
-                      Target
-                      <select
+                    </Button>
+                    <Field label="Target" htmlFor="bulk-target-pack">
+                      <Select
+                        id="bulk-target-pack"
                         disabled={transferTargets.length === 0}
                         value={bulkTargetPackId}
                         onChange={(event) => setBulkTargetPackId(event.target.value)}
@@ -667,24 +682,24 @@ export function PackDetail({
                             {target.name} ({target.stickerCount}/30)
                           </option>
                         ))}
-                      </select>
-                    </label>
-                    <button
-                      className="secondary-button"
+                      </Select>
+                    </Field>
+                    <Button
                       disabled={!bulkTargetPackId || bulkSaving}
                       onClick={() => void bulkTransferStickers('copy')}
                       type="button"
+                      variant="secondary"
                     >
                       Copy
-                    </button>
-                    <button
-                      className="secondary-button"
+                    </Button>
+                    <Button
                       disabled={!bulkTargetPackId || bulkSaving}
                       onClick={() => void bulkTransferStickers('move')}
                       type="button"
+                      variant="secondary"
                     >
                       Move
-                    </button>
+                    </Button>
                   </>
                 ) : (
                   <span className="bulk-toolbar-note">Select stickers to show bulk actions</span>
@@ -731,7 +746,7 @@ export function PackDetail({
                 <span>No stickers yet</span>
               </div>
             )}
-          </section>
+          </Card>
         </div>
       ) : null}
 
@@ -819,7 +834,7 @@ function ActivityPanel({
   }, [api, onError, pack.id]);
 
   return (
-    <section className="activity-panel">
+    <Card className="activity-panel">
       <div className="section-heading">
         <h3>Activity</h3>
         <Archive size={18} />
@@ -839,7 +854,7 @@ function ActivityPanel({
         ))}
         {!loading && entries.length === 0 ? <span className="muted-row">No activity yet.</span> : null}
       </div>
-    </section>
+    </Card>
   );
 }
 
@@ -857,7 +872,7 @@ function ExportReadiness({
   const message = exportReadinessMessage(stickerCount, requiresApproval, isAnimated);
 
   return (
-    <section className={`export-panel ${canExport ? 'ready' : 'blocked'}`}>
+    <Card className={`export-panel ${canExport ? 'ready' : 'blocked'}`}>
       <div className="export-status">
         {canExport ? <CheckCircle2 size={20} /> : <AlertCircle size={20} />}
         <div>
@@ -870,7 +885,7 @@ function ExportReadiness({
         </div>
       </div>
       <span className="export-count">{stickerCount}/30</span>
-    </section>
+    </Card>
   );
 }
 

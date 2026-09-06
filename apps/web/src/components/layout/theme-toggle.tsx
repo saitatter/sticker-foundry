@@ -1,6 +1,6 @@
 import { Moon, Sun } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { IconButton } from '../../ui';
+import { LabeledIconButton as IconButton } from '../ui/labeled-icon-button';
 
 type Theme = 'light' | 'dark';
 const THEME_KEY = 'stickerfoundry.theme';

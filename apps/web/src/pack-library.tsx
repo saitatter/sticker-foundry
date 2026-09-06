@@ -4,7 +4,12 @@ import { useQuery } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
 import type { Pack, StickerFoundryApi } from './api';
 import { queryKeys } from './lib/query-keys';
-import { Metric } from './ui';
+import { PageHeader } from './components/layout/page-header';
+import { Button } from './components/ui/button';
+import { Input } from './components/ui/input';
+import { Metric } from './components/ui/metric';
+import { Select } from './components/ui/select';
+import { StatusPill } from './components/ui/status-pill';
 
 export type PackFilter = 'all' | 'public' | 'private' | 'ready' | 'needs-work';
 export type PackSort = 'updated' | 'name' | 'stickers';
@@ -54,13 +59,12 @@ export function PackLibrary({
 
   return (
     <section className="pack-library" aria-label="Sticker packs">
-      <div className="pack-library-header">
-        <div>
-          <p className="eyebrow">Library</p>
-          <h2>Packs</h2>
-        </div>
-        <span className="counter">{loading ? '...' : visiblePacks.length}</span>
-      </div>
+      <PageHeader
+        actions={<span className="counter">{loading ? '...' : visiblePacks.length}</span>}
+        className="pack-library-header"
+        eyebrow="Library"
+        title="Packs"
+      />
       <div className="pack-library-metrics">
         <Metric label="Total" value={String(packs.length)} />
         <Metric label="Ready" value={String(readyCount)} />
@@ -68,17 +72,17 @@ export function PackLibrary({
         <Metric label="Private" value={String(privateCount)} />
       </div>
       <div className="pack-library-toolbar">
-        <label className="search-field">
+        <div className="search-field">
           <Search size={15} />
-          <input
+          <Input
             aria-label="Search packs"
             placeholder="Search packs"
             value={query}
             onChange={(event) => void updateSearch(navigate, { q: event.target.value || undefined })}
           />
-        </label>
+        </div>
         <div className="pack-library-selects">
-          <select
+          <Select
             aria-label="Filter packs"
             value={filter}
             onChange={(event) => void updateSearch(navigate, { visibility: event.target.value as PackFilter })}
@@ -88,12 +92,12 @@ export function PackLibrary({
             <option value="private">Private</option>
             <option value="ready">Ready</option>
             <option value="needs-work">Needs work</option>
-          </select>
-          <select aria-label="Sort packs" value={sort} onChange={(event) => void updateSearch(navigate, { sort: event.target.value as PackSort })}>
+          </Select>
+          <Select aria-label="Sort packs" value={sort} onChange={(event) => void updateSearch(navigate, { sort: event.target.value as PackSort })}>
             <option value="updated">Updated</option>
             <option value="name">Name</option>
             <option value="stickers">Stickers</option>
-          </select>
+          </Select>
         </div>
       </div>
       <div className="pack-album-grid">
@@ -104,12 +108,13 @@ export function PackLibrary({
           </div>
         ) : null}
         {visiblePacks.map((pack) => (
-          <button
+          <Button
             aria-label={`Open pack ${pack.name}`}
             className={`pack-album-card ${pack.id === selectedPackId ? 'selected' : ''}`}
             key={pack.id}
             onClick={() => onSelect(pack.id)}
             type="button"
+            variant="unstyled"
           >
             <PackCover api={api} pack={pack} />
             <span className="pack-album-copy">
@@ -118,23 +123,23 @@ export function PackLibrary({
               {pack.description ? <span>{pack.description}</span> : pack.teamName ? <span>{pack.teamName}</span> : null}
             </span>
             <span className="pack-album-meta">
-              <span className={`status-pill ${pack.isPublic ? 'public' : 'private'}`}>
+                <StatusPill className={pack.isPublic ? 'public' : 'private'}>
                 {pack.isPublic ? <Globe2 size={13} /> : <Lock size={13} />}
                 {pack.isPublic ? 'Public' : 'Private'}
-              </span>
-              <span className={`status-pill ${pack.stickerCount >= 3 ? 'ready' : 'needs-work'}`}>
+                </StatusPill>
+                <StatusPill className={pack.stickerCount >= 3 ? 'ready' : 'needs-work'}>
                 {pack.stickerCount >= 3 ? <CheckCircle2 size={13} /> : <AlertCircle size={13} />}
                 {pack.stickerCount}/30
-              </span>
+                </StatusPill>
               {pack.isAnimated ? (
-                <span className="status-pill pending">
+                <StatusPill className="pending">
                   <Film size={13} />
                   Animated
-                </span>
+                </StatusPill>
               ) : null}
-              {pack.role ? <span className="status-pill">{roleLabel(pack.role)}</span> : null}
+              {pack.role ? <StatusPill>{roleLabel(pack.role)}</StatusPill> : null}
             </span>
-          </button>
+          </Button>
         ))}
       </div>
     </section>
