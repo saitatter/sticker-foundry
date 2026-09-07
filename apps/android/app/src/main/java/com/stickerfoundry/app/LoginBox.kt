@@ -9,6 +9,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -18,6 +19,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+
+private const val DEMO_EMAIL = "demo@stickerfoundry.local"
+private const val DEMO_PASSWORD = "stickerfoundry123"
 
 @Composable
 fun LoginBox(
@@ -73,6 +77,22 @@ fun LoginBox(
                 ) {
                     Text(if (checkingServer) "Checking..." else "Test server")
                 }
+            }
+            if (BuildConfig.DEBUG) {
+                OutlinedButton(
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = {
+                        email = DEMO_EMAIL
+                        password = DEMO_PASSWORD
+                    },
+                ) {
+                    Text("Use demo account")
+                }
+                Text(
+                    "$DEMO_EMAIL · $DEMO_PASSWORD",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
             if (serverStatus.message.isNotBlank()) {
                 Text(
