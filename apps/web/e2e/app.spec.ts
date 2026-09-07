@@ -132,6 +132,7 @@ test('covers core web sticker workflows with mocked API', async ({ page }) => {
   await firstSticker.getByRole('button', { name: 'Edit' }).click();
   const stickerDialog = page.getByRole('dialog', { name: 'Sticker detail' });
   await expect(stickerDialog).toBeVisible();
+  await expect(page.locator('.sticker-grid > div[data-reorder-disabled="true"]')).toHaveCount(3);
   await stickerDialog.locator('.sticker-replace-form input[type=file]').setInputFiles({
     name: 'replace.png',
     mimeType: 'image/png',
@@ -143,6 +144,7 @@ test('covers core web sticker workflows with mocked API', async ({ page }) => {
   await page.getByRole('tab', { name: 'Background' }).click();
   await page.locator('.image-editor-modal').getByRole('button', { name: 'Apply edits' }).click();
   await stickerDialog.getByRole('button', { name: 'Close' }).click();
+  await expect(page.locator('.sticker-grid > div[data-reorder-disabled="true"]')).toHaveCount(0);
 
   const newPackPanel = await openNewPackPanel(page);
   await newPackPanel.getByLabel('Name').fill('Scratch Pack');

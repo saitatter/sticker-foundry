@@ -121,6 +121,7 @@ export function PackDetail({
   const [loadingContents, setLoadingContents] = useState(false);
   const [selectedStickerIds, setSelectedStickerIds] = useState<string[]>([]);
   const [selectionAnchorId, setSelectionAnchorId] = useState<string | null>(null);
+  const [editingStickerId, setEditingStickerId] = useState<string | null>(null);
   const [bulkEmojis, setBulkEmojis] = useState('');
   const [bulkTargetPackId, setBulkTargetPackId] = useState('');
   const [bulkSaving, setBulkSaving] = useState(false);
@@ -159,6 +160,7 @@ export function PackDetail({
   useEffect(() => {
     setSelectedStickerIds([]);
     setSelectionAnchorId(null);
+    setEditingStickerId(null);
     setBulkEmojis('');
     setBulkTargetPackId('');
     setContentsPreview(null);
@@ -191,6 +193,10 @@ export function PackDetail({
   useEffect(() => {
     setActiveTab(initialTab);
   }, [initialTab]);
+
+  useEffect(() => {
+    setEditingStickerId(null);
+  }, [activeTab, pack.id]);
 
   useEffect(() => {
     setOptimisticStickers(null);
@@ -946,7 +952,7 @@ export function PackDetail({
                 <SortableContext items={stickers.map((sticker) => sticker.id)} strategy={rectSortingStrategy}>
                   <div className="sticker-grid">
                     {stickers.map((sticker) => (
-                      <SortableSticker key={sticker.id} disabled={!canEdit} id={sticker.id}>
+                      <SortableSticker disabled={!canEdit || editingStickerId !== null} id={sticker.id} key={sticker.id}>
                         {(isDragging) => (
                           <StickerTile
                             api={api}
@@ -962,6 +968,12 @@ export function PackDetail({
                             onChanged={() => onChanged('Sticker updated')}
                             onDeleted={() => onChanged('Sticker deleted')}
                             onError={onError}
+                            onEditingChange={(isEditing) =>
+                              setEditingStickerId((current) => {
+                                if (isEditing) return sticker.id;
+                                return current === sticker.id ? null : current;
+                              })
+                            }
                             onSelectedChange={(event) => handleStickerSelection(sticker.id, event)}
                           />
                         )}
@@ -1040,9 +1052,11 @@ function SortableSticker({
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id, disabled });
   return (
     <div
+      data-reorder-disabled={disabled ? 'true' : undefined}
       ref={setNodeRef}
       style={{ transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.55 : 1 }}
       {...attributes}
+      aria-disabled={undefined}
       {...listeners}
     >
       {children(isDragging)}

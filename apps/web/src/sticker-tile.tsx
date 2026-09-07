@@ -33,6 +33,7 @@ export function StickerTile({
   onChanged,
   onDeleted,
   onError,
+  onEditingChange,
   onSelectedChange,
 }: {
   api: StickerFoundryApi;
@@ -48,6 +49,7 @@ export function StickerTile({
   onChanged: () => Promise<void>;
   onDeleted: () => Promise<void>;
   onError: (error: unknown) => void;
+  onEditingChange: (isEditing: boolean) => void;
   onSelectedChange: (event: MouseEvent<HTMLButtonElement>) => void;
 }) {
   const [url, setUrl] = useState<string | null>(null);
@@ -77,6 +79,10 @@ export function StickerTile({
   useEffect(() => {
     setTransferTargetPackId('');
   }, [packId, sticker.id]);
+
+  useEffect(() => {
+    onEditingChange(detailOpen);
+  }, [detailOpen, onEditingChange]);
 
   useEffect(() => {
     let alive = true;
