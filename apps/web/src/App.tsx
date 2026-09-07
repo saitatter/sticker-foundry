@@ -22,13 +22,15 @@ import { EmptyState as EmptyStateComponent } from './components/ui/empty-state';
 import { clearAccessToken, getAccessToken, setAccessToken } from './lib/api/auth-session';
 import { BrandMark } from './components/layout/brand-mark';
 import { LabeledIconButton as IconButton } from './components/ui/labeled-icon-button';
-import { NoticeBar } from './components/ui/notice-bar';
+import { NoticeStack, type NoticeEntry } from './components/ui/notice-bar';
 import type { Notice } from './ui-types';
 
 const DEFAULT_INSTANCE_SETTINGS: InstanceSettings = {
   instanceName: 'Sticker Foundry',
   instanceDescription: 'Self-hosted sticker pack management',
 };
+
+let noticeSequence = 0;
 
 export type AppRoute =
   | { kind: 'login' }
@@ -54,12 +56,23 @@ export function App({ route }: { route: AppRoute }) {
   const [token, setToken] = useState(() => getAccessToken());
   const [authBootstrapped, setAuthBootstrapped] = useState(() => Boolean(getAccessToken()));
   const [sessionUser, setSessionUser] = useState<User | null>(null);
-  const [notice, setNotice] = useState<Notice | null>(null);
+  const [notices, setNotices] = useState<NoticeEntry[]>([]);
   const [showMobileTools, setShowMobileTools] = useState(false);
   const selectedPackId = route.kind === 'workspace' && route.view === 'pack' ? (route.packId ?? null) : null;
   const workspaceView = route.kind === 'workspace' ? route.view : 'packs';
   const sidebarView = route.kind === 'settings' ? (route.section === 'admin' ? 'admin' : 'account') : workspaceView;
   const isPublicRoute = route.kind === 'login' || route.kind === 'share' || route.kind === 'reset';
+
+  const pushNotice = useCallback((notice: Notice) => {
+    setNotices((current) => [
+      ...current,
+      { id: `${Date.now()}-${noticeSequence++}`, notice },
+    ]);
+  }, []);
+
+  const dismissNotice = useCallback((id: string) => {
+    setNotices((current) => current.filter((entry) => entry.id !== id));
+  }, []);
 
   const saveAuth = useCallback((auth: AuthResponse | null) => {
     if (!auth) {
@@ -93,8 +106,8 @@ export function App({ route }: { route: AppRoute }) {
 
   const reportError = useCallback((error: unknown) => {
     const text = error instanceof ApiError || error instanceof Error ? error.message : 'Something went wrong';
-    setNotice({ tone: 'error', text });
-  }, []);
+    pushNotice({ tone: 'error', text });
+  }, [pushNotice]);
 
   const refetchWorkspaceQueries = useCallback(async () => {
     if (!token) return;
@@ -140,7 +153,8 @@ export function App({ route }: { route: AppRoute }) {
         instanceSettings={instanceSettings}
         packId={route.packId}
         onError={reportError}
-        notice={notice}
+        notices={notices}
+        onNoticeClose={dismissNotice}
       />
     );
   }
@@ -153,17 +167,18 @@ export function App({ route }: { route: AppRoute }) {
         token={route.token}
         onChanged={() => {
           void navigate({ to: '/login' });
-          setNotice({ tone: 'success', text: 'Password reset complete. You can log in now.' });
+          pushNotice({ tone: 'success', text: 'Password reset complete. You can log in now.' });
         }}
         onError={reportError}
-        notice={notice}
+        notices={notices}
+        onNoticeClose={dismissNotice}
       />
     );
   }
 
   const saveSession = (auth: AuthResponse) => {
     saveAuth(auth);
-    setNotice({ tone: 'success', text: 'Signed in' });
+    pushNotice({ tone: 'success', text: 'Signed in' });
     void navigate({ to: '/app/packs', search: { q: undefined, visibility: undefined, sort: undefined } });
   };
 
@@ -212,8 +227,9 @@ export function App({ route }: { route: AppRoute }) {
         instanceSettings={instanceSettings}
         onSignedIn={saveSession}
         onError={reportError}
-        onNotice={setNotice}
-        notice={notice}
+        onNotice={pushNotice}
+        notices={notices}
+        onNoticeClose={dismissNotice}
       />
     );
   }
@@ -251,7 +267,7 @@ export function App({ route }: { route: AppRoute }) {
             onAccepted={async (pack) => {
               await invalidateWorkspace();
               openPack(pack.id);
-              setNotice({ tone: 'success', text: 'Invite accepted' });
+              pushNotice({ tone: 'success', text: 'Invite accepted' });
             }}
             onChanged={invalidateWorkspace}
             onClose={() => {
@@ -260,17 +276,17 @@ export function App({ route }: { route: AppRoute }) {
                 void navigate({ to: '/app/packs', search: { q: undefined, visibility: undefined, sort: undefined } });
             }}
             onError={reportError}
-            onNotice={(message) => setNotice({ tone: 'success', text: message })}
+            onNotice={(message) => pushNotice({ tone: 'success', text: message })}
             onPackCreated={(pack) => {
               queryClient.setQueryData<Pack[]>(queryKeys.packs.list, (current = []) => [pack, ...current]);
               openPack(pack.id);
-              setNotice({ tone: 'success', text: 'Pack created' });
+              pushNotice({ tone: 'success', text: 'Pack created' });
             }}
             onTeamCreated={async (team) => {
               queryClient.setQueryData<Team[]>(queryKeys.teams.all, (current = []) =>
                 [team, ...current].sort((left, right) => left.name.localeCompare(right.name)),
               );
-              setNotice({ tone: 'success', text: 'Team created' });
+              pushNotice({ tone: 'success', text: 'Team created' });
             }}
           />
         ) : null
@@ -305,7 +321,7 @@ export function App({ route }: { route: AppRoute }) {
         </Button>
       }
     >
-      {notice ? <NoticeBar notice={notice} onClose={() => setNotice(null)} /> : null}
+      <NoticeStack notices={notices} onClose={dismissNotice} />
       {route.kind === 'settings' && route.section === 'admin' ? (
         <AdminSettingsPage
           api={api}
@@ -316,7 +332,7 @@ export function App({ route }: { route: AppRoute }) {
           }}
           onChanged={(message, settings) => {
             if (settings) queryClient.setQueryData(queryKeys.instance, settings);
-            setNotice({ tone: 'success', text: message });
+            pushNotice({ tone: 'success', text: message });
           }}
           onError={reportError}
         />
@@ -326,7 +342,7 @@ export function App({ route }: { route: AppRoute }) {
           onClose={() => {
             void navigate({ to: '/app/packs', search: { q: undefined, visibility: undefined, sort: undefined } });
           }}
-          onChanged={(message) => setNotice({ tone: 'success', text: message })}
+          onChanged={(message) => pushNotice({ tone: 'success', text: message })}
           onError={reportError}
         />
       ) : workspaceView === 'packs' ? (
@@ -360,7 +376,7 @@ export function App({ route }: { route: AppRoute }) {
           }}
           onChanged={async (message) => {
             await invalidateWorkspace();
-            setNotice({ tone: 'success', text: message });
+            pushNotice({ tone: 'success', text: message });
           }}
           onDeleted={() => {
             queryClient.setQueryData<Pack[]>(queryKeys.packs.list, (current = []) =>
@@ -368,15 +384,15 @@ export function App({ route }: { route: AppRoute }) {
             );
             queryClient.removeQueries({ queryKey: queryKeys.packs.detail(selectedPack.id) });
             void navigate({ to: '/app/packs', search: { q: undefined, visibility: undefined, sort: undefined } });
-            setNotice({ tone: 'success', text: 'Pack deleted' });
+            pushNotice({ tone: 'success', text: 'Pack deleted' });
           }}
           onCloned={(pack) => {
             queryClient.setQueryData<Pack[]>(queryKeys.packs.list, (current = []) => [pack, ...current]);
             openPack(pack.id);
-            setNotice({ tone: 'success', text: 'Pack cloned' });
+            pushNotice({ tone: 'success', text: 'Pack cloned' });
           }}
           onError={reportError}
-          onNotice={(message) => setNotice({ tone: 'success', text: message })}
+          onNotice={(message) => pushNotice({ tone: 'success', text: message })}
         />
       ) : (
         <EmptyStateComponent

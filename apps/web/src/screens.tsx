@@ -12,7 +12,7 @@ import { ThemeToggle } from './components/layout/theme-toggle';
 import { Button } from './components/ui/button';
 import { LabeledIconButton as IconButton } from './components/ui/labeled-icon-button';
 import { Metric } from './components/ui/metric';
-import { NoticeBar } from './components/ui/notice-bar';
+import { NoticeStack, type NoticeEntry } from './components/ui/notice-bar';
 import { downloadBlob, exportFileName } from './lib/download';
 import type { Notice } from './ui-types';
 import { Card } from './components/ui/card';
@@ -28,13 +28,15 @@ export function SharePage({
   instanceSettings,
   packId,
   onError,
-  notice,
+  notices,
+  onNoticeClose,
 }: {
   api: StickerFoundryApi;
   instanceSettings: InstanceSettings;
   packId: string;
   onError: (error: unknown) => void;
-  notice: Notice | null;
+  notices: NoticeEntry[];
+  onNoticeClose: (id: string) => void;
 }) {
   const [pack, setPack] = useState<Pack | null>(null);
   const [downloading, setDownloading] = useState(false);
@@ -58,6 +60,7 @@ export function SharePage({
 
   return (
     <main className="share-layout">
+      <NoticeStack notices={notices} onClose={onNoticeClose} />
       <Card className="share-panel">
         <div className="brand share-brand">
           <BrandMark />
@@ -66,7 +69,6 @@ export function SharePage({
             <p>{instanceSettings.instanceDescription}</p>
           </div>
         </div>
-        {notice ? <NoticeBar notice={notice} /> : null}
         {pack ? (
           <>
             <div className="share-heading">
@@ -111,14 +113,16 @@ export function AuthScreen({
   onSignedIn,
   onError,
   onNotice,
-  notice,
+  notices,
+  onNoticeClose,
 }: {
   api: StickerFoundryApi;
   instanceSettings: InstanceSettings;
   onSignedIn: (auth: AuthResponse) => void;
   onError: (error: unknown) => void;
   onNotice: (notice: Notice) => void;
-  notice: Notice | null;
+  notices: NoticeEntry[];
+  onNoticeClose: (id: string) => void;
 }) {
   const [mode, setMode] = useState<'login' | 'register'>('login');
   const [email, setEmail] = useState('');
@@ -186,6 +190,7 @@ export function AuthScreen({
 
   return (
     <main className="auth-layout">
+      <NoticeStack notices={notices} onClose={onNoticeClose} />
       <div className="auth-theme-toggle">
         <ThemeToggle />
       </div>
@@ -213,8 +218,6 @@ export function AuthScreen({
           <KeyRound size={17} />
           Use demo account
         </Button>
-
-        {notice ? <NoticeBar notice={notice} /> : null}
 
         <form className="form-grid" onSubmit={submit}>
           <Field label="Email" htmlFor="auth-email">
@@ -306,14 +309,16 @@ export function ResetPasswordScreen({
   token,
   onChanged,
   onError,
-  notice,
+  notices,
+  onNoticeClose,
 }: {
   api: StickerFoundryApi;
   instanceSettings: InstanceSettings;
   token: string;
   onChanged: () => void;
   onError: (error: unknown) => void;
-  notice: Notice | null;
+  notices: NoticeEntry[];
+  onNoticeClose: (id: string) => void;
 }) {
   const [password, setPassword] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -333,6 +338,7 @@ export function ResetPasswordScreen({
 
   return (
     <main className="auth-layout">
+      <NoticeStack notices={notices} onClose={onNoticeClose} />
       <div className="auth-theme-toggle">
         <ThemeToggle />
       </div>
@@ -344,8 +350,6 @@ export function ResetPasswordScreen({
             <p>Choose a new password</p>
           </div>
         </div>
-
-        {notice ? <NoticeBar notice={notice} /> : null}
 
         <form className="form-grid" onSubmit={submit}>
           <Field label="New password" htmlFor="reset-password">
