@@ -7,6 +7,7 @@ import android.net.Uri
 import android.provider.OpenableColumns
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
+import com.stickerfoundry.app.whatsapp.StickerContentProvider
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
@@ -136,6 +137,10 @@ class StickerRepository private constructor(context: Context) {
         mutatePackWithConflictSync(packId) { bearer, version ->
             api().replaceTrayIcon(bearer, packId, version, multipartFromUri(uri, options)).close()
         }
+        // The server response only confirms the upload. Refresh the local export as well so
+        // the app preview and WhatsApp's content provider see the new tray icon immediately.
+        syncPack(packId)
+        notifyPackChanged(packId)
     }
 
     suspend fun logout() = withContext(Dispatchers.IO) {
@@ -158,6 +163,13 @@ class StickerRepository private constructor(context: Context) {
     private suspend fun deleteLocalPack(packId: String) {
         db.stickerDao().deletePack(packId)
         File(packsDirectory(), packId).deleteRecursively()
+    }
+
+    private fun notifyPackChanged(packId: String) {
+        val resolver = appContext.contentResolver
+        resolver.notifyChange(StickerContentProvider.metadataUri(), null)
+        resolver.notifyChange(StickerContentProvider.metadataUri(packId), null)
+        resolver.notifyChange(StickerContentProvider.stickersUri(packId), null)
     }
 
     private suspend fun updateCachedPackMetadata(local: PackEntity, remote: SyncPackDto) {

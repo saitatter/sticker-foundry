@@ -1,6 +1,5 @@
 package com.stickerfoundry.app.whatsapp
 
-import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.widget.Toast
@@ -28,10 +27,19 @@ object WhatsAppStickerLauncher {
             putExtra("sticker_pack_name", pack.name)
         }
 
+        if (intent.resolveActivity(context.packageManager) == null) {
+            showUnavailable(context, appName)
+            return
+        }
+
         try {
             context.startActivity(intent)
-        } catch (_: ActivityNotFoundException) {
-            Toast.makeText(context, "$appName sticker import is not available on this device", Toast.LENGTH_LONG).show()
+        } catch (_: Exception) {
+            showUnavailable(context, appName)
         }
+    }
+
+    private fun showUnavailable(context: Context, appName: String) {
+        Toast.makeText(context, "$appName sticker import is not available on this device", Toast.LENGTH_LONG).show()
     }
 }

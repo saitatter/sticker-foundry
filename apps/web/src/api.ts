@@ -501,8 +501,9 @@ export class StickerFoundryApi {
     });
   }
 
-  async trayIconBlob(packId: string) {
-    return this.http.blob(`/packs/${packId}/tray-icon`, { auth: true });
+  async trayIconBlob(packId: string, imageDataVersion?: string) {
+    const version = imageDataVersion ? `?v=${encodeURIComponent(imageDataVersion)}` : '';
+    return this.http.blob(`/packs/${packId}/tray-icon${version}`, { auth: true });
   }
 
   async coverBlob(packId: string) {

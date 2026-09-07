@@ -495,7 +495,7 @@ private fun EmptyLibraryCard(onOpenPacks: () -> Unit) {
 
 @Composable
 private fun RecentPackRow(pack: com.stickerfoundry.app.data.PackEntity, onOpen: () -> Unit) {
-    val trayPreview = remember(pack.localPath, pack.trayImageFile) {
+    val trayPreview = remember(pack.localPath, pack.trayImageFile, pack.imageDataVersion) {
         loadImageBitmap(File(pack.localPath, pack.trayImageFile).absolutePath)
     }
     Card(modifier = Modifier.fillMaxWidth().clickable(onClick = onOpen)) {

@@ -46,7 +46,7 @@ fun PackRow(
     onExport: () -> Unit,
 ) {
     val cacheReady = pack.extractionStatus == EXTRACTION_READY
-    val trayPreview = remember(pack.localPath, pack.trayImageFile) {
+    val trayPreview = remember(pack.localPath, pack.trayImageFile, pack.imageDataVersion) {
         loadImageBitmap(File(pack.localPath, pack.trayImageFile).absolutePath)
     }
     Card(modifier = Modifier.fillMaxWidth()) {

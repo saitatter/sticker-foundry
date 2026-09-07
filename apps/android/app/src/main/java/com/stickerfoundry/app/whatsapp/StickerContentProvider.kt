@@ -161,6 +161,17 @@ class StickerContentProvider : ContentProvider() {
             .appendPath(METADATA)
             .build()
 
+        fun metadataUri(): Uri = AUTHORITY_URI
+
+        fun metadataUri(packId: String): Uri = AUTHORITY_URI.buildUpon()
+            .appendPath(packId)
+            .build()
+
+        fun stickersUri(packId: String): Uri = AUTHORITY_URI.buildUpon()
+            .path(STICKERS)
+            .appendPath(packId)
+            .build()
+
         private const val STICKER_PACK_IDENTIFIER_IN_QUERY = "sticker_pack_identifier"
         private const val STICKER_PACK_NAME_IN_QUERY = "sticker_pack_name"
         private const val STICKER_PACK_PUBLISHER_IN_QUERY = "sticker_pack_publisher"

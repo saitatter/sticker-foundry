@@ -292,7 +292,7 @@ export function PackSettingsPanel({
     let alive = true;
     let objectUrl: string | null = null;
     api
-      .trayIconBlob(pack.id)
+      .trayIconBlob(pack.id, pack.imageDataVersion)
       .then((blob) => {
         if (!alive) return;
         objectUrl = URL.createObjectURL(blob);
