@@ -31,8 +31,6 @@ fun LoginBox(
     onSaveServerUrl: (String) -> Unit,
     onCheckServerUrl: (String) -> Unit,
     onLogin: (String, String) -> Unit,
-    onSync: () -> Unit,
-    onSettings: () -> Unit,
     status: AppStatus,
 ) {
     var editedServerUrl by remember(serverUrl) { mutableStateOf(serverUrl) }
@@ -125,18 +123,6 @@ fun LoginBox(
                     onClick = { onLogin(email, password) },
                 ) {
                     Text("Login")
-                }
-                Button(
-                    modifier = Modifier.weight(1f),
-                    onClick = onSync,
-                ) {
-                    Text("Sync")
-                }
-                Button(
-                    modifier = Modifier.weight(1f),
-                    onClick = onSettings,
-                ) {
-                    Text("Settings")
                 }
             }
             if (status.message.isNotBlank()) {
