@@ -1,4 +1,4 @@
-import { Archive, Check, ChevronDown, KeyRound, Plus, ShieldCheck, Trash2, UserPlus, Users } from 'lucide-react';
+import { Archive, Check, ChevronDown, Home, KeyRound, Plus, ShieldCheck, Trash2, UserPlus, Users } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { type FormEvent, useEffect, useState } from 'react';
 import { Pack, PackRole, StickerFoundryApi, Team, TeamMember } from './api';
@@ -527,14 +527,26 @@ export function WorkspaceNav({
     <nav className="workspace-nav" aria-label="Workspace">
       <div className="workspace-nav-group">
         <p className="workspace-nav-label">Library</p>
+        <Button
+          aria-label="Open pack library"
+          className={`workspace-nav-row ${activeView === 'packs' ? 'active' : ''}`}
+          onClick={onOpenPacks}
+          type="button"
+          variant="unstyled"
+        >
+          <Home size={18} />
+          <span>
+            <strong>Home</strong>
+            <small>Pack library</small>
+          </span>
+        </Button>
         <div className="workspace-nav-packs">
           <Button
-            aria-label="Open packs"
+            aria-label="Choose pack"
             aria-controls="workspace-pack-switcher"
             aria-expanded={packMenuOpen}
-            className={`workspace-nav-row workspace-nav-packs-trigger ${activeView === 'packs' ? 'active' : ''}`}
+            className={`workspace-nav-row workspace-nav-pack-trigger ${activeView === 'pack' ? 'active' : ''}`}
             onClick={() => {
-              onOpenPacks();
               setPackMenuOpen((open) => !open);
             }}
             type="button"
@@ -542,8 +554,8 @@ export function WorkspaceNav({
           >
             {selectedPack ? <PackNavThumbnail api={api} pack={selectedPack} /> : <Archive size={18} />}
             <span>
-              <strong>Packs</strong>
-              <small>{packCount} total</small>
+              <strong>{selectedPack?.name ?? 'Choose a pack'}</strong>
+              <small>{packCount} available</small>
             </span>
             <ChevronDown className={packMenuOpen ? 'open' : ''} size={17} />
           </Button>

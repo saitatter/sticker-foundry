@@ -57,12 +57,12 @@ test('covers core web sticker workflows with mocked API', async ({ page }) => {
   await expect(page.locator('.pack-album-grid')).toContainText('Smoke Ready');
   await page.getByLabel('Search packs').fill('S');
   await expect(page.getByRole('button', { name: 'Open pack Smoke Ready' })).toHaveClass(/search-match/);
-  await page.getByRole('button', { name: 'Open packs' }).click();
+  await page.getByRole('button', { name: 'Choose pack' }).click();
   await expect(page.locator('.workspace-pack-switcher')).toBeVisible();
   await page.locator('.workspace-pack-switcher').getByRole('button', { name: 'Open pack Smoke Ready' }).click();
   await expect(page.getByRole('heading', { name: 'Smoke Ready' })).toBeVisible();
   await expect(page.locator('.workspace-nav-pack-thumbnail img')).toBeVisible();
-  await page.getByRole('button', { name: 'Open packs' }).click();
+  await page.getByRole('button', { name: 'Open pack library' }).click();
   await expect(
     page.locator('.pack-library').getByRole('button', { name: 'Open pack Smoke Ready' }).locator('.pack-cover.has-image img'),
   ).toBeVisible();
@@ -161,7 +161,7 @@ test('covers core web sticker workflows with mocked API', async ({ page }) => {
   await page.getByRole('tab', { name: 'Overview' }).click();
   await expect(page.locator('.overview-summary')).toContainText('1/30');
 
-  await page.getByRole('button', { name: 'Open packs' }).click();
+  await page.getByRole('button', { name: 'Open pack library' }).click();
   await page.locator('.pack-library').getByRole('button', { name: 'Open pack Smoke Ready' }).click();
   await openStickersTab(page);
   await page.locator('.bulk-toolbar').getByRole('button', { name: 'Select all' }).click();

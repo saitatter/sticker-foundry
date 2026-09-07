@@ -13,21 +13,21 @@
   gap: 6px;
 }
 
-.workspace-nav-packs-trigger {
+.workspace-nav-pack-trigger {
   grid-template-columns: 34px minmax(0, 1fr) auto;
 }
 
-.workspace-nav-packs-trigger > svg:last-child {
+.workspace-nav-pack-trigger > svg:last-child {
   color: var(--muted);
   transition: transform 160ms ease, color 160ms ease;
 }
 
-.workspace-nav-packs-trigger:hover > svg:last-child,
-.workspace-nav-packs-trigger:focus-visible > svg:last-child {
+.workspace-nav-pack-trigger:hover > svg:last-child,
+.workspace-nav-pack-trigger:focus-visible > svg:last-child {
   color: var(--primary-strong);
 }
 
-.workspace-nav-packs-trigger > svg:last-child.open {
+.workspace-nav-pack-trigger > svg:last-child.open {
   transform: rotate(180deg);
 }
 
