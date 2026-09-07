@@ -277,14 +277,17 @@ export function App({ route }: { route: AppRoute }) {
       }
       sidebar={
         <WorkspaceNav
+          api={api}
           activeView={sidebarView}
           isAdmin={Boolean(user?.isAdmin)}
+          packs={packs}
           packCount={packs.length}
           selectedPack={selectedPackSummary}
           onOpenAccount={() => void navigate({ to: '/app/settings/account' })}
           onOpenAdmin={() => void navigate({ to: '/app/settings/admin' })}
-          onOpenPack={() => {
-            if (selectedPackId) openPack(selectedPackId);
+          onOpenPack={(packId) => {
+            const nextPackId = packId ?? selectedPackId;
+            if (nextPackId) openPack(nextPackId);
           }}
           onOpenPacks={openPacksView}
         />

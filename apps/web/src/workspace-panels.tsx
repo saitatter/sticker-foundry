@@ -1,12 +1,7 @@
-import { Archive, ImagePlus, KeyRound, Plus, ShieldCheck, Trash2, UserPlus, Users } from 'lucide-react';
+import { Archive, KeyRound, Plus, ShieldCheck, Trash2, UserPlus, Users } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
 import { type FormEvent, useEffect, useState } from 'react';
-import {
-  Pack,
-  PackRole,
-  StickerFoundryApi,
-  Team,
-  TeamMember,
-} from './api';
+import { Pack, PackRole, StickerFoundryApi, Team, TeamMember } from './api';
 import { LabeledIconButton as IconButton } from './components/ui/labeled-icon-button';
 import { Button } from './components/ui/button';
 import { Card } from './components/ui/card';
@@ -15,6 +10,7 @@ import { CheckboxField, Field } from './components/ui/field';
 import { Input } from './components/ui/input';
 import { Select } from './components/ui/select';
 import { useConfirmDialog } from './components/ui/confirm-dialog';
+import { queryKeys } from './lib/query-keys';
 
 export type WorkspaceView = 'packs' | 'pack';
 type WorkspaceNavView = WorkspaceView | 'admin' | 'account';
@@ -72,19 +68,28 @@ export function PackCreateForm({
       </div>
       <form className="form-grid compact" onSubmit={submit}>
         <Field label="Name" htmlFor="new-pack-name">
-          <Input id="new-pack-name" value={name} onChange={(event) => setName(event.target.value)} maxLength={128} required />
+          <Input
+            id="new-pack-name"
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+            maxLength={128}
+            required
+          />
         </Field>
         <Field label="Publisher" htmlFor="new-pack-publisher">
-          <Input id="new-pack-publisher" value={publisher} onChange={(event) => setPublisher(event.target.value)} maxLength={128} required />
+          <Input
+            id="new-pack-publisher"
+            value={publisher}
+            onChange={(event) => setPublisher(event.target.value)}
+            maxLength={128}
+            required
+          />
         </Field>
         <CheckboxField label="Public">
           <Checkbox checked={isPublic} onChange={(event) => setIsPublic(event.target.checked)} />
         </CheckboxField>
         <CheckboxField label="Require approval">
-          <Checkbox
-            checked={requiresApproval}
-            onChange={(event) => setRequiresApproval(event.target.checked)}
-          />
+          <Checkbox checked={requiresApproval} onChange={(event) => setRequiresApproval(event.target.checked)} />
         </CheckboxField>
         <CheckboxField label="Animated pack">
           <Checkbox checked={isAnimated} onChange={(event) => setIsAnimated(event.target.checked)} />
@@ -146,10 +151,21 @@ export function TeamCreateForm({
       </div>
       <form className="form-grid compact" onSubmit={submit}>
         <Field label="Name" htmlFor="new-team-name">
-          <Input id="new-team-name" value={name} onChange={(event) => setName(event.target.value)} maxLength={128} required />
+          <Input
+            id="new-team-name"
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+            maxLength={128}
+            required
+          />
         </Field>
         <Field label="Description" htmlFor="new-team-description">
-          <Input id="new-team-description" value={description} onChange={(event) => setDescription(event.target.value)} maxLength={500} />
+          <Input
+            id="new-team-description"
+            value={description}
+            onChange={(event) => setDescription(event.target.value)}
+            maxLength={500}
+          />
         </Field>
         <Button disabled={submitting} type="submit" variant="secondary">
           <Users size={17} />
@@ -245,11 +261,14 @@ export function TeamWorkspacePanel({
 
   async function removeMember(memberId: string) {
     if (!selectedTeam) return;
-    if (!(await confirm({
-      title: 'Remove team member?',
-      description: 'This member will lose access to the team and its shared packs.',
-      confirmLabel: 'Remove member',
-    }))) return;
+    if (
+      !(await confirm({
+        title: 'Remove team member?',
+        description: 'This member will lose access to the team and its shared packs.',
+        confirmLabel: 'Remove member',
+      }))
+    )
+      return;
     try {
       await api.removeTeamMember(selectedTeam.id, memberId);
       setMembers((current) => current.filter((member) => member.id !== memberId));
@@ -291,10 +310,19 @@ export function TeamWorkspacePanel({
         <>
           <form className="form-grid compact team-member-form" onSubmit={addMember}>
             <Field label="Member email" htmlFor="team-member-email">
-              <Input id="team-member-email" value={email} onChange={(event) => setEmail(event.target.value)} type="email" />
+              <Input
+                id="team-member-email"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                type="email"
+              />
             </Field>
             <Field label="Role" htmlFor="team-member-role">
-              <Select id="team-member-role" value={role} onChange={(event) => setRole(event.target.value as Exclude<PackRole, 'OWNER'>)}>
+              <Select
+                id="team-member-role"
+                value={role}
+                onChange={(event) => setRole(event.target.value as Exclude<PackRole, 'OWNER'>)}
+              >
                 <option value="EDITOR">Editor</option>
                 <option value="VIEWER">Viewer</option>
               </Select>
@@ -380,7 +408,12 @@ export function AcceptInviteForm({
       </div>
       <form className="form-grid compact" onSubmit={submit}>
         <Field label="Invite code" htmlFor="join-pack-code">
-          <Input id="join-pack-code" value={code} onChange={(event) => setCode(event.target.value)} autoComplete="off" />
+          <Input
+            id="join-pack-code"
+            value={code}
+            onChange={(event) => setCode(event.target.value)}
+            autoComplete="off"
+          />
         </Field>
         <Button disabled={!code.trim() || submitting} type="submit" variant="secondary">
           <UserPlus size={17} />
@@ -466,8 +499,10 @@ export function WorkspaceToolsDrawer({
 }
 
 export function WorkspaceNav({
+  api,
   activeView,
   isAdmin,
+  packs,
   packCount,
   selectedPack,
   onOpenAccount,
@@ -475,41 +510,60 @@ export function WorkspaceNav({
   onOpenPack,
   onOpenPacks,
 }: {
+  api: StickerFoundryApi;
   activeView: WorkspaceNavView;
   isAdmin: boolean;
+  packs: Pack[];
   packCount: number;
   selectedPack?: Pack | null;
   onOpenAccount: () => void;
   onOpenAdmin: () => void;
-  onOpenPack: () => void;
+  onOpenPack: (packId?: string) => void;
   onOpenPacks: () => void;
 }) {
   return (
     <nav className="workspace-nav" aria-label="Workspace">
       <div className="workspace-nav-group">
         <p className="workspace-nav-label">Library</p>
-        <Button
-          aria-label="Open packs"
-          className={`workspace-nav-row ${activeView === 'packs' ? 'active' : ''}`}
-          onClick={onOpenPacks}
-          type="button"
-          variant="unstyled"
-        >
-          <Archive size={18} />
-          <span>
-            <strong>Packs</strong>
-            <small>{packCount} total</small>
-          </span>
-        </Button>
+        <div className="workspace-nav-packs-row">
+          <Button
+            aria-label="Open packs"
+            className={`workspace-nav-row ${activeView === 'packs' ? 'active' : ''}`}
+            onClick={onOpenPacks}
+            type="button"
+            variant="unstyled"
+          >
+            <Archive size={18} />
+            <span>
+              <strong>Packs</strong>
+              <small>{packCount} total</small>
+            </span>
+          </Button>
+          <Select
+            aria-label="Open pack directly"
+            className="workspace-nav-pack-select"
+            value={selectedPack?.id ?? ''}
+            onChange={(event) => {
+              if (event.target.value) onOpenPack(event.target.value);
+            }}
+          >
+            <option value="">Jump to…</option>
+            {packs.map((pack) => (
+              <option key={pack.id} value={pack.id}>
+                {pack.name}
+              </option>
+            ))}
+          </Select>
+        </div>
         {selectedPack ? (
           <Button
             aria-label={`Open current pack ${selectedPack.name}`}
             className={`workspace-nav-row ${activeView === 'pack' ? 'active' : ''}`}
-            onClick={onOpenPack}
+            onClick={() => onOpenPack()}
             type="button"
             variant="unstyled"
           >
-            <ImagePlus size={18} />
+            <PackNavThumbnail api={api} pack={selectedPack} />
             <span>
               <strong>{selectedPack.name}</strong>
               <small>
@@ -554,6 +608,44 @@ export function WorkspaceNav({
         </Button>
       </div>
     </nav>
+  );
+}
+
+function PackNavThumbnail({ api, pack }: { api: StickerFoundryApi; pack: Pack }) {
+  const [coverUrl, setCoverUrl] = useState<string | null>(null);
+  const coverQuery = useQuery({
+    queryKey: queryKeys.packs.cover(pack.id, pack.imageDataVersion),
+    queryFn: () => api.coverBlob(pack.id),
+    staleTime: Infinity,
+    retry: false,
+    refetchOnWindowFocus: false,
+  });
+
+  useEffect(() => {
+    if (!coverQuery.data) {
+      setCoverUrl(null);
+      return undefined;
+    }
+
+    const objectUrl = URL.createObjectURL(coverQuery.data);
+    setCoverUrl(objectUrl);
+    return () => URL.revokeObjectURL(objectUrl);
+  }, [coverQuery.data]);
+
+  return (
+    <span className={`workspace-nav-pack-thumbnail ${coverUrl ? 'has-image' : ''}`}>
+      {coverUrl ? <img alt="" src={coverUrl} /> : <span>{packInitials(pack.name)}</span>}
+    </span>
+  );
+}
+
+function packInitials(name: string) {
+  const words = name.trim().split(/\s+/).filter(Boolean);
+  return (
+    words
+      .slice(0, 2)
+      .map((word) => word[0]?.toUpperCase() ?? '')
+      .join('') || 'SF'
   );
 }
 

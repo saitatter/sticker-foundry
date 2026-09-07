@@ -31,11 +31,29 @@ export function PackLibrary({
 }) {
   const navigate = useNavigate();
   const query = filters?.q ?? '';
+  const [searchValue, setSearchValue] = useState(query);
   const filter = filters?.visibility ?? 'all';
   const sort = filters?.sort ?? 'updated';
+  const hasSearch = query.trim().length > 0;
   const readyCount = packs.filter((pack) => pack.stickerCount >= 3).length;
   const publicCount = packs.filter((pack) => pack.isPublic).length;
   const privateCount = packs.length - publicCount;
+
+  useEffect(() => {
+    setSearchValue(query);
+  }, [query]);
+
+  useEffect(() => {
+    const nextQuery = searchValue.trim();
+    if (nextQuery === query.trim()) return undefined;
+
+    const timeoutId = window.setTimeout(() => {
+      void updateSearch(navigate, { q: nextQuery || undefined });
+    }, 220);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [navigate, query, searchValue]);
+
   const visiblePacks = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
     return packs
@@ -77,8 +95,8 @@ export function PackLibrary({
           <Input
             aria-label="Search packs"
             placeholder="Search packs"
-            value={query}
-            onChange={(event) => void updateSearch(navigate, { q: event.target.value || undefined })}
+            value={searchValue}
+            onChange={(event) => setSearchValue(event.target.value)}
           />
         </div>
         <div className="pack-library-selects">
@@ -93,7 +111,11 @@ export function PackLibrary({
             <option value="ready">Ready</option>
             <option value="needs-work">Needs work</option>
           </Select>
-          <Select aria-label="Sort packs" value={sort} onChange={(event) => void updateSearch(navigate, { sort: event.target.value as PackSort })}>
+          <Select
+            aria-label="Sort packs"
+            value={sort}
+            onChange={(event) => void updateSearch(navigate, { sort: event.target.value as PackSort })}
+          >
             <option value="updated">Updated</option>
             <option value="name">Name</option>
             <option value="stickers">Stickers</option>
@@ -110,7 +132,7 @@ export function PackLibrary({
         {visiblePacks.map((pack) => (
           <Button
             aria-label={`Open pack ${pack.name}`}
-            className={`pack-album-card ${pack.id === selectedPackId ? 'selected' : ''}`}
+            className={`pack-album-card ${pack.id === selectedPackId ? 'selected' : ''} ${hasSearch ? 'search-match' : ''}`}
             key={pack.id}
             onClick={() => onSelect(pack.id)}
             type="button"
@@ -123,14 +145,14 @@ export function PackLibrary({
               {pack.description ? <span>{pack.description}</span> : pack.teamName ? <span>{pack.teamName}</span> : null}
             </span>
             <span className="pack-album-meta">
-                <StatusPill className={pack.isPublic ? 'public' : 'private'}>
+              <StatusPill className={pack.isPublic ? 'public' : 'private'}>
                 {pack.isPublic ? <Globe2 size={13} /> : <Lock size={13} />}
                 {pack.isPublic ? 'Public' : 'Private'}
-                </StatusPill>
-                <StatusPill className={pack.stickerCount >= 3 ? 'ready' : 'needs-work'}>
+              </StatusPill>
+              <StatusPill className={pack.stickerCount >= 3 ? 'ready' : 'needs-work'}>
                 {pack.stickerCount >= 3 ? <CheckCircle2 size={13} /> : <AlertCircle size={13} />}
                 {pack.stickerCount}/30
-                </StatusPill>
+              </StatusPill>
               {pack.isAnimated ? (
                 <StatusPill className="pending">
                   <Film size={13} />

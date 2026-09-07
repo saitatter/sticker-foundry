@@ -55,6 +55,13 @@ test('covers core web sticker workflows with mocked API', async ({ page }) => {
 
   await expect(page.locator('.pack-library').getByRole('heading', { name: 'Packs' })).toBeVisible();
   await expect(page.locator('.pack-album-grid')).toContainText('Smoke Ready');
+  await expect(page.getByLabel('Open pack directly')).toBeVisible();
+  await page.getByLabel('Search packs').fill('S');
+  await expect(page.getByRole('button', { name: 'Open pack Smoke Ready' })).toHaveClass(/search-match/);
+  await page.getByLabel('Open pack directly').selectOption('pack-ready');
+  await expect(page.getByRole('heading', { name: 'Smoke Ready' })).toBeVisible();
+  await expect(page.locator('.workspace-nav-pack-thumbnail img')).toBeVisible();
+  await page.getByRole('button', { name: 'Open packs' }).click();
   await expect(
     page.getByRole('button', { name: 'Open pack Smoke Ready' }).locator('.pack-cover.has-image img'),
   ).toBeVisible();
