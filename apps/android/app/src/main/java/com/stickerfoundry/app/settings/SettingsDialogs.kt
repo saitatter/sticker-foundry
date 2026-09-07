@@ -34,7 +34,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 
-private enum class SettingsCategory(val title: String) {
+enum class SettingsCategory(val title: String) {
     SERVER("Server"),
     APPEARANCE("Appearance"),
     ACCOUNT("Account"),
@@ -44,6 +44,7 @@ private enum class SettingsCategory(val title: String) {
 
 @Composable
 fun SettingsWindow(
+    initialCategory: SettingsCategory = SettingsCategory.SERVER,
     serverUrl: String,
     serverStatus: AppStatus,
     checkingServer: Boolean,
@@ -58,7 +59,7 @@ fun SettingsWindow(
     onTroubleshooting: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    var selectedCategory by rememberSaveable { mutableStateOf(SettingsCategory.SERVER) }
+    var selectedCategory by rememberSaveable { mutableStateOf(initialCategory) }
 
     Dialog(onDismissRequest = onDismiss) {
         Surface(

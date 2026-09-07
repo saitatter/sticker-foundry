@@ -19,6 +19,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.layout.widthIn
 
 private const val DEMO_EMAIL = "demo@stickerfoundry.local"
 private const val DEMO_PASSWORD = "stickerfoundry123"
@@ -37,7 +38,7 @@ fun LoginBox(
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
 
-    Card(modifier = Modifier.fillMaxWidth()) {
+    Card(modifier = Modifier.fillMaxWidth().widthIn(max = 380.dp)) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()

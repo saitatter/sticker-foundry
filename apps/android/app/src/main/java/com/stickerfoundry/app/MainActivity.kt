@@ -9,7 +9,10 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -23,8 +26,8 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.Icon
@@ -32,16 +35,24 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.AccountCircle
+import androidx.compose.material.icons.outlined.CloudDone
+import androidx.compose.material.icons.outlined.ChevronRight
+import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.DarkMode
+import androidx.compose.material.icons.outlined.HelpOutline
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.Inventory2
 import androidx.compose.material.icons.outlined.LightMode
+import androidx.compose.material.icons.outlined.PersonOutline
 import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material.icons.outlined.Storage
+import androidx.compose.material.icons.outlined.Star
+import androidx.compose.material.icons.outlined.Sync
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
@@ -54,9 +65,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.core.view.WindowCompat
@@ -138,6 +154,7 @@ private fun StickerApp(
     var showTroubleshooting by remember { mutableStateOf(false) }
     var showProfileMenu by remember { mutableStateOf(false) }
     var showSettingsWindow by remember { mutableStateOf(false) }
+    var settingsCategory by rememberSaveable { mutableStateOf(SettingsCategory.SERVER) }
     var destination by rememberSaveable { mutableStateOf(AppDestination.HOME) }
     LaunchedEffect(isLoggedIn) {
         if (!isLoggedIn) destination = AppDestination.HOME
@@ -159,80 +176,91 @@ private fun StickerApp(
         }
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(top = 12.dp, start = 16.dp, end = 16.dp),
-    ) {
-        FoundryHeader(
+    if (!isLoggedIn) {
+        LoginScreen(
             darkTheme = darkTheme,
-            account = account,
+            serverUrl = serverUrl,
+            serverStatus = serverStatus,
+            checkingServer = checkingServer,
+            status = status,
             onToggleTheme = onToggleTheme,
-            onProfileClick = if (isLoggedIn) ({
-                viewModel.refreshServerInfo()
-                showProfileMenu = true
-            }) else null,
+            onSaveServerUrl = { viewModel.saveServerUrl(it) },
+            onCheckServerUrl = { viewModel.checkServerUrl(it) },
+            onLogin = { email, password -> viewModel.login(email, password) },
         )
-        Spacer(modifier = Modifier.height(12.dp))
-        if (!isLoggedIn) {
-            LoginScreen(
-                serverUrl = serverUrl,
-                serverStatus = serverStatus,
-                checkingServer = checkingServer,
-                status = status,
-                onSaveServerUrl = { viewModel.saveServerUrl(it) },
-                onCheckServerUrl = { viewModel.checkServerUrl(it) },
-                onLogin = { email, password -> viewModel.login(email, password) },
-            )
-        } else {
-            Box(modifier = Modifier.weight(1f)) {
-                when (destination) {
-                    AppDestination.HOME -> HomeScreen(
-                        account = account,
-                        packs = packs,
-                        status = status,
-                        onSync = { viewModel.sync() },
-                        onOpenPacks = { destination = AppDestination.PACKS },
-                    )
-                    AppDestination.PACKS -> PacksScreen(
-                        packs = packs,
-                        stickersByPack = stickersByPack,
-                        status = status,
-                        context = context,
-                        onSync = { viewModel.sync() },
-                        onSyncPack = { viewModel.syncPack(it) },
-                        onClearPackCache = { viewModel.clearPackCache(it) },
-                        onUploadSticker = { pack ->
-                            stickerUploadPackId = pack.id
-                            stickerUploadPackAnimated = pack.isAnimated
-                            stickerPicker.launch("image/*")
-                        },
-                        onReplaceTrayIcon = { pack ->
-                            trayIconPackId = pack.id
-                            trayIconPicker.launch("image/*")
-                        },
-                        onExport = { viewModel.exportPack(it) },
-                    )
-                    AppDestination.SETTINGS -> SettingsScreen(
-                        serverUrl = serverUrl,
-                        serverStatus = serverStatus,
-                        checkingServer = checkingServer,
-                        account = account,
-                        cacheUsage = cacheUsage,
-                        darkTheme = darkTheme,
-                        onSaveServerUrl = { viewModel.saveServerUrl(it) },
-                        onCheckServerUrl = { viewModel.checkServerUrl(it) },
-                        onLogout = { viewModel.logout() },
-                        onClearCache = { viewModel.clearCache() },
-                        onToggleTheme = onToggleTheme,
-                        onTroubleshooting = { showTroubleshooting = true },
-                    )
+    } else {
+        Scaffold(
+            modifier = Modifier.fillMaxSize(),
+            containerColor = MaterialTheme.colorScheme.background,
+            topBar = {
+                FoundryHeader(
+                    darkTheme = darkTheme,
+                    account = account,
+                    onToggleTheme = onToggleTheme,
+                    onRefresh = { viewModel.sync() },
+                    onProfileClick = {
+                        viewModel.refreshServerInfo()
+                        showProfileMenu = true
+                    },
+                )
+            },
+            bottomBar = {
+                MobileNavigationBar(
+                    selected = destination,
+                    onSelect = { destination = it },
+                )
+            },
+        ) { innerPadding ->
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding)
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+            ) {
+                Crossfade(
+                    targetState = destination,
+                    animationSpec = androidx.compose.animation.core.tween(durationMillis = 280),
+                    label = "mobile-destination",
+                ) { currentDestination ->
+                    when (currentDestination) {
+                        AppDestination.HOME -> HomeScreen(
+                            account = account,
+                            packs = packs,
+                            status = status,
+                            onSync = { viewModel.sync() },
+                            onOpenPacks = { destination = AppDestination.PACKS },
+                        )
+                        AppDestination.PACKS -> PacksScreen(
+                            packs = packs,
+                            stickersByPack = stickersByPack,
+                            status = status,
+                            context = context,
+                            onSync = { viewModel.sync() },
+                            onSyncPack = { viewModel.syncPack(it) },
+                            onClearPackCache = { viewModel.clearPackCache(it) },
+                            onUploadSticker = { pack ->
+                                stickerUploadPackId = pack.id
+                                stickerUploadPackAnimated = pack.isAnimated
+                                stickerPicker.launch("image/*")
+                            },
+                            onReplaceTrayIcon = { pack ->
+                                trayIconPackId = pack.id
+                                trayIconPicker.launch("image/*")
+                            },
+                            onExport = { viewModel.exportPack(it) },
+                        )
+                        AppDestination.SETTINGS -> SettingsScreen(
+                            account = account,
+                            cacheUsage = cacheUsage,
+                            darkTheme = darkTheme,
+                            onOpenCategory = { category ->
+                                settingsCategory = category
+                                showSettingsWindow = true
+                            },
+                        )
+                    }
                 }
             }
-            MobileNavigationBar(
-                selected = destination,
-                onSelect = { destination = it },
-            )
         }
     }
 
@@ -251,6 +279,7 @@ private fun StickerApp(
 
     if (showSettingsWindow) {
         SettingsWindow(
+            initialCategory = settingsCategory,
             serverUrl = serverUrl,
             serverStatus = serverStatus,
             checkingServer = checkingServer,
@@ -288,10 +317,12 @@ private fun StickerApp(
 
 @Composable
 private fun LoginScreen(
+    darkTheme: Boolean,
     serverUrl: String,
     serverStatus: AppStatus,
     checkingServer: Boolean,
     status: AppStatus,
+    onToggleTheme: (Boolean) -> Unit,
     onSaveServerUrl: (String) -> Unit,
     onCheckServerUrl: (String) -> Unit,
     onLogin: (String, String) -> Unit,
@@ -299,15 +330,41 @@ private fun LoginScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .padding(horizontal = 16.dp)
             .verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Text("Welcome to Sticker Foundry", style = MaterialTheme.typography.headlineSmall)
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Spacer(modifier = Modifier.weight(1f))
+            IconButton(onClick = { onToggleTheme(!darkTheme) }) {
+                Icon(
+                    imageVector = if (darkTheme) Icons.Outlined.LightMode else Icons.Outlined.DarkMode,
+                    contentDescription = if (darkTheme) "Use light theme" else "Use dark theme",
+                )
+            }
+        }
+        Spacer(modifier = Modifier.height(36.dp))
+        Image(
+            painter = painterResource(id = com.stickerfoundry.app.R.drawable.sticker_foundry_foreground),
+            contentDescription = "Sticker Foundry",
+            modifier = Modifier
+                .size(72.dp)
+                .clip(RoundedCornerShape(20.dp)),
+        )
+        Spacer(modifier = Modifier.height(12.dp))
+        Text("Sticker Foundry", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
         Text(
-            "Sign in to open your Home, Packs, and Settings workspace.",
+            "Your private workspace for WhatsApp sticker packs",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
         )
+        Spacer(modifier = Modifier.height(24.dp))
         LoginBox(
             serverUrl = serverUrl,
             serverStatus = serverStatus,
@@ -317,6 +374,14 @@ private fun LoginScreen(
             onLogin = onLogin,
             status = status,
         )
+        Spacer(modifier = Modifier.height(14.dp))
+        Text(
+            "v${BuildConfig.VERSION_NAME}  ·  Local-first sticker management",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+        )
+        Spacer(modifier = Modifier.height(16.dp))
     }
 }
 
@@ -329,91 +394,133 @@ private fun HomeScreen(
     onOpenPacks: () -> Unit,
 ) {
     val readyPacks = packs.count { it.extractionStatus == com.stickerfoundry.app.data.EXTRACTION_READY }
+    val needsAttention = packs.count { it.extractionStatus != com.stickerfoundry.app.data.EXTRACTION_READY }
     val stickerCount = packs.sumOf { it.stickerCount }
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        Text("Home", style = MaterialTheme.typography.headlineSmall)
-        Text(
-            if (account == "Not logged in") "Connect your account from Settings to sync packs." else "Welcome back, $account",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        StatusMessage(status)
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            SummaryCard("Packs", packs.size.toString(), Modifier.weight(1f))
-            SummaryCard("Stickers", stickerCount.toString(), Modifier.weight(1f))
-            SummaryCard("Ready", readyPacks.toString(), Modifier.weight(1f))
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text("Home", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
+            Text("Welcome back, $account", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
+        StatusMessage(status)
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(
                 modifier = Modifier.padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                Text("Keep your library current", style = MaterialTheme.typography.titleMedium)
-                Text(
-                    "Sync the latest pack changes and keep an offline copy ready for WhatsApp.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    androidx.compose.material3.Button(onClick = onSync) { Text("Sync packs") }
-                    androidx.compose.material3.TextButton(onClick = onOpenPacks) { Text("View library") }
-                }
-            }
-        }
-        if (packs.isEmpty()) {
-            Card(modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text("Your library is empty", style = MaterialTheme.typography.titleMedium)
-                    Text(
-                        "Sign in from Settings, then sync to see your sticker packs here.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
-        } else {
-            Text("Recent packs", style = MaterialTheme.typography.titleMedium)
-            packs.take(3).forEach { pack ->
-                Card(modifier = Modifier.fillMaxWidth()) {
-                    Row(
-                        modifier = Modifier.padding(12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Box(
+                        modifier = Modifier
+                            .size(42.dp)
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(MaterialTheme.colorScheme.primaryContainer),
+                        contentAlignment = Alignment.Center,
                     ) {
-                        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                            Text(pack.name, style = MaterialTheme.typography.titleSmall)
-                            Text(
-                                "${pack.stickerCount} stickers · ${if (pack.isPublic) "Public" else "Private"}",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                        androidx.compose.material3.TextButton(onClick = onOpenPacks) { Text("Open") }
+                        Icon(Icons.Outlined.CloudDone, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                    }
+                    Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text("Library status", style = MaterialTheme.typography.titleMedium)
+                        Text(
+                            if (needsAttention == 0) "Everything is ready for WhatsApp" else "$needsAttention pack(s) need attention",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    IconButton(onClick = onSync) {
+                        Icon(Icons.Outlined.Sync, contentDescription = "Sync packs")
                     }
                 }
+                TextButton(onClick = onOpenPacks) { Text("Open packs") }
+            }
+        }
+        Text("At a glance", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            CollectionTile(Icons.Outlined.Inventory2, "Packs", packs.size.toString(), Modifier.weight(1f), onOpenPacks)
+            CollectionTile(Icons.Outlined.Home, "Ready", readyPacks.toString(), Modifier.weight(1f), onOpenPacks)
+        }
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            CollectionTile(Icons.Outlined.Star, "Stickers", stickerCount.toString(), Modifier.weight(1f), onOpenPacks)
+            CollectionTile(Icons.Outlined.Settings, "Needs work", needsAttention.toString(), Modifier.weight(1f), onOpenPacks)
+        }
+        if (packs.isEmpty()) {
+            EmptyLibraryCard(onOpenPacks)
+        } else {
+            Text("Recent packs", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            packs.take(3).forEach { pack ->
+                RecentPackRow(pack = pack, onOpen = onOpenPacks)
             }
         }
     }
 }
 
 @Composable
-private fun SummaryCard(label: String, value: String, modifier: Modifier = Modifier) {
-    Card(modifier = modifier) {
+private fun CollectionTile(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    value: String,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit,
+) {
+    Card(modifier = modifier.clickable(onClick = onClick)) {
         Column(
-            modifier = Modifier.padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(3.dp),
+            modifier = Modifier.padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Text(value, style = MaterialTheme.typography.titleLarge)
+            Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+            Text(value, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
             Text(label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+}
+
+@Composable
+private fun EmptyLibraryCard(onOpenPacks: () -> Unit) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("Your library is empty", style = MaterialTheme.typography.titleMedium)
+            Text(
+                "Sync your packs to keep an offline copy ready for WhatsApp.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            TextButton(onClick = onOpenPacks) { Text("View packs") }
+        }
+    }
+}
+
+@Composable
+private fun RecentPackRow(pack: com.stickerfoundry.app.data.PackEntity, onOpen: () -> Unit) {
+    val trayPreview = remember(pack.localPath, pack.trayImageFile) {
+        loadImageBitmap(File(pack.localPath, pack.trayImageFile).absolutePath)
+    }
+    Card(modifier = Modifier.fillMaxWidth().clickable(onClick = onOpen)) {
+        Row(
+            modifier = Modifier.padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            trayPreview?.let { preview ->
+                Image(
+                    bitmap = preview,
+                    contentDescription = "${pack.name} cover",
+                    modifier = Modifier.size(56.dp).clip(RoundedCornerShape(16.dp)),
+                    contentScale = ContentScale.Crop,
+                )
+            }
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Text(pack.name, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Medium)
+                Text(
+                    "${pack.stickerCount} stickers · ${if (pack.isPublic) "Public" else "Private"}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Icon(Icons.Outlined.ChevronRight, contentDescription = "Open ${pack.name}")
         }
     }
 }
@@ -440,7 +547,9 @@ private fun PacksScreen(
                 Text("Packs", style = MaterialTheme.typography.headlineSmall)
                 Text("Your synced sticker library", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            androidx.compose.material3.Button(onClick = onSync) { Text("Sync") }
+            IconButton(onClick = onSync) {
+                Icon(Icons.Outlined.Sync, contentDescription = "Sync packs")
+            }
         }
         StatusMessage(status)
         if (packs.isEmpty()) {
@@ -475,47 +584,93 @@ private fun PacksScreen(
 
 @Composable
 private fun SettingsScreen(
-    serverUrl: String,
-    serverStatus: AppStatus,
-    checkingServer: Boolean,
     account: String,
     cacheUsage: String,
     darkTheme: Boolean,
-    onSaveServerUrl: (String) -> Unit,
-    onCheckServerUrl: (String) -> Unit,
-    onLogout: () -> Unit,
-    onClearCache: () -> Unit,
-    onToggleTheme: (Boolean) -> Unit,
-    onTroubleshooting: () -> Unit,
+    onOpenCategory: (SettingsCategory) -> Unit,
 ) {
     Column(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        Text("Settings", style = MaterialTheme.typography.headlineSmall)
+        Text("Settings", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
         Text(
-            "Manage the server connection, account, theme, and local cache.",
+            "Manage your server, appearance, account, and local storage.",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        ServerSettingsPanel(
-            serverUrl = serverUrl,
-            serverStatus = serverStatus,
-            checkingServer = checkingServer,
-            onSaveServerUrl = onSaveServerUrl,
-            onCheckServerUrl = onCheckServerUrl,
+        Spacer(modifier = Modifier.height(4.dp))
+        SettingsMenuRow(
+            icon = Icons.Outlined.Settings,
+            title = "Server connection",
+            subtitle = "Endpoint, connection status, and server version",
+            onClick = { onOpenCategory(SettingsCategory.SERVER) },
         )
-        SettingsPanel(
-            account = account,
-            cacheUsage = cacheUsage,
-            darkTheme = darkTheme,
-            onLogout = onLogout,
-            onClearCache = onClearCache,
-            onToggleTheme = onToggleTheme,
-            onTroubleshooting = onTroubleshooting,
+        SettingsMenuRow(
+            icon = if (darkTheme) Icons.Outlined.DarkMode else Icons.Outlined.LightMode,
+            title = "Appearance",
+            subtitle = if (darkTheme) "Dark theme is enabled" else "Light theme is enabled",
+            onClick = { onOpenCategory(SettingsCategory.APPEARANCE) },
         )
+        SettingsMenuRow(
+            icon = Icons.Outlined.PersonOutline,
+            title = "Account",
+            subtitle = account,
+            onClick = { onOpenCategory(SettingsCategory.ACCOUNT) },
+        )
+        SettingsMenuRow(
+            icon = Icons.Outlined.Storage,
+            title = "Storage",
+            subtitle = "Local cache: $cacheUsage",
+            onClick = { onOpenCategory(SettingsCategory.STORAGE) },
+        )
+        SettingsMenuRow(
+            icon = Icons.Outlined.HelpOutline,
+            title = "Help",
+            subtitle = "Troubleshooting and import help",
+            onClick = { onOpenCategory(SettingsCategory.HELP) },
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            "Sticker Foundry  ·  v${BuildConfig.VERSION_NAME}",
+            modifier = Modifier.fillMaxWidth(),
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+        )
+    }
+}
+
+@Composable
+private fun SettingsMenuRow(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    title: String,
+    subtitle: String,
+    onClick: () -> Unit,
+) {
+    Card(modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)) {
+        Row(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(42.dp)
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+            }
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Medium)
+                Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            Icon(Icons.Outlined.ChevronRight, contentDescription = "Open $title")
+        }
     }
 }
 
@@ -538,33 +693,56 @@ private fun ProfileDialog(
     onSettings: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    AlertDialog(
+    Dialog(
         onDismissRequest = onDismiss,
-        title = {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Icon(Icons.Outlined.AccountCircle, contentDescription = null)
-                Text(account)
-            }
-        },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+    ) {
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp),
+            shape = MaterialTheme.shapes.large,
+            tonalElevation = 6.dp,
+        ) {
+            Column(
+                modifier = Modifier.padding(12.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text("Sticker Foundry", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+                        Text(account, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    IconButton(onClick = onDismiss) {
+                        Icon(Icons.Outlined.Close, contentDescription = "Close profile")
+                    }
+                }
+                Card(modifier = Modifier.fillMaxWidth()) {
+                    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            AccountAvatar(account = account, size = 44.dp)
+                            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                Text(account, style = MaterialTheme.typography.titleMedium)
+                                Text("Signed in", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                        ProfileInfoRow("Server URL", serverUrl)
+                        ProfileInfoRow("Server version", serverVersion)
+                    }
+                }
                 ProfileInfoRow("App version", BuildConfig.VERSION_NAME)
-                ProfileInfoRow("Server version", serverVersion)
-                ProfileInfoRow("Server URL", serverUrl)
                 ProfileInfoRow("Latest version", BuildConfig.VERSION_NAME)
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(modifier = Modifier.weight(1f), onClick = onSettings) {
+                        Icon(Icons.Outlined.Settings, contentDescription = null)
+                        Spacer(modifier = Modifier.size(8.dp))
+                        Text("Settings")
+                    }
+                    TextButton(modifier = Modifier.weight(1f), onClick = onDismiss) { Text("Close") }
+                }
             }
-        },
-        confirmButton = {
-            Button(onClick = onSettings) {
-                Text("Settings")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Close")
-            }
-        },
-    )
+        }
+    }
 }
 
 @Composable
@@ -576,11 +754,38 @@ private fun ProfileInfoRow(label: String, value: String) {
 }
 
 @Composable
+private fun AccountAvatar(account: String, size: androidx.compose.ui.unit.Dp) {
+    Box(
+        modifier = Modifier
+            .size(size)
+            .clip(CircleShape)
+            .background(MaterialTheme.colorScheme.primaryContainer),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            accountInitials(account),
+            color = MaterialTheme.colorScheme.onPrimaryContainer,
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.SemiBold,
+        )
+    }
+}
+
+private fun accountInitials(account: String): String {
+    val label = account.substringBefore('<').trim()
+    val parts = label.split(Regex("\\s+")).filter { it.isNotBlank() }
+    return parts.take(2).joinToString("") { it.first().uppercase() }.ifBlank { "SF" }
+}
+
+@Composable
 private fun MobileNavigationBar(
     selected: AppDestination,
     onSelect: (AppDestination) -> Unit,
 ) {
-    NavigationBar {
+    NavigationBar(
+        containerColor = MaterialTheme.colorScheme.surface,
+        tonalElevation = 3.dp,
+    ) {
         AppDestination.values().forEach { destination ->
             NavigationBarItem(
                 selected = selected == destination,
@@ -616,43 +821,38 @@ private fun FoundryHeader(
     darkTheme: Boolean,
     account: String,
     onToggleTheme: (Boolean) -> Unit,
-    onProfileClick: (() -> Unit)?,
+    onRefresh: () -> Unit,
+    onProfileClick: () -> Unit,
 ) {
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Row(
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = 8.dp, end = 4.dp, top = 6.dp, bottom = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Image(
+            painter = painterResource(id = com.stickerfoundry.app.R.drawable.sticker_foundry_foreground),
+            contentDescription = "Sticker Foundry",
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Image(
-                painter = painterResource(id = com.stickerfoundry.app.R.drawable.sticker_foundry_foreground),
-                contentDescription = "Sticker Foundry",
-                modifier = Modifier
-                    .size(48.dp)
-                    .clip(RoundedCornerShape(12.dp)),
+                .size(40.dp)
+                .clip(RoundedCornerShape(12.dp)),
+        )
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
+            Text("Sticker Foundry", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            Text("WhatsApp sticker workspace", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        IconButton(onClick = { onToggleTheme(!darkTheme) }) {
+            Icon(
+                imageVector = if (darkTheme) Icons.Outlined.LightMode else Icons.Outlined.DarkMode,
+                contentDescription = if (darkTheme) "Use light theme" else "Use dark theme",
             )
-            Column(modifier = Modifier.weight(1f)) {
-                Text("Sticker Foundry", style = MaterialTheme.typography.titleLarge)
-                Text("Your WhatsApp sticker workspace", style = MaterialTheme.typography.bodySmall)
-            }
-            Row {
-                IconButton(
-                    onClick = { onToggleTheme(!darkTheme) },
-                    modifier = Modifier.size(48.dp),
-                ) {
-                    Icon(
-                        imageVector = if (darkTheme) Icons.Outlined.LightMode else Icons.Outlined.DarkMode,
-                        contentDescription = if (darkTheme) "Use light theme" else "Use dark theme",
-                    )
-                }
-                onProfileClick?.let { openProfile ->
-                    IconButton(onClick = openProfile, modifier = Modifier.size(48.dp)) {
-                        Icon(Icons.Outlined.AccountCircle, contentDescription = "Open profile menu for $account")
-                    }
-                }
-            }
+        }
+        IconButton(onClick = onRefresh) {
+            Icon(Icons.Outlined.Sync, contentDescription = "Sync packs")
+        }
+        IconButton(onClick = onProfileClick) {
+            AccountAvatar(account = account, size = 34.dp)
         }
     }
 }

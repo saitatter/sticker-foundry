@@ -11,6 +11,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
@@ -50,8 +51,8 @@ fun PackRow(
     }
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(
-            modifier = Modifier.padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -63,35 +64,23 @@ fun PackRow(
                         bitmap = preview,
                         contentDescription = "${pack.name} cover",
                         modifier = Modifier
-                            .size(56.dp)
-                            .clip(RoundedCornerShape(12.dp)),
+                            .size(64.dp)
+                            .clip(RoundedCornerShape(18.dp)),
                         contentScale = ContentScale.Crop,
                     )
                 }
                 Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text(pack.name, style = MaterialTheme.typography.titleLarge)
-                    Text(pack.publisher, style = MaterialTheme.typography.bodyMedium)
+                    Text(pack.name, style = MaterialTheme.typography.titleMedium)
+                    Text(pack.publisher, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
-            pack.teamName?.let { teamName ->
-                Text("Team: $teamName", style = MaterialTheme.typography.bodySmall)
-            }
             Text(
-                "${pack.stickerCount} stickers · Version ${pack.imageDataVersion}",
-                style = MaterialTheme.typography.bodySmall,
+                "${pack.stickerCount} stickers  ·  v${pack.imageDataVersion}  ·  ${if (pack.isPublic) "Public" else "Private"}",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            Text(
-                "${roleLabel(pack)} · ${if (pack.canEdit) "Editable" else "Read-only"}",
-                style = MaterialTheme.typography.bodySmall,
-            )
-            Text(
-                collaboratorDetails(pack),
-                style = MaterialTheme.typography.bodySmall,
-            )
-            Text(
-                "${if (pack.isPublic) "Public pack" else "Private pack"} · Updated ${pack.updatedAt.take(10)}",
-                style = MaterialTheme.typography.bodySmall,
-            )
+            pack.teamName?.let { teamName -> Text("Team: $teamName", style = MaterialTheme.typography.bodySmall) }
+            Text("${roleLabel(pack)}  ·  ${if (pack.canEdit) "Editable" else "Read-only"}", style = MaterialTheme.typography.bodySmall)
             if (!cacheReady) {
                 Text(
                     extractionStatusLabel(pack),
@@ -99,6 +88,8 @@ fun PackRow(
                     color = if (pack.extractionStatus == EXTRACTION_FAILED) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
                 )
             }
+            StickerPreviewRow(pack = pack, stickers = stickers)
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -143,10 +134,11 @@ fun PackRow(
                 }
             }
             if (pack.stickerCount < 3) {
-                Text("Needs at least 3 stickers before WhatsApp import", style = MaterialTheme.typography.bodySmall)
+                Text("Add at least 3 stickers before importing into WhatsApp", style = MaterialTheme.typography.bodySmall)
             }
-            StickerPreviewRow(pack = pack, stickers = stickers)
             if (pack.canEdit) {
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                Text("Edit pack", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
