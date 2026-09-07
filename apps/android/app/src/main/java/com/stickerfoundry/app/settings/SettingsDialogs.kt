@@ -8,6 +8,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -17,6 +18,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 
 @Composable
 fun SettingsDialog(
@@ -25,10 +28,12 @@ fun SettingsDialog(
     checkingServer: Boolean,
     account: String,
     cacheUsage: String,
+    darkTheme: Boolean,
     onSaveServerUrl: (String) -> Unit,
     onCheckServerUrl: (String) -> Unit,
     onLogout: () -> Unit,
     onClearCache: () -> Unit,
+    onToggleTheme: (Boolean) -> Unit,
     onTroubleshooting: () -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -38,12 +43,15 @@ fun SettingsDialog(
         onDismissRequest = onDismiss,
         title = { Text("Settings") },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
                 OutlinedTextField(
                     value = editedServerUrl,
                     onValueChange = { editedServerUrl = it },
                     label = { Text("Server URL") },
-                    supportingText = { Text("Use http://HomeDockers:8095/api/; hostname:port also works.") },
+                    supportingText = { Text("Example: http://192.168.1.20:3000/api/") },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
                 )
@@ -64,6 +72,22 @@ fun SettingsDialog(
                     ) {
                         Text(if (checkingServer) "Checking..." else "Test server")
                     }
+                }
+                Text("Appearance", style = MaterialTheme.typography.titleSmall)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Column {
+                        Text(if (darkTheme) "Dark theme" else "Light theme")
+                        Text(
+                            "This preference is saved on this device.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Switch(checked = darkTheme, onCheckedChange = onToggleTheme)
                 }
                 Text("Account: $account", style = MaterialTheme.typography.bodySmall)
                 Text("Cache usage: $cacheUsage", style = MaterialTheme.typography.bodySmall)

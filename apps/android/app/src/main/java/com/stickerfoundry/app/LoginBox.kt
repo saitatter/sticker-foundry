@@ -4,6 +4,8 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Card
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -33,82 +35,97 @@ fun LoginBox(
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
 
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        OutlinedTextField(
-            value = editedServerUrl,
-            onValueChange = { editedServerUrl = it },
-            label = { Text("Server URL") },
-            supportingText = { Text("Use http://HomeDockers:8095/api/; hostname:port also works.") },
-            modifier = Modifier.fillMaxWidth(),
-            singleLine = true,
-        )
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Button(
-                modifier = Modifier.weight(1f),
-                onClick = { onSaveServerUrl(editedServerUrl) },
-            ) {
-                Text("Save URL")
-            }
-            Button(
-                modifier = Modifier.weight(1f),
-                enabled = !checkingServer,
-                onClick = { onCheckServerUrl(editedServerUrl) },
-            ) {
-                Text(if (checkingServer) "Checking..." else "Test server")
-            }
-        }
-        if (serverStatus.message.isNotBlank()) {
+            Text("Connect your account", style = MaterialTheme.typography.titleMedium)
             Text(
-                serverStatus.message,
-                color = if (serverStatus.isError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+                "Set the server once, then sign in and sync your packs.",
                 style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-        }
-        OutlinedTextField(
-            value = email,
-            onValueChange = { email = it },
-            label = { Text("Email") },
-            modifier = Modifier.fillMaxWidth(),
-        )
-        OutlinedTextField(
-            value = password,
-            onValueChange = { password = it },
-            label = { Text("Password") },
-            visualTransformation = PasswordVisualTransformation(),
-            modifier = Modifier.fillMaxWidth(),
-        )
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Button(
-                modifier = Modifier.weight(1f),
-                onClick = { onLogin(email, password) },
-            ) {
-                Text("Login")
-            }
-            Button(
-                modifier = Modifier.weight(1f),
-                onClick = onSync,
-            ) {
-                Text("Sync")
-            }
-            Button(
-                modifier = Modifier.weight(1f),
-                onClick = onSettings,
-            ) {
-                Text("Settings")
-            }
-        }
-        if (status.message.isNotBlank()) {
-            Text(
-                status.message,
-                color = if (status.isError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface,
-                style = MaterialTheme.typography.bodySmall,
+            OutlinedTextField(
+                value = editedServerUrl,
+                onValueChange = { editedServerUrl = it },
+                label = { Text("Server URL") },
+                supportingText = { Text("Example: http://192.168.1.20:3000/api/") },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
             )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Button(
+                    modifier = Modifier.weight(1f),
+                    onClick = { onSaveServerUrl(editedServerUrl) },
+                ) {
+                    Text("Save URL")
+                }
+                Button(
+                    modifier = Modifier.weight(1f),
+                    enabled = !checkingServer,
+                    onClick = { onCheckServerUrl(editedServerUrl) },
+                ) {
+                    Text(if (checkingServer) "Checking..." else "Test server")
+                }
+            }
+            if (serverStatus.message.isNotBlank()) {
+                Text(
+                    serverStatus.message,
+                    color = if (serverStatus.isError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+            OutlinedTextField(
+                value = email,
+                onValueChange = { email = it },
+                label = { Text("Email") },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+            )
+            OutlinedTextField(
+                value = password,
+                onValueChange = { password = it },
+                label = { Text("Password") },
+                visualTransformation = PasswordVisualTransformation(),
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Button(
+                    modifier = Modifier.weight(1f),
+                    onClick = { onLogin(email, password) },
+                ) {
+                    Text("Login")
+                }
+                Button(
+                    modifier = Modifier.weight(1f),
+                    onClick = onSync,
+                ) {
+                    Text("Sync")
+                }
+                Button(
+                    modifier = Modifier.weight(1f),
+                    onClick = onSettings,
+                ) {
+                    Text("Settings")
+                }
+            }
+            if (status.message.isNotBlank()) {
+                Text(
+                    status.message,
+                    color = if (status.isError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
         }
     }
 }

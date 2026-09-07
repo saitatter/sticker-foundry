@@ -22,6 +22,8 @@ class SessionStore(context: Context) {
 
     fun serverUrl(): String = prefs.getString("serverUrl", null) ?: BuildConfig.API_BASE_URL
 
+    fun darkTheme(): Boolean = prefs.getBoolean(DARK_THEME_KEY, false)
+
     fun saveToken(token: String) {
         writeSecure(ACCESS_TOKEN_KEY, token)
     }
@@ -40,6 +42,10 @@ class SessionStore(context: Context) {
 
     fun saveServerUrl(url: String) {
         prefs.edit().putString("serverUrl", normalizeServerUrl(url)).apply()
+    }
+
+    fun saveDarkTheme(enabled: Boolean) {
+        prefs.edit().putBoolean(DARK_THEME_KEY, enabled).apply()
     }
 
     fun normalizedServerUrl(url: String): String = normalizeServerUrl(url)
@@ -102,6 +108,7 @@ class SessionStore(context: Context) {
     companion object {
         private const val ACCESS_TOKEN_KEY = "accessToken"
         private const val REFRESH_TOKEN_KEY = "refreshToken"
+        private const val DARK_THEME_KEY = "darkTheme"
         private const val ANDROID_KEYSTORE = "AndroidKeyStore"
         private const val KEY_ALIAS = "com.stickerfoundry.app.session"
         private const val TRANSFORMATION = "AES/GCM/NoPadding"
@@ -111,7 +118,7 @@ class SessionStore(context: Context) {
     private fun normalizeServerUrl(url: String): String {
         val trimmed = url.trim()
         if (trimmed.isBlank()) {
-            throw IllegalArgumentException("Enter a server URL, for example http://HomeDockers:8095/api/")
+            throw IllegalArgumentException("Enter a server URL, for example http://10.0.2.2:3000/api/")
         }
 
         val urlWithScheme = if (trimmed.contains("://")) trimmed else "http://$trimmed"

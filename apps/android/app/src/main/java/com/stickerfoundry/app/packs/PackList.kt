@@ -7,20 +7,25 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.weight
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.shape.RoundedCornerShape
 import com.stickerfoundry.app.data.EXTRACTION_FAILED
 import com.stickerfoundry.app.data.EXTRACTION_READY
 import com.stickerfoundry.app.data.EXTRACTION_SYNCING
@@ -41,13 +46,34 @@ fun PackRow(
     onExport: () -> Unit,
 ) {
     val cacheReady = pack.extractionStatus == EXTRACTION_READY
+    val trayPreview = remember(pack.localPath, pack.trayImageFile) {
+        loadImageBitmap(File(pack.localPath, pack.trayImageFile).absolutePath)
+    }
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(
             modifier = Modifier.padding(12.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Text(pack.name, style = MaterialTheme.typography.titleMedium)
-            Text(pack.publisher, style = MaterialTheme.typography.bodyMedium)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                trayPreview?.let { preview ->
+                    Image(
+                        bitmap = preview,
+                        contentDescription = "${pack.name} cover",
+                        modifier = Modifier
+                            .size(56.dp)
+                            .clip(RoundedCornerShape(12.dp)),
+                        contentScale = ContentScale.Crop,
+                    )
+                }
+                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(pack.name, style = MaterialTheme.typography.titleLarge)
+                    Text(pack.publisher, style = MaterialTheme.typography.bodyMedium)
+                }
+            }
             pack.teamName?.let { teamName ->
                 Text("Team: $teamName", style = MaterialTheme.typography.bodySmall)
             }
@@ -74,26 +100,46 @@ fun PackRow(
                     color = if (pack.extractionStatus == EXTRACTION_FAILED) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
                 )
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
                 Button(
+                    modifier = Modifier.weight(1f),
                     onClick = onAdd,
                     enabled = pack.stickerCount >= 3 && cacheReady,
                 ) {
                     Text("WhatsApp")
                 }
                 Button(
+                    modifier = Modifier.weight(1f),
                     onClick = onAddBusiness,
                     enabled = pack.stickerCount >= 3 && cacheReady,
                 ) {
                     Text("Business")
                 }
-                Button(onClick = onResync) {
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                OutlinedButton(
+                    modifier = Modifier.weight(1f),
+                    onClick = onResync,
+                ) {
                     Text("Resync")
                 }
-                TextButton(onClick = onClearLocal) {
+                TextButton(
+                    modifier = Modifier.weight(1f),
+                    onClick = onClearLocal,
+                ) {
                     Text("Clear local")
                 }
-                TextButton(onClick = onExport, enabled = cacheReady) {
+                OutlinedButton(
+                    modifier = Modifier.weight(1f),
+                    onClick = onExport,
+                    enabled = cacheReady,
+                ) {
                     Text("Export & share")
                 }
             }
@@ -102,12 +148,21 @@ fun PackRow(
             }
             StickerPreviewRow(pack = pack, stickers = stickers)
             if (pack.canEdit) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(onClick = onUploadSticker) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Button(
+                        modifier = Modifier.weight(1f),
+                        onClick = onUploadSticker,
+                    ) {
                         Text("Upload sticker")
                     }
-                    Button(onClick = onReplaceTrayIcon) {
-                        Text("Replace tray")
+                    OutlinedButton(
+                        modifier = Modifier.weight(1f),
+                        onClick = onReplaceTrayIcon,
+                    ) {
+                        Text("Replace tray icon")
                     }
                 }
             }

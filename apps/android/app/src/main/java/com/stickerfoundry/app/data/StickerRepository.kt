@@ -40,12 +40,18 @@ class StickerRepository private constructor(context: Context) {
 
     fun accountLabel(): String = session.accountLabel()
 
+    fun darkTheme(): Boolean = session.darkTheme()
+
     fun cacheSizeBytes(): Long = packsDirectory().sizeBytes()
 
     fun saveServerUrl(url: String) {
         session.saveServerUrl(url)
         apiBaseUrl = ""
         apiClient = null
+    }
+
+    fun saveDarkTheme(enabled: Boolean) {
+        session.saveDarkTheme(enabled)
     }
 
     suspend fun checkServerUrl(url: String): HealthResponse = withContext(Dispatchers.IO) {

@@ -57,7 +57,7 @@ fun ImageEditDialog(
     val context = LocalContext.current
     val previewSource = remember(edit.uri) { loadBitmap(context, edit.uri) }
     val sourceInfo = remember(edit.uri) { imageSourceInfo(context, edit.uri) }
-    val state = remember(edit.uri) { ImageEditDialogState() }
+    val state = remember(edit.uri, edit.target) { ImageEditDialogState(edit.target == ImageEditTarget.Sticker) }
     val title = when (edit.target) {
         ImageEditTarget.Sticker -> "Edit sticker"
         ImageEditTarget.TrayIcon -> "Edit tray icon"
@@ -93,7 +93,7 @@ fun ImageEditDialog(
     )
 }
 
-private class ImageEditDialogState {
+private class ImageEditDialogState(private val isSticker: Boolean) {
     var rotation by mutableStateOf(0)
     var cropSquare by mutableStateOf(false)
     var zoom by mutableStateOf(1f)
@@ -112,7 +112,9 @@ private class ImageEditDialogState {
     var brushStrokes by mutableStateOf<List<BrushStroke>>(emptyList())
     var undoneBrushStrokes by mutableStateOf<List<BrushStroke>>(emptyList())
     var activeBrushPoints by mutableStateOf<List<BrushPoint>>(emptyList())
-    var backgroundRemovalMode by mutableStateOf(BackgroundRemovalMode.None)
+    var backgroundRemovalMode by mutableStateOf(
+        if (isSticker) BackgroundRemovalMode.Ai else BackgroundRemovalMode.None,
+    )
     var backgroundRemovalThreshold by mutableStateOf(240f)
     var backgroundRemovalFeather by mutableStateOf(8f)
     var backgroundRemovalCleanupSpeckles by mutableStateOf(true)
@@ -212,7 +214,7 @@ private class ImageEditDialogState {
         brushStrokes = emptyList()
         undoneBrushStrokes = emptyList()
         activeBrushPoints = emptyList()
-        backgroundRemovalMode = BackgroundRemovalMode.None
+        backgroundRemovalMode = if (isSticker) BackgroundRemovalMode.Ai else BackgroundRemovalMode.None
         animatedOptionsEnabled = false
     }
 
@@ -425,7 +427,12 @@ private fun BrushSection(state: ImageEditDialogState) {
 private fun BackgroundRemovalSection(edit: PendingImageEdit, state: ImageEditDialogState) {
     if (edit.target != ImageEditTarget.Sticker) return
 
-    Text("Server background", style = MaterialTheme.typography.bodySmall)
+    Text("Background removal", style = MaterialTheme.typography.titleSmall)
+    Text(
+        "AI uses rembg first and falls back to threshold cleanup if needed.",
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         TextButton(onClick = { state.backgroundRemovalMode = BackgroundRemovalMode.None }) {
             Text(if (state.backgroundRemovalMode == BackgroundRemovalMode.None) "None *" else "None")

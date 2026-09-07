@@ -48,6 +48,7 @@ class StickerViewModel(
     val serverUrl = MutableStateFlow(repository.serverUrl())
     val account = MutableStateFlow(repository.accountLabel())
     val cacheUsage = MutableStateFlow(formatBytes(repository.cacheSizeBytes()))
+    val darkTheme = MutableStateFlow(repository.darkTheme())
     private val _exportEvents = MutableSharedFlow<File>(extraBufferCapacity = 1)
     val exportEvents = _exportEvents.asSharedFlow()
 
@@ -131,6 +132,11 @@ class StickerViewModel(
 
     fun refreshCacheUsage() {
         cacheUsage.value = formatBytes(repository.cacheSizeBytes())
+    }
+
+    fun setDarkTheme(enabled: Boolean) {
+        repository.saveDarkTheme(enabled)
+        darkTheme.value = enabled
     }
 
     fun clearCache() {
