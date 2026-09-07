@@ -17,7 +17,7 @@ android {
         versionName = "1.2.0"
 
         val authority = "$applicationId.stickercontentprovider"
-        buildConfigField("String", "API_BASE_URL", "\"http://10.0.2.2:3000/api/\"")
+        buildConfigField("String", "API_BASE_URL", "\"http://10.0.2.2:8080/api/\"")
         buildConfigField("String", "CONTENT_PROVIDER_AUTHORITY", "\"$authority\"")
         manifestPlaceholders["contentProviderAuthority"] = authority
     }

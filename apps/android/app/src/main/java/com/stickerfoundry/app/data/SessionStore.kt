@@ -118,7 +118,7 @@ class SessionStore(context: Context) {
     private fun normalizeServerUrl(url: String): String {
         val trimmed = url.trim()
         if (trimmed.isBlank()) {
-            throw IllegalArgumentException("Enter a server URL, for example http://10.0.2.2:3000/api/")
+            throw IllegalArgumentException("Enter a server URL, for example http://10.0.2.2:8080/api/")
         }
 
         val urlWithScheme = if (trimmed.contains("://")) trimmed else "http://$trimmed"

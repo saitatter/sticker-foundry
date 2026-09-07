@@ -52,7 +52,7 @@ fun LoginBox(
                 value = editedServerUrl,
                 onValueChange = { editedServerUrl = it },
                 label = { Text("Server URL") },
-                supportingText = { Text("Example: http://192.168.1.20:3000/api/") },
+                supportingText = { Text("Example: http://192.168.1.20:8080/api/") },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
             )
