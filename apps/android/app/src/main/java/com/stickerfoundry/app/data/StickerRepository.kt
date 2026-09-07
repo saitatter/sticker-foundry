@@ -326,14 +326,16 @@ class StickerRepository private constructor(context: Context) {
     }
 
     private suspend fun awaitJob(jobId: String): JobDto = withTimeout(JOB_TIMEOUT_MS) {
-        while (true) {
+        var completedJob: JobDto? = null
+        while (completedJob == null) {
             val job = withAuthRetry { bearer -> api().job(bearer, jobId) }
             when (job.status) {
-                "COMPLETED" -> return@withTimeout job
+                "COMPLETED" -> completedJob = job
                 "FAILED", "CANCELLED" -> throw IllegalStateException(job.error ?: "Server job ${job.status.lowercase()}")
+                else -> delay(JOB_POLL_MS)
             }
-            delay(JOB_POLL_MS)
         }
+        completedJob ?: error("Server job did not complete")
     }
 
     private fun multipartFromUri(uri: Uri, options: ImageEditOptions): MultipartBody.Part {
