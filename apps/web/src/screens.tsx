@@ -8,6 +8,7 @@ import {
   type StickerFoundryApi,
 } from './api';
 import { BrandMark } from './components/layout/brand-mark';
+import { ThemeToggle } from './components/layout/theme-toggle';
 import { Button } from './components/ui/button';
 import { LabeledIconButton as IconButton } from './components/ui/labeled-icon-button';
 import { Metric } from './components/ui/metric';
@@ -185,6 +186,9 @@ export function AuthScreen({
 
   return (
     <main className="auth-layout">
+      <div className="auth-theme-toggle">
+        <ThemeToggle />
+      </div>
       <Card className="auth-panel">
         <div className="brand auth-brand">
           <BrandMark />
@@ -329,6 +333,9 @@ export function ResetPasswordScreen({
 
   return (
     <main className="auth-layout">
+      <div className="auth-theme-toggle">
+        <ThemeToggle />
+      </div>
       <Card className="auth-panel">
         <div className="brand auth-brand">
           <BrandMark />

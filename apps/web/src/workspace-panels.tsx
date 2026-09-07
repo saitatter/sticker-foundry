@@ -1,4 +1,4 @@
-import { Archive, KeyRound, Plus, ShieldCheck, Trash2, UserPlus, Users } from 'lucide-react';
+import { Archive, Check, ChevronDown, KeyRound, Plus, ShieldCheck, Trash2, UserPlus, Users } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { type FormEvent, useEffect, useState } from 'react';
 import { Pack, PackRole, StickerFoundryApi, Team, TeamMember } from './api';
@@ -521,57 +521,67 @@ export function WorkspaceNav({
   onOpenPack: (packId?: string) => void;
   onOpenPacks: () => void;
 }) {
+  const [packMenuOpen, setPackMenuOpen] = useState(false);
+
   return (
     <nav className="workspace-nav" aria-label="Workspace">
       <div className="workspace-nav-group">
         <p className="workspace-nav-label">Library</p>
-        <div className="workspace-nav-packs-row">
+        <div className="workspace-nav-packs">
           <Button
             aria-label="Open packs"
-            className={`workspace-nav-row ${activeView === 'packs' ? 'active' : ''}`}
-            onClick={onOpenPacks}
+            aria-controls="workspace-pack-switcher"
+            aria-expanded={packMenuOpen}
+            className={`workspace-nav-row workspace-nav-packs-trigger ${activeView === 'packs' ? 'active' : ''}`}
+            onClick={() => {
+              onOpenPacks();
+              setPackMenuOpen((open) => !open);
+            }}
             type="button"
             variant="unstyled"
           >
-            <Archive size={18} />
+            {selectedPack ? <PackNavThumbnail api={api} pack={selectedPack} /> : <Archive size={18} />}
             <span>
               <strong>Packs</strong>
               <small>{packCount} total</small>
             </span>
+            <ChevronDown className={packMenuOpen ? 'open' : ''} size={17} />
           </Button>
-          <Select
-            aria-label="Open pack directly"
-            className="workspace-nav-pack-select"
-            value={selectedPack?.id ?? ''}
-            onChange={(event) => {
-              if (event.target.value) onOpenPack(event.target.value);
-            }}
-          >
-            <option value="">Jump to…</option>
-            {packs.map((pack) => (
-              <option key={pack.id} value={pack.id}>
-                {pack.name}
-              </option>
-            ))}
-          </Select>
+          {packMenuOpen ? (
+            <div aria-label="Pack list" className="workspace-pack-switcher" id="workspace-pack-switcher">
+              {packs.length > 0 ? (
+                packs.map((pack) => {
+                  const selected = pack.id === selectedPack?.id;
+                  return (
+                    <Button
+                      aria-current={selected ? 'page' : undefined}
+                      aria-label={`Open pack ${pack.name}`}
+                      className={`workspace-nav-pack-option ${selected ? 'selected' : ''}`}
+                      key={pack.id}
+                      onClick={() => {
+                        setPackMenuOpen(false);
+                        onOpenPack(pack.id);
+                      }}
+                      type="button"
+                      variant="unstyled"
+                    >
+                      <PackNavThumbnail api={api} pack={pack} />
+                      <span>
+                        <strong>{pack.name}</strong>
+                        <small>
+                          {pack.stickerCount}/30 · {roleLabel(pack.role)}
+                        </small>
+                      </span>
+                      {selected ? <Check aria-hidden="true" size={16} /> : null}
+                    </Button>
+                  );
+                })
+              ) : (
+                <span className="workspace-pack-switcher-empty">No packs yet</span>
+              )}
+            </div>
+          ) : null}
         </div>
-        {selectedPack ? (
-          <Button
-            aria-label={`Open current pack ${selectedPack.name}`}
-            className={`workspace-nav-row ${activeView === 'pack' ? 'active' : ''}`}
-            onClick={() => onOpenPack()}
-            type="button"
-            variant="unstyled"
-          >
-            <PackNavThumbnail api={api} pack={selectedPack} />
-            <span>
-              <strong>{selectedPack.name}</strong>
-              <small>
-                {selectedPack.stickerCount}/30 · {roleLabel(selectedPack.role)}
-              </small>
-            </span>
-          </Button>
-        ) : null}
       </div>
       {isAdmin ? (
         <div className="workspace-nav-group">

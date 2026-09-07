@@ -55,17 +55,18 @@ test('covers core web sticker workflows with mocked API', async ({ page }) => {
 
   await expect(page.locator('.pack-library').getByRole('heading', { name: 'Packs' })).toBeVisible();
   await expect(page.locator('.pack-album-grid')).toContainText('Smoke Ready');
-  await expect(page.getByLabel('Open pack directly')).toBeVisible();
   await page.getByLabel('Search packs').fill('S');
   await expect(page.getByRole('button', { name: 'Open pack Smoke Ready' })).toHaveClass(/search-match/);
-  await page.getByLabel('Open pack directly').selectOption('pack-ready');
+  await page.getByRole('button', { name: 'Open packs' }).click();
+  await expect(page.locator('.workspace-pack-switcher')).toBeVisible();
+  await page.locator('.workspace-pack-switcher').getByRole('button', { name: 'Open pack Smoke Ready' }).click();
   await expect(page.getByRole('heading', { name: 'Smoke Ready' })).toBeVisible();
   await expect(page.locator('.workspace-nav-pack-thumbnail img')).toBeVisible();
   await page.getByRole('button', { name: 'Open packs' }).click();
   await expect(
-    page.getByRole('button', { name: 'Open pack Smoke Ready' }).locator('.pack-cover.has-image img'),
+    page.locator('.pack-library').getByRole('button', { name: 'Open pack Smoke Ready' }).locator('.pack-cover.has-image img'),
   ).toBeVisible();
-  await page.getByRole('button', { name: 'Open pack Smoke Ready' }).click();
+  await page.locator('.pack-library').getByRole('button', { name: 'Open pack Smoke Ready' }).click();
   await expect(page.getByRole('heading', { name: 'Smoke Ready' })).toBeVisible();
   await expect(page.locator('.last-activity-card')).toBeVisible();
   await expect(page.locator('.last-activity-card .activity-row')).toHaveCount(1);
@@ -161,7 +162,7 @@ test('covers core web sticker workflows with mocked API', async ({ page }) => {
   await expect(page.locator('.overview-summary')).toContainText('1/30');
 
   await page.getByRole('button', { name: 'Open packs' }).click();
-  await page.getByRole('button', { name: 'Open pack Smoke Ready' }).click();
+  await page.locator('.pack-library').getByRole('button', { name: 'Open pack Smoke Ready' }).click();
   await openStickersTab(page);
   await page.locator('.bulk-toolbar').getByRole('button', { name: 'Select all' }).click();
   await page.locator('.bulk-toolbar').getByLabel('Target').selectOption({ label: 'Scratch Pack (1/30)' });
@@ -282,7 +283,15 @@ test('packs workspace has no obvious accessibility violations', async ({ page })
 test('opens admin settings as a dedicated page and switches to dark theme', async ({ page }) => {
   const state = createMockState();
   await mockApi(page, state);
-  await login(page, { openFirstPack: false });
+  await page.goto('/');
+  await expect(page.getByRole('button', { name: 'Use dark theme' })).toBeVisible();
+  await page.getByRole('button', { name: 'Use dark theme' }).click();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+  await page.getByLabel('Email').fill('demo@stickerfoundry.local');
+  await page.getByRole('textbox', { name: /Password/ }).fill('stickerfoundry123');
+  await page.locator('form').getByRole('button', { name: 'Login' }).click();
+  await expect(page).toHaveURL(/\/app\/packs$/);
+  await expect(page.getByRole('button', { name: 'Use light theme' })).toBeVisible();
 
   await page.locator('.workspace-nav').getByRole('button', { name: 'Open account settings' }).click();
   await expect(page).toHaveURL(/\/app\/settings\/account$/);
@@ -296,7 +305,6 @@ test('opens admin settings as a dedicated page and switches to dark theme', asyn
   await expect(page.getByRole('heading', { name: 'Instance settings' })).toBeVisible();
   await expect(page.locator('.modal-panel')).toHaveCount(0);
 
-  await page.getByRole('button', { name: 'Use dark theme' }).click();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
   await expect(page.locator('.settings-card').first()).toHaveCSS('background-color', 'rgb(24, 36, 34)');
 });

@@ -6,6 +6,19 @@
     <link rel="icon" type="image/png" href="/favicon.png" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <title>Sticker Foundry</title>
+    <script>
+      (() => {
+        try {
+          const stored = localStorage.getItem('stickerfoundry.theme');
+          const theme = stored === 'light' || stored === 'dark'
+            ? stored
+            : (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+          document.documentElement.dataset.theme = theme;
+        } catch {
+          // Theme preference is optional; CSS defaults still apply.
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
