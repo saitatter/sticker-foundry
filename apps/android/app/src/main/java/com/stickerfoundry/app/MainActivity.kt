@@ -487,7 +487,7 @@ private fun FoundryHeader(darkTheme: Boolean, onToggleTheme: (Boolean) -> Unit) 
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Image(
-                painter = painterResource(id = com.stickerfoundry.app.R.mipmap.ic_launcher),
+                painter = painterResource(id = com.stickerfoundry.app.R.drawable.sticker_foundry_foreground),
                 contentDescription = "Sticker Foundry",
                 modifier = Modifier
                     .size(48.dp)
