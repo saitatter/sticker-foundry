@@ -1,179 +1,169 @@
 <p align="center">
-  <img src="assets/brand/sticker-foundry-logo.svg" alt="Sticker Foundry logo" width="104" height="104">
+  <img src="assets/brand/sticker-foundry-icon.png" alt="Sticker Foundry" width="128" height="128">
 </p>
 
-# 🎨 Sticker Foundry
+<h1 align="center">Sticker Foundry</h1>
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-![GitHub Release](https://img.shields.io/github/v/release/saitatter/sticker-foundry)
-[![Issues](https://img.shields.io/github/issues/saitatter/sticker-foundry)](https://github.com/saitatter/sticker-foundry/issues)
-![NestJS](https://img.shields.io/badge/NestJS-Backend-E0234E?logo=nestjs&logoColor=white)
-![Kotlin](https://img.shields.io/badge/Kotlin-Android-7F52FF?logo=kotlin&logoColor=white)
-![Docker](https://img.shields.io/badge/Docker-Self--hosted-2496ED?logo=docker&logoColor=white)
+<p align="center">
+  Create, organize, and share beautiful WhatsApp sticker packs from one private workspace.
+</p>
 
-> Self-hosted collaborative WhatsApp sticker pack manager.
->
-> Turn image drops into WhatsApp-ready sticker packs with a web editor, NestJS backend, and Android bridge.
+<p align="center">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="MIT license"></a>
+  <a href="https://github.com/saitatter/sticker-foundry/releases"><img src="https://img.shields.io/github/v/release/saitatter/sticker-foundry" alt="Latest release"></a>
+  <a href="https://github.com/saitatter/sticker-foundry/issues"><img src="https://img.shields.io/github/issues/saitatter/sticker-foundry" alt="Open issues"></a>
+</p>
 
-## ✨ Highlights
+Sticker Foundry is a self-hosted home for your sticker collection. Drop in images, clean them up, arrange them into packs, work with other people, and send the finished packs to WhatsApp.
 
-| Area    | What is included                                                                                                                        |
-| ------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| Web     | Album-style pack library, tabbed pack details, upload flow, review state, comments, bulk actions, and a compact overlay sticker editor. |
-| Backend | NestJS API, PostgreSQL/Prisma, JWT auth, teams, invites, audit logs, storage, ZIP exports, metrics, and media processing.               |
-| Editor  | Crop/normalize, erase/restore brush, text layer, cleanup tools, animated options, optimizer, presets, and before/after compare.         |
-| Android | Server connection checks, Room cache, ZIP sync, local WhatsApp provider, WhatsApp/Business import intents, and edit/upload helpers.     |
-| Deploy  | Source Compose stack with optional MinIO/MailHog development services and CPU AI background removal.                              |
+## What you can do
 
-## 🚀 Quick Start
+### Make stickers quickly
 
-```bash
-npm install
-cp .env.example .env
-docker compose up -d postgres redis
-npm run prisma:migrate
-npm run prisma:seed
-npm run dev
-```
+- Upload one image or a whole batch at once.
+- Crop, resize, add text, and polish images with erase and restore brushes.
+- Remove backgrounds with local AI using `rembg`, with a reliable automatic fallback when needed.
+- Prepare animated stickers with trimming, frame-rate, and quality controls.
+- Compare the original and edited image before saving.
 
-| Service | URL                              |
-| ------- | -------------------------------- |
-| Web     | `http://localhost:5173`          |
-| API     | `http://localhost:3000/api`      |
-| OpenAPI | `http://localhost:3000/api/docs` |
+### Keep every pack organized
 
-Demo login: `demo@stickerfoundry.local` / `stickerfoundry123`
+- Browse packs in an album-style library with covers, search, and quick switching.
+- Reorder stickers with drag and drop, keyboard controls, or multi-select actions.
+- Add emojis and accessibility text so every sticker is easy to find and use.
+- Review sticker status, inspect recent changes, and download ready-to-share exports.
+- Use light or dark theme; your choice is remembered across visits.
 
-## 🐳 Docker
+### Work together safely
 
-The supported deployment is the source Compose stack. It builds and runs PostgreSQL, Redis, the NestJS backend, the queue worker, and the web server as separate services:
+- Invite collaborators as editors or viewers for each pack.
+- Add comments and review stickers without losing the surrounding context.
+- See pack activity with before-and-after details.
+- Keep an instance-wide security audit history for important administrative changes.
 
-```bash
-docker compose up -d --build
-```
+### Use packs where you need them
 
-The web UI is available at `http://localhost:8080` and the API at `http://localhost:3000/api`. For Android on LAN, set the server URL to the backend host and port:
+- Export packs in WhatsApp-ready formats.
+- Publish selected packs for sharing when you want to.
+- Sync packs in the Android companion app and import them into WhatsApp or WhatsApp Business.
+
+### Keep control of your collection
+
+- Run Sticker Foundry on your own computer or server.
+- Keep uploaded images and AI processing inside your installation by default.
+- Configure registration, storage limits, audit retention, and the instance name from the admin page.
+
+## Start in a few minutes
+
+The easiest local setup uses Docker Desktop. After Docker is installed:
+
+1. Download this repository and open a terminal in its folder.
+2. Create your local settings file:
+
+   ```bash
+   # macOS / Linux
+   cp .env.example .env
+   ```
+
+   On Windows PowerShell, use `Copy-Item .env.example .env` instead.
+
+3. Start Sticker Foundry:
+
+   ```bash
+   docker compose up -d --build
+   ```
+
+4. Add the demo account and sample pack:
+
+   ```bash
+   docker compose exec backend npm run prisma:seed
+   ```
+
+Open [http://localhost:8080](http://localhost:8080).
+
+| What | Address |
+| --- | --- |
+| Sticker Foundry | [http://localhost:8080](http://localhost:8080) |
+| API health and integrations | [http://localhost:3000/api](http://localhost:3000/api) |
+| API reference | [http://localhost:3000/api/docs](http://localhost:3000/api/docs) |
+
+The demo account is:
 
 ```text
-http://YOUR_DOCKER_HOST:3000/api/
+Email:    demo@stickerfoundry.local
+Password: stickerfoundry123
 ```
 
-Set strong `POSTGRES_PASSWORD` and `JWT_SECRET` before exposing the app outside your LAN. PostgreSQL and Redis are kept on private Docker ports by default; publish them only for controlled local administration.
+Change or remove the demo account before sharing the installation with other people.
 
-The host ports for PostgreSQL and Redis default to `5432` and `6379`. Override `POSTGRES_HOST_PORT` and `REDIS_HOST_PORT` in `.env` if another local stack already uses them. The MinIO/MailHog development override exposes analogous `*_HOST_PORT` variables.
+## A good first tour
 
-### Storage contract
+1. Open the demo pack from the library.
+2. Upload an image and try background removal in the editor.
+3. Add a short accessibility description and a few emojis.
+4. Move stickers into the order you want people to see.
+5. Open Activity to inspect the change history.
+6. Export the pack or sync it from the Android app.
 
-Disk and S3 use the same canonical layout:
+## Android companion app
 
-```text
-<S3_PREFIX>/<packId>/cover.webp
-<S3_PREFIX>/<packId>/stickers/<fileName>
-```
+The Android app keeps a local copy of your packs and can hand them to WhatsApp or WhatsApp Business. Point it at the server address reachable from your phone, sign in, sync, and choose a pack to import.
 
-Every sticker stores its storage key, MIME type, width, height, checksum, and size in PostgreSQL. The API does not resolve alternate file locations. On an existing installation, make sure all sticker metadata and files already follow this contract before applying the latest database schema.
-
-The latest schema makes this metadata mandatory and refuses to upgrade a database that still contains incomplete sticker records. Android sessions use encrypted storage; after updating the app, users with an older session format must sign in again.
-
-For local S3 and email testing, start the development overrides:
-
-```bash
-docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
-```
-
-MinIO is available at `http://localhost:9001` and MailHog at `http://localhost:8025`. The override configures the backend and worker to use MinIO and sends password-reset emails to MailHog.
-
-## 📱 Android
-
-The Android build requires JDK 17. Configure `JAVA_HOME` to a JDK 17 installation before running Gradle.
+If you are building the Android app from this repository, use JDK 17 and run:
 
 ```bash
 cd apps/android
 ./gradlew :app:assembleDebug
 ```
 
-Tester flow:
+## Sharing the installation
 
-1. Install the APK.
-2. Set the API URL in Android settings.
-3. Log in and sync packs.
-4. Import a pack with at least 3 exportable stickers into WhatsApp.
+Sticker Foundry is ready for a private home network out of the box. Before exposing it to the internet:
 
-WhatsApp requires local files exposed through a `ContentProvider`; remote sticker URLs are not enough. Sticker Foundry downloads exports to app-private storage before handing them to WhatsApp.
+- use HTTPS;
+- replace the default database password and JWT secret in `.env`;
+- use invite-only registration if the instance is shared;
+- make regular backups of the database and uploaded files.
 
-## 🎨 Web UI Architecture
+See the [production checklist](docs/PRODUCTION_CHECKLIST.md) and [reverse proxy examples](docs/REVERSE_PROXY.md) for the full setup.
 
-The web client remains React/Vite with CSS variables and domain-focused stylesheets for the workspace, editor, authentication, and responsive layout. This keeps the current editor and dense pack-management workflows easy to tune without introducing a second styling vocabulary.
+## Useful commands
 
-`shadcn/ui` with Tailwind is worth adopting incrementally for new shared primitives such as buttons, inputs, dialogs, tabs, and notices. A full rewrite is not justified at the current stage: it would duplicate the existing CSS tokens and touch every screen without adding product capability. The intended path is to establish Tailwind tokens, add selected shadcn primitives, and migrate one workflow at a time while keeping the same visual tokens available to Android Compose.
+```bash
+# See whether all services are running
+docker compose ps
 
-## ✅ Current Validation Gaps
+# Follow server messages while testing
+docker compose logs -f backend
 
-- Docker boot and PostgreSQL/Redis/MinIO smoke tests still need to run on a Docker host.
-- The Android Gradle build needs JDK 17; the current workstation only exposes JDK 21.
-- A production database upgrade must be run after its sticker files and metadata have been checked against the storage contract above.
+# Stop the local installation without deleting its data
+docker compose stop
 
-## 🤖 AI Background Removal
-
-Server-side AI cleanup uses `rembg` as the primary remover in the default Docker stack. It calls a local command that writes a transparent PNG to `{output}`:
-
-```env
-BACKGROUND_REMOVAL_COMMAND="rembg i {input} {output}"
+# Stop the installation and remove its containers
+docker compose down
 ```
 
-If the command is unavailable or fails, Sticker Foundry falls back to the backend threshold remover. Set the command to empty only when you explicitly want the threshold fallback.
+For local development, install Node.js 20 or newer, then run:
 
-## ⚡ Useful Commands
-
-| Task            | Command                                                          |
-| --------------- | ---------------------------------------------------------------- |
-| Backend build   | `npm run build:backend`                                          |
-| Backend tests   | `npm run test:backend`                                           |
-| Web build       | `npm run build:web`                                              |
-| Web tests       | `npm run test:web`                                               |
-| Web lint        | `npm run lint:web`                                               |
-| Shared types    | `npm run build:shared-types`                                     |
-| Release dry run | `npm run release:dry-run`                                        |
-| Android debug   | `cd apps/android && ./gradlew :app:lintDebug :app:assembleDebug` |
-
-## 🗺️ Repository Map
-
-```text
-apps/backend        NestJS API, Prisma schema, image processing, exports
-apps/web            React/Vite web UI
-apps/android        Kotlin Android app and WhatsApp ContentProvider
-packages/shared-types
-docs                Deployment, release, Android, and proxy notes
-scripts             Operational helpers
-docker-compose.yml
+```bash
+npm install
+npm run dev:seeded
 ```
 
-## 📚 Docs
+## Project guides
 
 - [Production checklist](docs/PRODUCTION_CHECKLIST.md)
 - [Reverse proxy examples](docs/REVERSE_PROXY.md)
 - [Android signing](docs/ANDROID_SIGNING.md)
 - [WhatsApp validation](docs/WHATSAPP_VALIDATION.md)
-- [Feature backlog](docs/FEATURES_TO_ADD.md)
-- [Release notes guide](docs/RELEASE_NOTES.md)
 - [Docker validation](docs/DOCKER_VALIDATION.md)
+- [Release notes guide](docs/RELEASE_NOTES.md)
+- [Feature backlog](docs/FEATURES_TO_ADD.md)
 
-## 🎨 Brand
+## License
 
-The repository logo is a transparent SVG: [assets/brand/sticker-foundry-logo.svg](assets/brand/sticker-foundry-logo.svg). Android launcher and web favicon assets use the rounded-square PNG app icon for better platform fit.
+Sticker Foundry is released under the [MIT License](LICENSE).
 
-Palette: deep teal `#08786f`, ink `#192124`, paper `#f7faf9`, forge accent `#f59e0b`, soft mint `#edf3f1`.
-
-## 🔒 Release & Versioning
-
-Uses **semantic-release** with Conventional Commits. Releases are manual (`workflow_dispatch`). Pushes to `main` run CI only.
-
-Published release assets include:
-
-- GitHub Release notes + tags (`vX.Y.Z`)
-- Android debug APK
-- Source server package archive
-
-## 💛 Support
+## Support
 
 [![Support me on Ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/saitatter)

@@ -90,9 +90,10 @@ textarea:focus-visible {
   height: 42px;
   display: inline-flex;
   flex: 0 0 auto;
-  border-radius: 0;
+  border-radius: 10px;
   overflow: hidden;
-  background: transparent;
+  background: var(--primary);
+  box-shadow: 0 6px 14px color-mix(in srgb, var(--primary) 20%, transparent);
 }
 
 .brand-mark img {
