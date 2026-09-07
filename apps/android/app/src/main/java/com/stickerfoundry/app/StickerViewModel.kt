@@ -47,6 +47,7 @@ class StickerViewModel(
     val checkingServer = MutableStateFlow(false)
     val serverUrl = MutableStateFlow(repository.serverUrl())
     val account = MutableStateFlow(repository.accountLabel())
+    val isLoggedIn = MutableStateFlow(repository.isLoggedIn())
     val cacheUsage = MutableStateFlow(formatBytes(repository.cacheSizeBytes()))
     val darkTheme = MutableStateFlow(repository.darkTheme())
     private val _exportEvents = MutableSharedFlow<File>(extraBufferCapacity = 1)
@@ -57,6 +58,7 @@ class StickerViewModel(
             runCatching { repository.login(email, password) }
                 .onSuccess {
                     account.value = repository.accountLabel()
+                    isLoggedIn.value = true
                     setInfo("Logged in")
                 }
                 .onFailure { setError(it, "Login failed") }
@@ -124,6 +126,7 @@ class StickerViewModel(
             runCatching { repository.logout() }
                 .onSuccess {
                     account.value = repository.accountLabel()
+                    isLoggedIn.value = false
                     setInfo("Logged out")
                 }
                 .onFailure { setError(it, "Logout failed") }

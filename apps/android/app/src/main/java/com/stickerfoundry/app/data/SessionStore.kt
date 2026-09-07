@@ -18,6 +18,8 @@ class SessionStore(context: Context) {
 
     fun refreshToken(): String? = readSecure(REFRESH_TOKEN_KEY)
 
+    fun isLoggedIn(): Boolean = token() != null || refreshToken() != null
+
     fun accountLabel(): String = prefs.getString("accountLabel", null) ?: "Not logged in"
 
     fun serverUrl(): String = prefs.getString("serverUrl", null) ?: BuildConfig.API_BASE_URL

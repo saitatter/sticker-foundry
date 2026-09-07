@@ -40,6 +40,8 @@ class StickerRepository private constructor(context: Context) {
 
     fun accountLabel(): String = session.accountLabel()
 
+    fun isLoggedIn(): Boolean = session.isLoggedIn()
+
     fun darkTheme(): Boolean = session.darkTheme()
 
     fun cacheSizeBytes(): Long = packsDirectory().sizeBytes()

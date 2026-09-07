@@ -9,12 +9,63 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+
+@Composable
+fun ServerSettingsPanel(
+    serverUrl: String,
+    serverStatus: AppStatus,
+    checkingServer: Boolean,
+    onSaveServerUrl: (String) -> Unit,
+    onCheckServerUrl: (String) -> Unit,
+) {
+    var editedServerUrl by remember(serverUrl) { mutableStateOf(serverUrl) }
+
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Text("Server connection", style = MaterialTheme.typography.titleMedium)
+            OutlinedTextField(
+                value = editedServerUrl,
+                onValueChange = { editedServerUrl = it },
+                label = { Text("Server URL") },
+                supportingText = { Text("Example: http://192.168.1.20:8080/api/") },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(onClick = { onSaveServerUrl(editedServerUrl) }) {
+                    Text("Save URL")
+                }
+                TextButton(
+                    enabled = !checkingServer,
+                    onClick = { onCheckServerUrl(editedServerUrl) },
+                ) {
+                    Text(if (checkingServer) "Checking..." else "Test server")
+                }
+            }
+            if (serverStatus.message.isNotBlank()) {
+                Text(
+                    serverStatus.message,
+                    color = if (serverStatus.isError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+        }
+    }
+}
 
 @Composable
 fun SettingsPanel(

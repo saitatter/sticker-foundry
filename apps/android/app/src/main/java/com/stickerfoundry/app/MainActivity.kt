@@ -120,6 +120,7 @@ private fun StickerApp(
     val checkingServer by viewModel.checkingServer.collectAsState()
     val serverUrl by viewModel.serverUrl.collectAsState()
     val account by viewModel.account.collectAsState()
+    val isLoggedIn by viewModel.isLoggedIn.collectAsState()
     val cacheUsage by viewModel.cacheUsage.collectAsState()
     val context = LocalContext.current
     LaunchedEffect(viewModel) {
@@ -131,6 +132,9 @@ private fun StickerApp(
     var pendingEdit by remember { mutableStateOf<PendingImageEdit?>(null) }
     var showTroubleshooting by remember { mutableStateOf(false) }
     var destination by rememberSaveable { mutableStateOf(AppDestination.HOME) }
+    LaunchedEffect(isLoggedIn) {
+        if (!isLoggedIn) destination = AppDestination.HOME
+    }
     val stickerPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         val packId = stickerUploadPackId
         val isAnimated = stickerUploadPackAnimated
@@ -155,56 +159,66 @@ private fun StickerApp(
     ) {
         FoundryHeader(darkTheme = darkTheme, onToggleTheme = onToggleTheme)
         Spacer(modifier = Modifier.height(12.dp))
-        Box(modifier = Modifier.weight(1f)) {
-            when (destination) {
-                AppDestination.HOME -> HomeScreen(
-                    account = account,
-                    packs = packs,
-                    status = status,
-                    onSync = { viewModel.sync() },
-                    onOpenPacks = { destination = AppDestination.PACKS },
-                )
-                AppDestination.PACKS -> PacksScreen(
-                    packs = packs,
-                    stickersByPack = stickersByPack,
-                    status = status,
-                    context = context,
-                    onSync = { viewModel.sync() },
-                    onSyncPack = { viewModel.syncPack(it) },
-                    onClearPackCache = { viewModel.clearPackCache(it) },
-                    onUploadSticker = { pack ->
-                        stickerUploadPackId = pack.id
-                        stickerUploadPackAnimated = pack.isAnimated
-                        stickerPicker.launch("image/*")
-                    },
-                    onReplaceTrayIcon = { pack ->
-                        trayIconPackId = pack.id
-                        trayIconPicker.launch("image/*")
-                    },
-                    onExport = { viewModel.exportPack(it) },
-                )
-                AppDestination.SETTINGS -> SettingsScreen(
-                    serverUrl = serverUrl,
-                    serverStatus = serverStatus,
-                    checkingServer = checkingServer,
-                    account = account,
-                    cacheUsage = cacheUsage,
-                    darkTheme = darkTheme,
-                    status = status,
-                    onSaveServerUrl = { viewModel.saveServerUrl(it) },
-                    onCheckServerUrl = { viewModel.checkServerUrl(it) },
-                    onLogin = { email, password -> viewModel.login(email, password) },
-                    onLogout = { viewModel.logout() },
-                    onClearCache = { viewModel.clearCache() },
-                    onToggleTheme = onToggleTheme,
-                    onTroubleshooting = { showTroubleshooting = true },
-                )
+        if (!isLoggedIn) {
+            LoginScreen(
+                serverUrl = serverUrl,
+                serverStatus = serverStatus,
+                checkingServer = checkingServer,
+                status = status,
+                onSaveServerUrl = { viewModel.saveServerUrl(it) },
+                onCheckServerUrl = { viewModel.checkServerUrl(it) },
+                onLogin = { email, password -> viewModel.login(email, password) },
+            )
+        } else {
+            Box(modifier = Modifier.weight(1f)) {
+                when (destination) {
+                    AppDestination.HOME -> HomeScreen(
+                        account = account,
+                        packs = packs,
+                        status = status,
+                        onSync = { viewModel.sync() },
+                        onOpenPacks = { destination = AppDestination.PACKS },
+                    )
+                    AppDestination.PACKS -> PacksScreen(
+                        packs = packs,
+                        stickersByPack = stickersByPack,
+                        status = status,
+                        context = context,
+                        onSync = { viewModel.sync() },
+                        onSyncPack = { viewModel.syncPack(it) },
+                        onClearPackCache = { viewModel.clearPackCache(it) },
+                        onUploadSticker = { pack ->
+                            stickerUploadPackId = pack.id
+                            stickerUploadPackAnimated = pack.isAnimated
+                            stickerPicker.launch("image/*")
+                        },
+                        onReplaceTrayIcon = { pack ->
+                            trayIconPackId = pack.id
+                            trayIconPicker.launch("image/*")
+                        },
+                        onExport = { viewModel.exportPack(it) },
+                    )
+                    AppDestination.SETTINGS -> SettingsScreen(
+                        serverUrl = serverUrl,
+                        serverStatus = serverStatus,
+                        checkingServer = checkingServer,
+                        account = account,
+                        cacheUsage = cacheUsage,
+                        darkTheme = darkTheme,
+                        onSaveServerUrl = { viewModel.saveServerUrl(it) },
+                        onCheckServerUrl = { viewModel.checkServerUrl(it) },
+                        onLogout = { viewModel.logout() },
+                        onClearCache = { viewModel.clearCache() },
+                        onToggleTheme = onToggleTheme,
+                        onTroubleshooting = { showTroubleshooting = true },
+                    )
+                }
             }
+            MobileNavigationBar(
+                selected = destination,
+                onSelect = { destination = it },
+            )
         }
-        MobileNavigationBar(
-            selected = destination,
-            onSelect = { destination = it },
-        )
     }
 
     if (showTroubleshooting) {
@@ -222,6 +236,40 @@ private fun StickerApp(
                 }
                 pendingEdit = null
             },
+        )
+    }
+}
+
+@Composable
+private fun LoginScreen(
+    serverUrl: String,
+    serverStatus: AppStatus,
+    checkingServer: Boolean,
+    status: AppStatus,
+    onSaveServerUrl: (String) -> Unit,
+    onCheckServerUrl: (String) -> Unit,
+    onLogin: (String, String) -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Text("Welcome to Sticker Foundry", style = MaterialTheme.typography.headlineSmall)
+        Text(
+            "Sign in to open your Home, Packs, and Settings workspace.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        LoginBox(
+            serverUrl = serverUrl,
+            serverStatus = serverStatus,
+            checkingServer = checkingServer,
+            onSaveServerUrl = onSaveServerUrl,
+            onCheckServerUrl = onCheckServerUrl,
+            onLogin = onLogin,
+            status = status,
         )
     }
 }
@@ -387,10 +435,8 @@ private fun SettingsScreen(
     account: String,
     cacheUsage: String,
     darkTheme: Boolean,
-    status: AppStatus,
     onSaveServerUrl: (String) -> Unit,
     onCheckServerUrl: (String) -> Unit,
-    onLogin: (String, String) -> Unit,
     onLogout: () -> Unit,
     onClearCache: () -> Unit,
     onToggleTheme: (Boolean) -> Unit,
@@ -404,18 +450,16 @@ private fun SettingsScreen(
     ) {
         Text("Settings", style = MaterialTheme.typography.headlineSmall)
         Text(
-            "Connect the app, manage your account, and tune the local experience.",
+            "Manage the server connection, account, theme, and local cache.",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        LoginBox(
+        ServerSettingsPanel(
             serverUrl = serverUrl,
             serverStatus = serverStatus,
             checkingServer = checkingServer,
             onSaveServerUrl = onSaveServerUrl,
             onCheckServerUrl = onCheckServerUrl,
-            onLogin = onLogin,
-            status = status,
         )
         SettingsPanel(
             account = account,
