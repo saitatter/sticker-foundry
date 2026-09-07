@@ -20,6 +20,7 @@ export type RequestOptions = RequestInit & {
 
 export class HttpClient<TAuth = unknown> {
   private refreshPromise: Promise<string | null> | null = null;
+  private refreshResponsePromise: Promise<TAuth | null> | null = null;
 
   constructor(
     private readonly getToken: () => string | null,
@@ -107,7 +108,14 @@ export class HttpClient<TAuth = unknown> {
   }
 
   async refreshResponse() {
-    return this.fetchRefreshResponse();
+    if (this.refreshResponsePromise) return this.refreshResponsePromise;
+
+    this.refreshResponsePromise = this.fetchRefreshResponse();
+    try {
+      return await this.refreshResponsePromise;
+    } finally {
+      this.refreshResponsePromise = null;
+    }
   }
 
   private headers(options: RequestOptions, token = this.getToken()) {
@@ -136,7 +144,7 @@ export class HttpClient<TAuth = unknown> {
   private async refreshAuth() {
     if (this.refreshPromise) return this.refreshPromise;
     this.refreshPromise = (async () => {
-      const auth = await this.fetchRefreshResponse();
+      const auth = await this.refreshResponse();
       if (!auth) {
         this.onAuth(null);
         return null;

@@ -238,6 +238,7 @@ test('restores a protected session without flashing the login screen', async ({ 
   await page.goto('/app/packs/pack-ready');
   await expect(page.getByRole('heading', { name: 'Smoke Ready' })).toBeVisible();
   await expect(page.locator('.auth-layout')).toHaveCount(0);
+  expect(state.refreshCalls).toBe(1);
   expect(await page.evaluate(() => (window as Window & { __sawAuthLayout?: boolean }).__sawAuthLayout)).toBe(false);
 });
 
@@ -427,6 +428,7 @@ function createMockState() {
   return {
     failTrayIconFor: new Set<string>(),
     packs,
+    refreshCalls: 0,
     trayUploads: 0,
     activity: Array.from(
       { length: 31 },
@@ -469,6 +471,7 @@ async function mockApi(page: Page, state: ReturnType<typeof createMockState>) {
       });
     }
     if (method === 'POST' && path === '/auth/refresh') {
+      state.refreshCalls += 1;
       return json(route, {
         accessToken: 'access-token',
         user: { id: 'user-1', email: 'demo@stickerfoundry.local', displayName: 'Demo', isAdmin: true },

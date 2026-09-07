@@ -51,4 +51,29 @@ describe(HttpClient, () => {
       } satisfies Partial<ApiError>),
     );
   });
+
+  it('deduplicates concurrent session refreshes', async () => {
+    let resolveRefresh: ((response: Response) => void) | undefined;
+    const refreshResponse = new Promise<Response>((resolve) => {
+      resolveRefresh = resolve;
+    });
+    const fetchMock = vi.fn().mockReturnValue(refreshResponse);
+    vi.stubGlobal('fetch', fetchMock);
+    const client = new HttpClient(() => null);
+
+    const first = client.refreshResponse();
+    const second = client.refreshResponse();
+    resolveRefresh?.(
+      new Response(JSON.stringify({ accessToken: 'fresh-token' }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    );
+
+    await expect(Promise.all([first, second])).resolves.toEqual([
+      { accessToken: 'fresh-token' },
+      { accessToken: 'fresh-token' },
+    ]);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
 });

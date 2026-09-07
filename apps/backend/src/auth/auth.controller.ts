@@ -55,7 +55,7 @@ export class AuthController {
   }
 
   @Post('refresh')
-  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  @Throttle({ default: { limit: 120, ttl: 60_000 } })
   async refresh(
     @Body() dto: RefreshTokenDto,
     @Headers('cookie') cookieHeader: string | undefined,
