@@ -36,6 +36,7 @@ data class JobResultDto(
 
 data class HealthResponse(
     val status: String,
+    val version: String? = null,
 )
 
 data class UserDto(

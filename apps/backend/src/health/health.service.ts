@@ -17,6 +17,7 @@ export class HealthService {
     const database = await this.databaseStatus();
     return {
       status: database === 'ok' ? 'ok' : 'degraded',
+      version: process.env.APP_VERSION ?? process.env.npm_package_version ?? '1.2.0',
       timestamp: new Date().toISOString(),
       uptimeSeconds: Math.round(process.uptime()),
       checks: {

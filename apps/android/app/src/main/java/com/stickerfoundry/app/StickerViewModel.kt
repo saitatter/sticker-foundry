@@ -48,6 +48,7 @@ class StickerViewModel(
     val serverUrl = MutableStateFlow(repository.serverUrl())
     val account = MutableStateFlow(repository.accountLabel())
     val isLoggedIn = MutableStateFlow(repository.isLoggedIn())
+    val serverVersion = MutableStateFlow("Not checked")
     val cacheUsage = MutableStateFlow(formatBytes(repository.cacheSizeBytes()))
     val darkTheme = MutableStateFlow(repository.darkTheme())
     private val _exportEvents = MutableSharedFlow<File>(extraBufferCapacity = 1)
@@ -110,6 +111,7 @@ class StickerViewModel(
             serverStatus.value = AppStatus("Checking server")
             runCatching { repository.checkServerUrl(url) }
                 .onSuccess { health ->
+                    serverVersion.value = health.version ?: "Unknown"
                     serverStatus.value = AppStatus("Connected: ${health.status}")
                     setInfo("Server connection OK")
                 }
@@ -118,6 +120,13 @@ class StickerViewModel(
                     setError(it, "Server check failed")
                 }
             checkingServer.value = false
+        }
+    }
+
+    fun refreshServerInfo() {
+        viewModelScope.launch {
+            runCatching { repository.checkServerUrl(serverUrl.value) }
+                .onSuccess { health -> serverVersion.value = health.version ?: "Unknown" }
         }
     }
 

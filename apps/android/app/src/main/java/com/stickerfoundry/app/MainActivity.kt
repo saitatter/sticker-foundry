@@ -24,6 +24,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -32,7 +34,9 @@ import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.AccountCircle
 import androidx.compose.material.icons.outlined.DarkMode
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.Inventory2
@@ -121,6 +125,7 @@ private fun StickerApp(
     val serverUrl by viewModel.serverUrl.collectAsState()
     val account by viewModel.account.collectAsState()
     val isLoggedIn by viewModel.isLoggedIn.collectAsState()
+    val serverVersion by viewModel.serverVersion.collectAsState()
     val cacheUsage by viewModel.cacheUsage.collectAsState()
     val context = LocalContext.current
     LaunchedEffect(viewModel) {
@@ -131,6 +136,8 @@ private fun StickerApp(
     var trayIconPackId by remember { mutableStateOf<String?>(null) }
     var pendingEdit by remember { mutableStateOf<PendingImageEdit?>(null) }
     var showTroubleshooting by remember { mutableStateOf(false) }
+    var showProfileMenu by remember { mutableStateOf(false) }
+    var showSettingsWindow by remember { mutableStateOf(false) }
     var destination by rememberSaveable { mutableStateOf(AppDestination.HOME) }
     LaunchedEffect(isLoggedIn) {
         if (!isLoggedIn) destination = AppDestination.HOME
@@ -157,7 +164,15 @@ private fun StickerApp(
             .fillMaxSize()
             .padding(top = 12.dp, start = 16.dp, end = 16.dp),
     ) {
-        FoundryHeader(darkTheme = darkTheme, onToggleTheme = onToggleTheme)
+        FoundryHeader(
+            darkTheme = darkTheme,
+            account = account,
+            onToggleTheme = onToggleTheme,
+            onProfileClick = if (isLoggedIn) ({
+                viewModel.refreshServerInfo()
+                showProfileMenu = true
+            }) else null,
+        )
         Spacer(modifier = Modifier.height(12.dp))
         if (!isLoggedIn) {
             LoginScreen(
@@ -219,6 +234,37 @@ private fun StickerApp(
                 onSelect = { destination = it },
             )
         }
+    }
+
+    if (showProfileMenu) {
+        ProfileDialog(
+            account = account,
+            serverUrl = serverUrl,
+            serverVersion = serverVersion,
+            onSettings = {
+                showProfileMenu = false
+                showSettingsWindow = true
+            },
+            onDismiss = { showProfileMenu = false },
+        )
+    }
+
+    if (showSettingsWindow) {
+        SettingsWindow(
+            serverUrl = serverUrl,
+            serverStatus = serverStatus,
+            checkingServer = checkingServer,
+            account = account,
+            cacheUsage = cacheUsage,
+            darkTheme = darkTheme,
+            onSaveServerUrl = { viewModel.saveServerUrl(it) },
+            onCheckServerUrl = { viewModel.checkServerUrl(it) },
+            onLogout = { showSettingsWindow = false; viewModel.logout() },
+            onClearCache = { viewModel.clearCache() },
+            onToggleTheme = onToggleTheme,
+            onTroubleshooting = { showTroubleshooting = true },
+            onDismiss = { showSettingsWindow = false },
+        )
     }
 
     if (showTroubleshooting) {
@@ -485,6 +531,51 @@ private fun StatusMessage(status: AppStatus) {
 }
 
 @Composable
+private fun ProfileDialog(
+    account: String,
+    serverUrl: String,
+    serverVersion: String,
+    onSettings: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Icon(Icons.Outlined.AccountCircle, contentDescription = null)
+                Text(account)
+            }
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                ProfileInfoRow("App version", BuildConfig.VERSION_NAME)
+                ProfileInfoRow("Server version", serverVersion)
+                ProfileInfoRow("Server URL", serverUrl)
+                ProfileInfoRow("Latest version", BuildConfig.VERSION_NAME)
+            }
+        },
+        confirmButton = {
+            Button(onClick = onSettings) {
+                Text("Settings")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Close")
+            }
+        },
+    )
+}
+
+@Composable
+private fun ProfileInfoRow(label: String, value: String) {
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(value, style = MaterialTheme.typography.bodyMedium)
+    }
+}
+
+@Composable
 private fun MobileNavigationBar(
     selected: AppDestination,
     onSelect: (AppDestination) -> Unit,
@@ -521,7 +612,12 @@ private fun MainActivity.applySystemBars(darkTheme: Boolean) {
 }
 
 @Composable
-private fun FoundryHeader(darkTheme: Boolean, onToggleTheme: (Boolean) -> Unit) {
+private fun FoundryHeader(
+    darkTheme: Boolean,
+    account: String,
+    onToggleTheme: (Boolean) -> Unit,
+    onProfileClick: (() -> Unit)?,
+) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier
@@ -541,14 +637,21 @@ private fun FoundryHeader(darkTheme: Boolean, onToggleTheme: (Boolean) -> Unit) 
                 Text("Sticker Foundry", style = MaterialTheme.typography.titleLarge)
                 Text("Your WhatsApp sticker workspace", style = MaterialTheme.typography.bodySmall)
             }
-            IconButton(
-                onClick = { onToggleTheme(!darkTheme) },
-                modifier = Modifier.size(48.dp),
-            ) {
-                Icon(
-                    imageVector = if (darkTheme) Icons.Outlined.LightMode else Icons.Outlined.DarkMode,
-                    contentDescription = if (darkTheme) "Use light theme" else "Use dark theme",
-                )
+            Row {
+                IconButton(
+                    onClick = { onToggleTheme(!darkTheme) },
+                    modifier = Modifier.size(48.dp),
+                ) {
+                    Icon(
+                        imageVector = if (darkTheme) Icons.Outlined.LightMode else Icons.Outlined.DarkMode,
+                        contentDescription = if (darkTheme) "Use light theme" else "Use dark theme",
+                    )
+                }
+                onProfileClick?.let { openProfile ->
+                    IconButton(onClick = openProfile, modifier = Modifier.size(48.dp)) {
+                        Icon(Icons.Outlined.AccountCircle, contentDescription = "Open profile menu for $account")
+                    }
+                }
             }
         }
     }
