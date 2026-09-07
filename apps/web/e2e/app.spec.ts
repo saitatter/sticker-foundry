@@ -57,8 +57,33 @@ test('covers core web sticker workflows with mocked API', async ({ page }) => {
   await expect(page.locator('.sticker-tile').first()).toHaveClass(/selected/);
   await page.keyboard.press('n');
   await expect(page.locator('.sticker-tile').first()).toContainText('Needs work');
+  await expect(page.getByRole('button', { name: 'Move sticker up' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Move sticker down' })).toHaveCount(0);
+  await expect(page.locator('.sticker-preview-button svg')).toHaveCount(0);
   await page.keyboard.press('Shift+ArrowDown');
   await expect.poll(() => state.packs[0].stickers?.[1]?.id).toBe('sticker-1');
+  const sourceTile = page.locator('.sticker-tile').last();
+  const targetTile = page.locator('.sticker-tile').first();
+  if (test.info().project.name === 'chromium') {
+    const sourceBox = await sourceTile.locator('.sticker-drag-handle').boundingBox();
+    const targetBox = await targetTile.boundingBox();
+    if (!sourceBox || !targetBox) throw new Error('Could not measure sticker tiles for drag test');
+    await page.mouse.move(sourceBox.x + sourceBox.width / 2, sourceBox.y + sourceBox.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(sourceBox.x + sourceBox.width / 2 + 12, sourceBox.y + sourceBox.height / 2, { steps: 2 });
+    await page.mouse.move(targetBox.x + targetBox.width / 2, targetBox.y + targetBox.height / 2, { steps: 10 });
+    await page.mouse.up();
+  } else {
+    const sourceSortable = page.locator('.sticker-grid > div').last();
+    await sourceSortable.focus();
+    await page.keyboard.press('Space');
+    await page.keyboard.press('ArrowLeft');
+    await page.keyboard.press('ArrowLeft');
+    await page.keyboard.press('Space');
+  }
+  await expect
+    .poll(() => state.packs[0].stickers?.map((sticker) => sticker.id))
+    .toEqual(['sticker-3', 'sticker-2', 'sticker-1']);
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(page.locator('.sticker-grid')).toBeVisible();
   await expect.poll(() => stickerGridColumnCount(page)).toBeGreaterThanOrEqual(2);

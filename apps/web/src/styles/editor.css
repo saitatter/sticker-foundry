@@ -459,7 +459,7 @@
 
 .sticker-tile-toolbar {
   display: grid;
-  grid-template-columns: auto auto minmax(0, 1fr) auto;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: 6px;
 }
@@ -478,16 +478,12 @@
 
 .sticker-drag-handle {
   cursor: grab;
+  touch-action: none;
+  user-select: none;
 }
 
-.sticker-order-actions {
-  display: flex;
-  gap: 6px;
-}
-
-.sticker-order-actions .icon-button {
-  width: 34px;
-  min-height: 34px;
+.sticker-drag-handle:active {
+  cursor: grabbing;
 }
 
 .sticker-select {
@@ -533,25 +529,10 @@
 }
 
 .sticker-preview-button {
-  position: relative;
   width: 100%;
   padding: 0;
   border: 0;
   cursor: zoom-in;
-}
-
-.sticker-preview-button span {
-  position: absolute;
-  right: 8px;
-  bottom: 8px;
-  width: 32px;
-  height: 32px;
-  display: grid;
-  place-items: center;
-  border-radius: 8px;
-  border: 1px solid var(--border);
-  color: var(--muted);
-  background: rgba(255, 255, 255, 0.92);
 }
 
 .sticker-preview img {

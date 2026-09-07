@@ -1,9 +1,6 @@
 import {
-  ArrowDown,
-  ArrowUp,
   Copy,
   Edit3,
-  Eye,
   GripVertical,
   ImagePlus,
   MessageSquare,
@@ -40,18 +37,11 @@ export function StickerTile({
   sticker,
   version,
   canEdit,
-  canMoveDown,
-  canMoveUp,
   isDragging,
   isSelected,
   onChanged,
   onDeleted,
-  onDragEnd,
-  onDragStart,
-  onDrop,
   onError,
-  onMoveDown,
-  onMoveUp,
   onSelectedChange,
 }: {
   api: StickerFoundryApi;
@@ -62,18 +52,11 @@ export function StickerTile({
   sticker: Sticker;
   version: string;
   canEdit: boolean;
-  canMoveDown: boolean;
-  canMoveUp: boolean;
   isDragging: boolean;
   isSelected: boolean;
   onChanged: () => Promise<void>;
   onDeleted: () => Promise<void>;
-  onDragEnd: () => void;
-  onDragStart: () => void;
-  onDrop: () => void;
   onError: (error: unknown) => void;
-  onMoveDown: () => void;
-  onMoveUp: () => void;
   onSelectedChange: (selected: boolean) => void;
 }) {
   const [url, setUrl] = useState<string | null>(null);
@@ -274,27 +257,12 @@ export function StickerTile({
     reviewStatus !== sticker.reviewStatus;
 
   return (
-    <article
-      className={`sticker-tile ${isDragging ? 'dragging' : ''} ${isSelected ? 'selected' : ''}`}
-      draggable={canEdit}
-      onDragEnd={onDragEnd}
-      onDragOver={(event) => event.preventDefault()}
-      onDragStart={onDragStart}
-      onDrop={onDrop}
-    >
+    <article className={`sticker-tile ${isDragging ? 'dragging' : ''} ${isSelected ? 'selected' : ''}`}>
       {canEdit ? (
         <div className="sticker-tile-toolbar">
-          <span className="sticker-drag-handle" aria-hidden="true">
+          <span className="sticker-drag-handle" aria-hidden="true" title="Drag to reorder">
             <GripVertical size={16} />
           </span>
-          <div className="sticker-order-actions">
-            <IconButton label="Move sticker up" onClick={onMoveUp} disabled={!canMoveUp}>
-              <ArrowUp size={15} />
-            </IconButton>
-            <IconButton label="Move sticker down" onClick={onMoveDown} disabled={!canMoveDown}>
-              <ArrowDown size={15} />
-            </IconButton>
-          </div>
           <label className="sticker-select">
             <Checkbox checked={isSelected} onChange={(event) => onSelectedChange(event.target.checked)} />
             <span>Select</span>
@@ -304,11 +272,13 @@ export function StickerTile({
           </IconButton>
         </div>
       ) : null}
-      <Button className="sticker-preview sticker-preview-button" onClick={() => setDetailOpen(true)} type="button" variant="unstyled">
+      <Button
+        className="sticker-preview sticker-preview-button"
+        onClick={() => setDetailOpen(true)}
+        type="button"
+        variant="unstyled"
+      >
         {url ? <img alt={sticker.accessibilityText ?? sticker.fileName} src={url} /> : null}
-        <span>
-          <Eye size={16} />
-        </span>
       </Button>
       <div className="sticker-meta">
         <span>{formatBytes(sticker.sizeBytes)}</span>

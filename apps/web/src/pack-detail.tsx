@@ -7,6 +7,7 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { AdminSettings, AuditLogEntry, Pack, PackRole, Sticker, StickerFoundryApi } from './api';
 import { useJobQuery } from './features/jobs/queries';
 import { queryKeys } from './lib/query-keys';
+import { reorderIds } from './lib/reorder';
 import { useConfirmDialog } from './components/ui/confirm-dialog';
 import { CollaborationPanel, PackEditForm, TrayIconPanel, UploadPanel } from './pack-detail-panels';
 import { reviewStatusLabel, StickerTile } from './sticker-tile';
@@ -63,7 +64,6 @@ export function PackDetail({
   const [exportActionId, setExportActionId] = useState<string | null>(null);
   const [contentsPreview, setContentsPreview] = useState<string | null>(null);
   const [loadingContents, setLoadingContents] = useState(false);
-  const [draggingStickerId, setDraggingStickerId] = useState<string | null>(null);
   const [selectedStickerIds, setSelectedStickerIds] = useState<string[]>([]);
   const [bulkEmojis, setBulkEmojis] = useState('');
   const [bulkTargetPackId, setBulkTargetPackId] = useState('');
@@ -246,17 +246,11 @@ export function PackDetail({
     }
   }
 
-  async function reorderStickerTo(targetStickerId: string, sourceStickerId = draggingStickerId) {
-    if (!sourceStickerId || sourceStickerId === targetStickerId) return;
+  async function reorderStickerTo(targetStickerId: string, sourceStickerId: string) {
+    const currentOrder = stickers.map((sticker) => sticker.id);
+    const nextOrder = reorderIds(currentOrder, sourceStickerId, targetStickerId);
+    if (nextOrder === currentOrder) return;
 
-    const currentIndex = stickers.findIndex((sticker) => sticker.id === sourceStickerId);
-    const targetIndex = stickers.findIndex((sticker) => sticker.id === targetStickerId);
-    if (currentIndex < 0 || targetIndex < 0) return;
-
-    const nextOrder = stickers.map((sticker) => sticker.id);
-    const [movedStickerId] = nextOrder.splice(currentIndex, 1);
-    const insertIndex = currentIndex < targetIndex ? targetIndex - 1 : targetIndex;
-    nextOrder.splice(insertIndex, 0, movedStickerId);
     const nextStickers = nextOrder
       .map((id) => stickers.find((sticker) => sticker.id === id))
       .filter((sticker): sticker is Sticker => Boolean(sticker));
@@ -268,8 +262,6 @@ export function PackDetail({
     } catch (error) {
       setOptimisticStickers(null);
       onError(error);
-    } finally {
-      setDraggingStickerId(null);
     }
   }
 
@@ -710,31 +702,26 @@ export function PackDetail({
               <DndContext collisionDetection={closestCenter} onDragEnd={handleDndEnd} sensors={dndSensors}>
                 <SortableContext items={stickers.map((sticker) => sticker.id)} strategy={rectSortingStrategy}>
                   <div className="sticker-grid">
-                    {stickers.map((sticker, index) => (
-                      <SortableSticker key={sticker.id} id={sticker.id}>
-                        <StickerTile
-                          api={api}
-                          backgroundRemovalStatus={backgroundRemovalStatus}
-                          isAnimatedPack={pack.isAnimated}
-                          packId={pack.id}
-                          transferTargets={transferTargets}
-                          sticker={sticker}
-                          version={pack.imageDataVersion}
-                          canEdit={canEdit}
-                          canMoveDown={index < stickers.length - 1}
-                          canMoveUp={index > 0}
-                          isDragging={draggingStickerId === sticker.id}
-                          isSelected={selectedStickerSet.has(sticker.id)}
-                          onChanged={() => onChanged('Sticker updated')}
-                          onDeleted={() => onChanged('Sticker deleted')}
-                          onDragEnd={() => setDraggingStickerId(null)}
-                          onDragStart={() => setDraggingStickerId(sticker.id)}
-                          onDrop={() => void reorderStickerTo(sticker.id)}
-                          onError={onError}
-                          onMoveDown={() => moveSticker(sticker.id, 1)}
-                          onMoveUp={() => moveSticker(sticker.id, -1)}
-                          onSelectedChange={(selected) => toggleStickerSelection(sticker.id, selected)}
-                        />
+                    {stickers.map((sticker) => (
+                      <SortableSticker key={sticker.id} disabled={!canEdit} id={sticker.id}>
+                        {(isDragging) => (
+                          <StickerTile
+                            api={api}
+                            backgroundRemovalStatus={backgroundRemovalStatus}
+                            isAnimatedPack={pack.isAnimated}
+                            packId={pack.id}
+                            transferTargets={transferTargets}
+                            sticker={sticker}
+                            version={pack.imageDataVersion}
+                            canEdit={canEdit}
+                            isDragging={isDragging}
+                            isSelected={selectedStickerSet.has(sticker.id)}
+                            onChanged={() => onChanged('Sticker updated')}
+                            onDeleted={() => onChanged('Sticker deleted')}
+                            onError={onError}
+                            onSelectedChange={(selected) => toggleStickerSelection(sticker.id, selected)}
+                          />
+                        )}
                       </SortableSticker>
                     ))}
                   </div>
@@ -789,8 +776,16 @@ export function PackDetail({
   );
 }
 
-function SortableSticker({ id, children }: { id: string; children: ReactNode }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
+function SortableSticker({
+  disabled = false,
+  id,
+  children,
+}: {
+  disabled?: boolean;
+  id: string;
+  children: (isDragging: boolean) => ReactNode;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id, disabled });
   return (
     <div
       ref={setNodeRef}
@@ -798,7 +793,7 @@ function SortableSticker({ id, children }: { id: string; children: ReactNode }) 
       {...attributes}
       {...listeners}
     >
-      {children}
+      {children(isDragging)}
     </div>
   );
 }
