@@ -5,6 +5,36 @@
   padding: 20px;
 }
 
+.auth-loading-screen {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+}
+
+.auth-loading-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: min(280px, 100%);
+  padding: 14px 16px;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: var(--shadow-soft);
+}
+
+.auth-loading-card > div {
+  display: grid;
+  gap: 3px;
+}
+
+.auth-loading-card span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
 .share-layout {
   min-height: 100vh;
   display: grid;
@@ -137,15 +167,21 @@
 }
 
 .notice {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 50;
+  width: min(420px, calc(100vw - 40px));
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
   padding: 11px 13px;
-  margin-bottom: 14px;
+  margin: 0;
   border-radius: 8px;
   border: 1px solid var(--border);
   background: var(--surface);
+  box-shadow: var(--shadow-hover);
   animation: sf-slide-in 220ms ease both;
 }
 

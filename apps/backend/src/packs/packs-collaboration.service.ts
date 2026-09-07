@@ -1,9 +1,4 @@
-import {
-  BadRequestException,
-  ForbiddenException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PackRole } from '@prisma/client';
 import { randomBytes } from 'crypto';
 import { AuditService } from '../audit/audit.service';
@@ -85,7 +80,7 @@ export class PacksCollaborationService {
     });
   }
 
-  async activity(userId: string, packId: string) {
+  async activity(userId: string, packId: string, limit?: number) {
     const pack = await this.access.loadPackForAccess(userId, packId);
     if (!pack) {
       throw new NotFoundException('Pack not found');
@@ -103,7 +98,7 @@ export class PacksCollaborationService {
         ],
       },
       orderBy: { createdAt: 'desc' },
-      take: 30,
+      ...(limit === undefined ? {} : { take: Math.min(Math.max(limit, 1), 100) }),
       include: { actor: { select: { id: true, email: true, displayName: true } } },
     });
   }
@@ -133,7 +128,12 @@ export class PacksCollaborationService {
       action: 'pack.invite.create',
       entityType: 'packInvite',
       entityId: invite.id,
-      metadata: { packId, role: invite.role, email: invite.email ?? null, expiresAt: invite.expiresAt?.toISOString() ?? null },
+      metadata: {
+        packId,
+        role: invite.role,
+        email: invite.email ?? null,
+        expiresAt: invite.expiresAt?.toISOString() ?? null,
+      },
     });
     return invite;
   }

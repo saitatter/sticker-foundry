@@ -37,6 +37,15 @@ type Pack = {
   stickers?: Sticker[];
 };
 
+type ActivityEntry = {
+  id: string;
+  action: string;
+  entityType: string;
+  createdAt: string;
+  metadata?: unknown;
+  actor: { id: string; email: string; displayName: string };
+};
+
 test('covers core web sticker workflows with mocked API', async ({ page }) => {
   const state = createMockState();
   state.failTrayIconFor.add('pack-ready');
@@ -51,7 +60,10 @@ test('covers core web sticker workflows with mocked API', async ({ page }) => {
   ).toBeVisible();
   await page.getByRole('button', { name: 'Open pack Smoke Ready' }).click();
   await expect(page.getByRole('heading', { name: 'Smoke Ready' })).toBeVisible();
-  await expect(page.locator('.stats-grid')).toContainText('Owner');
+  await expect(page.locator('.last-activity-card')).toBeVisible();
+  await expect(page.locator('.last-activity-card .activity-row')).toHaveCount(1);
+  await expect(page.locator('.activity-panel')).toHaveCount(0);
+  await expect(page.locator('.overview-summary')).toContainText('Owner');
   await openStickersTab(page);
   await page.keyboard.press('j');
   await expect(page.locator('.sticker-tile').first()).toHaveClass(/selected/);
@@ -60,7 +72,15 @@ test('covers core web sticker workflows with mocked API', async ({ page }) => {
   await expect(page.getByRole('button', { name: 'Move sticker up' })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Move sticker down' })).toHaveCount(0);
   await expect(page.locator('.sticker-preview-button svg')).toHaveCount(0);
+  await page.locator('.sticker-tile').last().hover();
+  await page.keyboard.down('Shift');
+  await page.locator('.sticker-tile').last().getByRole('button', { name: 'Select sticker' }).click();
+  await page.keyboard.up('Shift');
+  await expect(page.locator('.sticker-tile.selected')).toHaveCount(3);
+  await page.locator('.bulk-toolbar').getByRole('button', { name: 'Clear' }).click();
+  await page.keyboard.press('j');
   await page.keyboard.press('Shift+ArrowDown');
+  await page.getByRole('button', { name: 'Save changes' }).click();
   await expect.poll(() => state.packs[0].stickers?.[1]?.id).toBe('sticker-1');
   const sourceTile = page.locator('.sticker-tile').last();
   const targetTile = page.locator('.sticker-tile').first();
@@ -81,6 +101,7 @@ test('covers core web sticker workflows with mocked API', async ({ page }) => {
     await page.keyboard.press('ArrowLeft');
     await page.keyboard.press('Space');
   }
+  await page.getByRole('button', { name: 'Save changes' }).click();
   await expect
     .poll(() => state.packs[0].stickers?.map((sticker) => sticker.id))
     .toEqual(['sticker-3', 'sticker-2', 'sticker-1']);
@@ -130,7 +151,7 @@ test('covers core web sticker workflows with mocked API', async ({ page }) => {
   await page.locator('.upload-panel').getByRole('button', { name: 'Upload' }).click();
   await expect.poll(() => state.uploads.length).toBe(1);
   await page.getByRole('tab', { name: 'Overview' }).click();
-  await expect(page.locator('.stats-grid')).toContainText('1/30');
+  await expect(page.locator('.overview-summary')).toContainText('1/30');
 
   await page.getByRole('button', { name: 'Open packs' }).click();
   await page.getByRole('button', { name: 'Open pack Smoke Ready' }).click();
@@ -139,6 +160,36 @@ test('covers core web sticker workflows with mocked API', async ({ page }) => {
   await page.locator('.bulk-toolbar').getByLabel('Target').selectOption({ label: 'Scratch Pack (1/30)' });
   await page.locator('.bulk-toolbar').getByRole('button', { name: 'Copy' }).click();
   await expect(page.getByText('Selected stickers copied')).toBeVisible();
+});
+
+test('saves pack details and tray icon together from the global save action', async ({ page }) => {
+  const state = createMockState();
+  await mockApi(page, state);
+  await login(page);
+
+  await page.getByRole('tab', { name: 'Settings' }).click();
+  await page.getByLabel('Name').fill('Saved Pack Name');
+  await page.getByRole('tab', { name: 'Activity' }).click();
+  await expect(page.getByRole('button', { name: 'Save changes' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Discard' })).toBeVisible();
+  await page.getByRole('tab', { name: 'Settings' }).click();
+  await expect(page.getByLabel('Name')).toHaveValue('Saved Pack Name');
+  await page.getByRole('button', { name: 'Discard' }).click();
+  await expect(page.getByLabel('Name')).toHaveValue('Smoke Ready');
+  await expect(page.getByRole('button', { name: 'Save changes' })).toHaveCount(0);
+  await page.getByLabel('Name').fill('Saved Pack Name');
+  await page.locator('.tray-file-picker input[type=file]').setInputFiles({
+    name: 'tray.png',
+    mimeType: 'image/png',
+    buffer: png1x1,
+  });
+  await expect(page.getByRole('button', { name: 'Save changes' })).toBeVisible();
+  await page.getByRole('button', { name: 'Save changes' }).click();
+  await expect.poll(() => state.packs[0].name).toBe('Saved Pack Name');
+  await expect.poll(() => state.trayUploads).toBe(1);
+  await expect(page.getByText('All changes saved')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Discard' })).toHaveCount(0);
+  await expect(page.locator('.notice.success')).toHaveCSS('position', 'fixed');
 });
 
 test('supports direct workspace navigation, refresh, and browser history', async ({ page }) => {
@@ -164,6 +215,51 @@ test('supports direct workspace navigation, refresh, and browser history', async
   await page.goForward();
   await expect(page).toHaveURL(/\/app\/packs\/pack-ready$/);
   await expect(page.getByRole('heading', { name: 'Smoke Ready' })).toBeVisible();
+});
+
+test('restores a protected session without flashing the login screen', async ({ page }) => {
+  await page.addInitScript(() => {
+    const state = window as Window & { __sawAuthLayout?: boolean };
+    state.__sawAuthLayout = false;
+    new MutationObserver(() => {
+      if (document.querySelector('.auth-layout')) state.__sawAuthLayout = true;
+    }).observe(document.documentElement, { childList: true, subtree: true });
+  });
+  const state = createMockState();
+  await mockApi(page, state);
+
+  await page.goto('/app/packs/pack-ready');
+  await expect(page.getByRole('heading', { name: 'Smoke Ready' })).toBeVisible();
+  await expect(page.locator('.auth-layout')).toHaveCount(0);
+  expect(await page.evaluate(() => (window as Window & { __sawAuthLayout?: boolean }).__sawAuthLayout)).toBe(false);
+});
+
+test('paginates pack activity and changes the page size', async ({ page }) => {
+  const state = createMockState();
+  await mockApi(page, state);
+  await login(page, { openFirstPack: false });
+
+  await page.goto('/app/packs/pack-ready/activity');
+  await expect(page.getByRole('heading', { name: 'Activity' })).toBeVisible();
+  await expect(page.locator('.activity-row')).toHaveCount(10);
+  await page.locator('.activity-row').first().click();
+  await expect(page.getByRole('dialog', { name: 'Pack Update' })).toBeVisible();
+  await expect(page.locator('.activity-detail-dialog')).toContainText('Before');
+  await expect(page.locator('.activity-detail-dialog')).toContainText('After');
+  await expect(page.locator('.activity-snapshot').nth(1)).toContainText('Smoke Ready');
+  await page.getByRole('dialog', { name: 'Pack Update' }).getByRole('button', { name: 'Close' }).click();
+  await expect(page.getByText('Showing 1–10 of 31')).toBeVisible();
+  await page.getByRole('button', { name: 'Activity page 2' }).click();
+  await expect(page.locator('.activity-row')).toHaveCount(10);
+  await expect(page.getByText('Showing 11–20 of 31')).toBeVisible();
+
+  await page.getByLabel('Activities per page').selectOption('25');
+  await expect(page.locator('.activity-row')).toHaveCount(25);
+  await expect(page.getByText('Showing 1–25 of 31')).toBeVisible();
+
+  await page.getByLabel('Activities per page').selectOption('all');
+  await expect(page.locator('.activity-row')).toHaveCount(31);
+  await expect(page.getByText('Showing 1–31 of 31')).toBeVisible();
 });
 
 test('packs workspace has no obvious accessibility violations', async ({ page }) => {
@@ -245,7 +341,9 @@ test('submits optimizer and server background removal options', async ({ page })
   await expect(editor.locator('.optimizer-panel')).toContainText(/Output/);
   await editor.getByRole('tab', { name: 'Background' }).click();
   await editor.getByLabel('Background removal').selectOption('ai');
-  await expect(editor.getByText('rembg is configured as primary; failed AI runs fall back to threshold cleanup.')).toBeVisible();
+  await expect(
+    editor.getByText('rembg is configured as primary; failed AI runs fall back to threshold cleanup.'),
+  ).toBeVisible();
   await page.locator('.image-editor-modal').getByRole('button', { name: 'Apply edits' }).click();
 
   await page.locator('.upload-panel').getByRole('button', { name: 'Upload' }).click();
@@ -265,7 +363,7 @@ test('submits animated trim and frame rate upload options', async ({ page }) => 
   await newPackPanel.getByLabel('Publisher').fill('QA');
   await newPackPanel.getByLabel('Animated pack').check();
   await newPackPanel.getByRole('button', { name: 'Create' }).click();
-  await expect(page.locator('.stats-grid')).toContainText('Animated');
+  await expect(page.locator('.overview-summary')).toContainText('Animated');
 
   await openStickersTab(page);
   await chooseUploadImage(page, 'motion.gif', 'image/gif', gif1x1);
@@ -322,6 +420,24 @@ function createMockState() {
   return {
     failTrayIconFor: new Set<string>(),
     packs,
+    trayUploads: 0,
+    activity: Array.from(
+      { length: 31 },
+      (_, index): ActivityEntry => ({
+        id: `activity-${index + 1}`,
+        action: index === 0 ? 'pack.update' : 'pack.updated',
+        entityType: 'pack',
+        createdAt: new Date(Date.now() - index * 60_000).toISOString(),
+        metadata:
+          index === 0
+            ? {
+                before: { name: 'Old name' },
+                after: { name: 'Smoke Ready' },
+              }
+            : undefined,
+        actor: { id: 'user-1', email: 'demo@stickerfoundry.local', displayName: 'Demo' },
+      }),
+    ),
     uploads: [] as Array<{ packId: string; body: string }>,
     jobs: new Map<string, { id: string }>(),
   };
@@ -417,6 +533,12 @@ async function mockApi(page: Page, state: ReturnType<typeof createMockState>) {
       return json(route, packById(state, packMatch[1]));
     }
 
+    if (method === 'PATCH' && packMatch) {
+      const pack = packById(state, packMatch[1]);
+      Object.assign(pack, request.postDataJSON() as Partial<Pack>);
+      return json(route, pack);
+    }
+
     const contentsMatch = path.match(/^\/packs\/([^/]+)\/contents$/);
     if (method === 'GET' && contentsMatch) {
       const pack = packById(state, contentsMatch[1]);
@@ -440,12 +562,25 @@ async function mockApi(page: Page, state: ReturnType<typeof createMockState>) {
     }
 
     const trayIconMatch = path.match(/^\/packs\/([^/]+)\/(tray-icon|cover)$/);
-    if (method === 'GET' && trayIconMatch && trayIconMatch[2] === 'tray-icon' && state.failTrayIconFor.has(trayIconMatch[1])) {
+    if (
+      method === 'GET' &&
+      trayIconMatch &&
+      trayIconMatch[2] === 'tray-icon' &&
+      state.failTrayIconFor.has(trayIconMatch[1])
+    ) {
       return json(route, { message: 'Tray icon not found' }, 404);
     }
 
     if (method === 'GET' && path.match(/^\/packs\/[^/]+\/(tray-icon|cover|stickers\/[^/]+\/file)$/)) {
       return route.fulfill({ status: 200, contentType: 'image/png', body: png1x1 });
+    }
+
+    const trayUploadMatch = path.match(/^\/packs\/([^/]+)\/tray-icon$/);
+    if (method === 'POST' && trayUploadMatch) {
+      const pack = packById(state, trayUploadMatch[1]);
+      state.trayUploads += 1;
+      pack.imageDataVersion = String(Number(pack.imageDataVersion) + 1);
+      return json(route, pack);
     }
 
     const uploadMatch = path.match(/^\/packs\/([^/]+)\/stickers$/);
@@ -504,7 +639,7 @@ async function mockApi(page: Page, state: ReturnType<typeof createMockState>) {
       return json(route, []);
     }
     if (method === 'GET' && path.match(/^\/packs\/[^/]+\/activity$/)) {
-      return json(route, []);
+      return json(route, state.activity);
     }
 
     const jobMatch = path.match(/^\/jobs\/([^/]+)$/);

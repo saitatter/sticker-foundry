@@ -1,9 +1,4 @@
-import {
-  ConflictException,
-  ForbiddenException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { StickerReviewStatus } from '@prisma/client';
 import { randomUUID } from 'crypto';
 import { AuditService } from '../audit/audit.service';
@@ -61,7 +56,12 @@ export class PacksService {
   async list(userId: string) {
     const packs = await this.prisma.pack.findMany({
       where: {
-        OR: [{ ownerId: userId }, { isPublic: true }, { members: { some: { userId } } }, { team: { members: { some: { userId } } } }],
+        OR: [
+          { ownerId: userId },
+          { isPublic: true },
+          { members: { some: { userId } } },
+          { team: { members: { some: { userId } } } },
+        ],
       },
       orderBy: { updatedAt: 'desc' },
       include: {
@@ -146,7 +146,9 @@ export class PacksService {
     },
   >(pack: T) {
     const { _count, ...rest } = pack;
-    const approvedCount = pack.stickers.filter((sticker) => sticker.reviewStatus === StickerReviewStatus.APPROVED || !sticker.reviewStatus).length;
+    const approvedCount = pack.stickers.filter(
+      (sticker) => sticker.reviewStatus === StickerReviewStatus.APPROVED || !sticker.reviewStatus,
+    ).length;
     const exportStickerCount = rest.requiresApproval ? approvedCount : _count.stickers;
     return {
       ...rest,
@@ -197,8 +199,8 @@ export class PacksService {
     return this.collaboration.invites(ownerId, packId);
   }
 
-  async activity(userId: string, packId: string) {
-    return this.collaboration.activity(userId, packId);
+  async activity(userId: string, packId: string, limit?: number) {
+    return this.collaboration.activity(userId, packId, limit);
   }
 
   async createInvite(ownerId: string, packId: string, dto: CreatePackInviteDto) {
@@ -230,7 +232,10 @@ export class PacksService {
       throw new ForbiddenException('You do not have access to this pack');
     }
 
-    await this.access.enforceStorageQuota(userId, source.stickers.reduce((total, sticker) => total + sticker.sizeBytes, 0));
+    await this.access.enforceStorageQuota(
+      userId,
+      source.stickers.reduce((total, sticker) => total + sticker.sizeBytes, 0),
+    );
     const clonedPackId = randomUUID();
     const cloned = await this.prisma.pack.create({
       data: {
@@ -293,6 +298,23 @@ export class PacksService {
       throw new ForbiddenException('Only the owner can update this pack');
     }
 
+    const before = {
+      name: pack.name,
+      publisher: pack.publisher,
+      description: pack.description,
+      isPublic: pack.isPublic,
+      requiresApproval: pack.requiresApproval,
+      isAnimated: pack.isAnimated,
+    };
+    const after = {
+      name: dto.name ?? pack.name,
+      publisher: dto.publisher ?? pack.publisher,
+      description: dto.description !== undefined ? dto.description : pack.description,
+      isPublic: dto.isPublic ?? pack.isPublic,
+      requiresApproval: dto.requiresApproval ?? pack.requiresApproval,
+      isAnimated: dto.isAnimated ?? pack.isAnimated,
+    };
+
     await this.prisma.pack.update({
       where: { id },
       data: {
@@ -304,7 +326,13 @@ export class PacksService {
         isAnimated: dto.isAnimated,
       },
     });
-    await this.audit.record({ actorId: ownerId, action: 'pack.update', entityType: 'pack', entityId: id });
+    await this.audit.record({
+      actorId: ownerId,
+      action: 'pack.update',
+      entityType: 'pack',
+      entityId: id,
+      metadata: { before, after, changedFields: Object.keys(dto) },
+    });
 
     return this.get(ownerId, id);
   }
@@ -313,7 +341,12 @@ export class PacksService {
     return this.stickerService.uploadSticker(ownerId, packId, file, dto);
   }
 
-  async queueStickerUpload(ownerId: string, packId: string, file: Express.Multer.File | undefined, dto: UploadStickerDto) {
+  async queueStickerUpload(
+    ownerId: string,
+    packId: string,
+    file: Express.Multer.File | undefined,
+    dto: UploadStickerDto,
+  ) {
     return this.stickerService.queueStickerUpload(ownerId, packId, file, dto);
   }
 
@@ -428,5 +461,4 @@ export class PacksService {
       throw new ConflictException('Pack changed on the server. Sync the latest version before editing.');
     }
   }
-
 }

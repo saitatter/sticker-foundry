@@ -217,7 +217,16 @@ export class PacksStickerService {
       where: { id: packId },
       data: { imageDataVersion: this.access.newImageDataVersion(pack.imageDataVersion) },
     });
-    await this.audit.record({ actorId: ownerId, action: 'pack.trayIcon.replace', entityType: 'pack', entityId: packId });
+    await this.audit.record({
+      actorId: ownerId,
+      action: 'pack.trayIcon.replace',
+      entityType: 'pack',
+      entityId: packId,
+      metadata: {
+        before: { imageDataVersion: pack.imageDataVersion },
+        after: { imageDataVersion: updated.imageDataVersion },
+      },
+    });
     return updated;
   }
 
@@ -249,7 +258,17 @@ export class PacksStickerService {
       action: 'sticker.delete',
       entityType: 'sticker',
       entityId: stickerId,
-      metadata: { packId },
+      metadata: {
+        packId,
+        before: {
+          fileName: sticker.fileName,
+          emojis: sticker.emojis,
+          accessibilityText: sticker.accessibilityText,
+          reviewStatus: sticker.reviewStatus,
+          sizeBytes: sticker.sizeBytes,
+        },
+        after: null,
+      },
     });
 
     return { deleted: true };
@@ -354,7 +373,24 @@ export class PacksStickerService {
       action: 'sticker.image.replace',
       entityType: 'sticker',
       entityId: stickerId,
-      metadata: { packId, sizeBytes: updated.sizeBytes },
+      metadata: {
+        packId,
+        sizeBytes: updated.sizeBytes,
+        before: {
+          mimeType: sticker.mimeType,
+          width: sticker.width,
+          height: sticker.height,
+          sizeBytes: sticker.sizeBytes,
+          sha256: sticker.sha256,
+        },
+        after: {
+          mimeType: updated.mimeType,
+          width: updated.width,
+          height: updated.height,
+          sizeBytes: updated.sizeBytes,
+          sha256: updated.sha256,
+        },
+      },
     });
 
     return updated;
@@ -394,7 +430,19 @@ export class PacksStickerService {
       action: 'sticker.update',
       entityType: 'sticker',
       entityId: stickerId,
-      metadata: { packId },
+      metadata: {
+        packId,
+        before: {
+          emojis: sticker.emojis,
+          accessibilityText: sticker.accessibilityText,
+          reviewStatus: sticker.reviewStatus,
+        },
+        after: {
+          emojis: updated.emojis,
+          accessibilityText: updated.accessibilityText,
+          reviewStatus: updated.reviewStatus,
+        },
+      },
     });
 
     return updated;
@@ -455,7 +503,7 @@ export class PacksStickerService {
     const pack = await this.prisma.pack.findUnique({
       where: { id: packId },
       include: {
-        stickers: { select: { id: true } },
+        stickers: { select: { id: true, position: true }, orderBy: { position: 'asc' } },
         members: { where: { userId: ownerId }, select: { userId: true, role: true } },
         team: { include: { members: { where: { userId: ownerId }, select: { userId: true, role: true } } } },
       },
@@ -472,6 +520,9 @@ export class PacksStickerService {
     if (existingIds.length !== requestedIds.length || existingIds.some((id, index) => id !== requestedIds[index])) {
       throw new BadRequestException('Reorder request must include every sticker in this pack exactly once');
     }
+
+    const before = pack.stickers.map((sticker, index) => ({ id: sticker.id, position: sticker.position ?? index }));
+    const after = dto.stickerIds.map((id, position) => ({ id, position }));
 
     await this.prisma.$transaction([
       ...dto.stickerIds.map((id, position) =>
@@ -490,7 +541,7 @@ export class PacksStickerService {
       action: 'sticker.reorder',
       entityType: 'pack',
       entityId: packId,
-      metadata: { stickerCount: dto.stickerIds.length },
+      metadata: { stickerCount: dto.stickerIds.length, before: { stickerOrder: before }, after: { stickerOrder: after } },
     });
   }
 

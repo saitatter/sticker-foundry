@@ -1,15 +1,43 @@
-import { AlertCircle, Archive, CheckCircle2, Copy, Download, FileJson, ImagePlus, RotateCcw, Trash2, X } from 'lucide-react';
-import { DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
+import {
+  AlertCircle,
+  Archive,
+  CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
+  Copy,
+  Download,
+  FileJson,
+  ImagePlus,
+  RotateCcw,
+  Save,
+  Trash2,
+  X,
+} from 'lucide-react';
+import {
+  DndContext,
+  KeyboardSensor,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core';
 import { SortableContext, rectSortingStrategy, sortableKeyboardCoordinates, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { useQueryClient } from '@tanstack/react-query';
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type MouseEvent, type ReactNode } from 'react';
 import { AdminSettings, AuditLogEntry, Pack, PackRole, Sticker, StickerFoundryApi } from './api';
 import { useJobQuery } from './features/jobs/queries';
 import { queryKeys } from './lib/query-keys';
 import { reorderIds } from './lib/reorder';
 import { useConfirmDialog } from './components/ui/confirm-dialog';
-import { CollaborationPanel, PackEditForm, TrayIconPanel, UploadPanel } from './pack-detail-panels';
+import {
+  CollaborationPanel,
+  PackSettingsPanel,
+  packSettingsSchema,
+  type PackSettingsDraft,
+  UploadPanel,
+} from './pack-detail-panels';
 import { reviewStatusLabel, StickerTile } from './sticker-tile';
 import { exportFileName } from './lib/download';
 import { LabeledIconButton as IconButton } from './components/ui/labeled-icon-button';
@@ -17,11 +45,25 @@ import { Button } from './components/ui/button';
 import { Card } from './components/ui/card';
 import { Field } from './components/ui/field';
 import { Input } from './components/ui/input';
-import { Metric } from './components/ui/metric';
 import { Select } from './components/ui/select';
 import { Tabs, TabsList, TabsTrigger } from './components/ui/tabs';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from './components/ui/dialog';
 
 export type PackDetailTab = 'overview' | 'stickers' | 'collaboration' | 'activity' | 'settings';
+
+const activityPageSizes = [10, 25, 100] as const;
+type ActivityPageSize = (typeof activityPageSizes)[number] | 'all';
+type ActivityPageItem = number | 'ellipsis';
+type PackSettingsErrors = Partial<Record<keyof PackSettingsDraft, string>>;
+
+type PendingPackChanges = {
+  optimisticStickers: Sticker[] | null;
+  settingsDraft: PackSettingsDraft;
+  stickerOrderDirty: boolean;
+  trayIconFile: File | null;
+};
+
+const pendingPackChanges = new Map<string, PendingPackChanges>();
 
 export function PackDetail({
   api,
@@ -48,7 +90,20 @@ export function PackDetail({
   onError: (error: unknown) => void;
   onNotice: (message: string) => void;
 }) {
-  const [optimisticStickers, setOptimisticStickers] = useState<Sticker[] | null>(null);
+  const [optimisticStickers, setOptimisticStickers] = useState<Sticker[] | null>(
+    () => pendingPackChanges.get(pack.id)?.optimisticStickers ?? null,
+  );
+  const [stickerOrderDirty, setStickerOrderDirty] = useState(
+    () => pendingPackChanges.get(pack.id)?.stickerOrderDirty ?? false,
+  );
+  const [settingsDraft, setSettingsDraft] = useState<PackSettingsDraft>(
+    () => pendingPackChanges.get(pack.id)?.settingsDraft ?? packSettingsFromPack(pack),
+  );
+  const [trayIconFile, setTrayIconFile] = useState<File | null>(
+    () => pendingPackChanges.get(pack.id)?.trayIconFile ?? null,
+  );
+  const [settingsErrors, setSettingsErrors] = useState<PackSettingsErrors>({});
+  const [savingChanges, setSavingChanges] = useState(false);
   const stickers = optimisticStickers ?? pack.stickers ?? [];
   const exportStickerCount = pack.requiresApproval
     ? stickers.filter((sticker) => sticker.reviewStatus === 'APPROVED').length
@@ -65,6 +120,7 @@ export function PackDetail({
   const [contentsPreview, setContentsPreview] = useState<string | null>(null);
   const [loadingContents, setLoadingContents] = useState(false);
   const [selectedStickerIds, setSelectedStickerIds] = useState<string[]>([]);
+  const [selectionAnchorId, setSelectionAnchorId] = useState<string | null>(null);
   const [bulkEmojis, setBulkEmojis] = useState('');
   const [bulkTargetPackId, setBulkTargetPackId] = useState('');
   const [bulkSaving, setBulkSaving] = useState(false);
@@ -75,6 +131,12 @@ export function PackDetail({
   const exportProgress = exportJob?.progress ?? 0;
   const selectedStickerSet = useMemo(() => new Set(selectedStickerIds), [selectedStickerIds]);
   const hasBulkSelection = selectedStickerIds.length > 0;
+  const serverSettings = useMemo(
+    () => packSettingsFromPack(pack),
+    [pack.description, pack.isAnimated, pack.isPublic, pack.name, pack.publisher, pack.requiresApproval],
+  );
+  const settingsDirty = canManage && !packSettingsEqual(settingsDraft, pack);
+  const hasPendingChanges = stickerOrderDirty || settingsDirty || Boolean(trayIconFile);
   const transferTargets = packs.filter((item) => item.canEdit && item.id !== pack.id);
   const dndSensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
@@ -96,13 +158,35 @@ export function PackDetail({
 
   useEffect(() => {
     setSelectedStickerIds([]);
+    setSelectionAnchorId(null);
     setBulkEmojis('');
     setBulkTargetPackId('');
-    setOptimisticStickers(null);
     setContentsPreview(null);
     setExportJobId(null);
     setActiveTab(initialTab);
   }, [initialTab, pack.id]);
+
+  useEffect(() => {
+    const pending = pendingPackChanges.get(pack.id);
+    setStickerOrderDirty(pending?.stickerOrderDirty ?? false);
+    setSettingsDraft(pending?.settingsDraft ?? serverSettings);
+    setTrayIconFile(pending?.trayIconFile ?? null);
+    setSettingsErrors({});
+    setOptimisticStickers(pending?.optimisticStickers ?? null);
+  }, [pack.id, serverSettings]);
+
+  useEffect(() => {
+    if (stickerOrderDirty || settingsDirty || trayIconFile) {
+      pendingPackChanges.set(pack.id, {
+        optimisticStickers,
+        settingsDraft,
+        stickerOrderDirty,
+        trayIconFile,
+      });
+    } else {
+      pendingPackChanges.delete(pack.id);
+    }
+  }, [optimisticStickers, pack.id, settingsDraft, settingsDirty, stickerOrderDirty, trayIconFile]);
 
   useEffect(() => {
     setActiveTab(initialTab);
@@ -187,11 +271,14 @@ export function PackDetail({
   }, [exportJob, exporting]);
 
   async function deletePack() {
-    if (!(await confirm({
-      title: 'Delete pack?',
-      description: `This permanently deletes “${pack.name}” and its stickers.`,
-      confirmLabel: 'Delete pack',
-    }))) return;
+    if (
+      !(await confirm({
+        title: 'Delete pack?',
+        description: `This permanently deletes “${pack.name}” and its stickers.`,
+        confirmLabel: 'Delete pack',
+      }))
+    )
+      return;
     try {
       await api.deletePack(pack.id);
       onDeleted();
@@ -226,27 +313,75 @@ export function PackDetail({
     }
   }
 
-  async function moveSticker(stickerId: string, direction: -1 | 1) {
+  async function saveChanges() {
+    if (!hasPendingChanges || savingChanges) return;
+
+    let validatedSettings = settingsDraft;
+    if (settingsDirty) {
+      const result = packSettingsSchema.safeParse(settingsDraft);
+      if (!result.success) {
+        const fieldErrors = result.error.flatten().fieldErrors;
+        setSettingsErrors({
+          name: fieldErrors.name?.[0],
+          publisher: fieldErrors.publisher?.[0],
+          description: fieldErrors.description?.[0],
+        });
+        setActiveTab('settings');
+        onSectionChange?.('settings');
+        return;
+      }
+      validatedSettings = result.data;
+    }
+
+    setSavingChanges(true);
+    try {
+      if (settingsDirty) {
+        await api.updatePack(pack.id, validatedSettings);
+      }
+      if (trayIconFile) {
+        await api.uploadTrayIcon(pack.id, trayIconFile);
+      }
+      if (stickerOrderDirty) {
+        await api.reorderStickers(
+          pack.id,
+          stickers.map((sticker) => sticker.id),
+        );
+      }
+      pendingPackChanges.delete(pack.id);
+      setOptimisticStickers(null);
+      setStickerOrderDirty(false);
+      setSettingsDraft(validatedSettings);
+      setTrayIconFile(null);
+      setSettingsErrors({});
+      await onChanged('Changes saved');
+    } catch (error) {
+      onError(error);
+    } finally {
+      setSavingChanges(false);
+    }
+  }
+
+  function discardChanges() {
+    pendingPackChanges.delete(pack.id);
+    setOptimisticStickers(null);
+    setStickerOrderDirty(false);
+    setSettingsDraft(serverSettings);
+    setTrayIconFile(null);
+    setSettingsErrors({});
+  }
+
+  function moveSticker(stickerId: string, direction: -1 | 1) {
     const currentIndex = stickers.findIndex((sticker) => sticker.id === stickerId);
     const nextIndex = currentIndex + direction;
     if (currentIndex < 0 || nextIndex < 0 || nextIndex >= stickers.length) return;
 
-    const nextOrder = stickers.map((sticker) => sticker.id);
-    [nextOrder[currentIndex], nextOrder[nextIndex]] = [nextOrder[nextIndex], nextOrder[currentIndex]];
     const nextStickers = [...stickers];
     [nextStickers[currentIndex], nextStickers[nextIndex]] = [nextStickers[nextIndex], nextStickers[currentIndex]];
     setOptimisticStickers(nextStickers);
-
-    try {
-      await api.reorderStickers(pack.id, nextOrder);
-      await onChanged('Sticker order updated');
-    } catch (error) {
-      setOptimisticStickers(null);
-      onError(error);
-    }
+    setStickerOrderDirty(true);
   }
 
-  async function reorderStickerTo(targetStickerId: string, sourceStickerId: string) {
+  function reorderStickerTo(targetStickerId: string, sourceStickerId: string) {
     const currentOrder = stickers.map((sticker) => sticker.id);
     const nextOrder = reorderIds(currentOrder, sourceStickerId, targetStickerId);
     if (nextOrder === currentOrder) return;
@@ -255,45 +390,56 @@ export function PackDetail({
       .map((id) => stickers.find((sticker) => sticker.id === id))
       .filter((sticker): sticker is Sticker => Boolean(sticker));
     setOptimisticStickers(nextStickers);
-
-    try {
-      await api.reorderStickers(pack.id, nextOrder);
-      await onChanged('Sticker order updated');
-    } catch (error) {
-      setOptimisticStickers(null);
-      onError(error);
-    }
+    setStickerOrderDirty(true);
   }
 
   function handleDndEnd(event: DragEndEvent) {
     if (!event.over || event.active.id === event.over.id) return;
-    void reorderStickerTo(String(event.over.id), String(event.active.id));
+    reorderStickerTo(String(event.over.id), String(event.active.id));
   }
 
-  function toggleStickerSelection(stickerId: string, selected: boolean) {
+  function handleStickerSelection(stickerId: string, event: MouseEvent<HTMLButtonElement>) {
+    const clickedIndex = stickers.findIndex((sticker) => sticker.id === stickerId);
+    const anchorIndex = selectionAnchorId ? stickers.findIndex((sticker) => sticker.id === selectionAnchorId) : -1;
+    const isRangeSelection = event.shiftKey && anchorIndex >= 0 && clickedIndex >= 0;
+
+    if (isRangeSelection) {
+      const start = Math.min(anchorIndex, clickedIndex);
+      const end = Math.max(anchorIndex, clickedIndex);
+      const range = stickers.slice(start, end + 1).map((sticker) => sticker.id);
+      setSelectedStickerIds((current) =>
+        event.metaKey || event.ctrlKey ? Array.from(new Set([...current, ...range])) : range,
+      );
+      return;
+    }
+
+    setSelectionAnchorId(stickerId);
     setSelectedStickerIds((current) => {
-      if (selected) return current.includes(stickerId) ? current : [...current, stickerId];
-      return current.filter((id) => id !== stickerId);
+      if (event.metaKey || event.ctrlKey) {
+        return current.includes(stickerId) ? current.filter((id) => id !== stickerId) : [...current, stickerId];
+      }
+      return current.includes(stickerId) ? current.filter((id) => id !== stickerId) : [...current, stickerId];
     });
   }
 
   function selectRelativeSticker(direction: -1 | 1) {
     if (stickers.length === 0) return;
-    setSelectedStickerIds((current) => {
-      const activeId = current[current.length - 1];
-      const activeIndex = activeId ? stickers.findIndex((sticker) => sticker.id === activeId) : -1;
-      const nextIndex =
-        activeIndex < 0
-          ? direction > 0
-            ? 0
-            : stickers.length - 1
-          : Math.max(0, Math.min(stickers.length - 1, activeIndex + direction));
-      return [stickers[nextIndex].id];
-    });
+    const activeId = selectedStickerIds[selectedStickerIds.length - 1];
+    const activeIndex = activeId ? stickers.findIndex((sticker) => sticker.id === activeId) : -1;
+    const nextIndex =
+      activeIndex < 0
+        ? direction > 0
+          ? 0
+          : stickers.length - 1
+        : Math.max(0, Math.min(stickers.length - 1, activeIndex + direction));
+    const nextId = stickers[nextIndex].id;
+    setSelectedStickerIds([nextId]);
+    setSelectionAnchorId(nextId);
   }
 
   function selectAllStickers() {
     setSelectedStickerIds(stickers.map((sticker) => sticker.id));
+    setSelectionAnchorId(stickers[0]?.id ?? null);
   }
 
   async function reviewSelectedStickers(reviewStatus: Sticker['reviewStatus']) {
@@ -320,17 +466,21 @@ export function PackDetail({
 
   async function bulkDeleteStickers() {
     if (selectedStickerIds.length === 0) return;
-    if (!(await confirm({
-      title: 'Delete selected stickers?',
-      description: `This permanently deletes ${selectedStickerIds.length} selected sticker(s).`,
-      confirmLabel: 'Delete stickers',
-    }))) return;
+    if (
+      !(await confirm({
+        title: 'Delete selected stickers?',
+        description: `This permanently deletes ${selectedStickerIds.length} selected sticker(s).`,
+        confirmLabel: 'Delete stickers',
+      }))
+    )
+      return;
     setBulkSaving(true);
     try {
       for (const stickerId of selectedStickerIds) {
         await api.deleteSticker(pack.id, stickerId);
       }
       setSelectedStickerIds([]);
+      setSelectionAnchorId(null);
       await onChanged('Selected stickers deleted');
     } catch (error) {
       onError(error);
@@ -353,6 +503,7 @@ export function PackDetail({
         await api.updateSticker(pack.id, sticker.id, emojis, sticker.accessibilityText ?? '');
       }
       setSelectedStickerIds([]);
+      setSelectionAnchorId(null);
       setBulkEmojis('');
       await onChanged('Emoji updated on selected stickers');
     } catch (error) {
@@ -377,6 +528,7 @@ export function PackDetail({
         );
       }
       setSelectedStickerIds([]);
+      setSelectionAnchorId(null);
       await onChanged('Alt text generated for selected stickers');
     } catch (error) {
       onError(error);
@@ -396,6 +548,7 @@ export function PackDetail({
       } else {
         await api.moveStickers(pack.id, bulkTargetPackId, selectedStickerIds);
         setSelectedStickerIds([]);
+        setSelectionAnchorId(null);
         await onChanged('Selected stickers moved');
       }
     } catch (error) {
@@ -415,6 +568,7 @@ export function PackDetail({
 
       if (key === 'escape') {
         setSelectedStickerIds([]);
+        setSelectionAnchorId(null);
         return;
       }
       if (key === 'j') {
@@ -425,6 +579,11 @@ export function PackDetail({
       if (key === 'k') {
         event.preventDefault();
         selectRelativeSticker(-1);
+        return;
+      }
+      if ((event.ctrlKey || event.metaKey) && key === 'a') {
+        event.preventDefault();
+        selectAllStickers();
         return;
       }
       if (selectedStickerIds.length === 0) return;
@@ -461,14 +620,43 @@ export function PackDetail({
   return (
     <section className="detail">
       <div className="detail-header">
-        <div>
-          <p className="eyebrow">{pack.isPublic ? 'Public pack' : 'Private pack'}</p>
-          <h2>{pack.name}</h2>
-          <p>{pack.publisher}</p>
+        <div className="detail-header-info">
+          <PackHeaderIcon api={api} pack={pack} />
+          <div className="detail-header-copy">
+            <p className="eyebrow">{pack.isPublic ? 'Public pack' : 'Private pack'}</p>
+            <h2>{pack.name}</h2>
+            <div className="detail-header-meta">
+              <span>{pack.publisher}</span>
+              {pack.teamName ? <span>· {pack.teamName}</span> : null}
+            </div>
+          </div>
         </div>
         <div className="detail-actions">
           <div className="detail-export-actions">
             <div className="detail-export-buttons">
+              {hasPendingChanges ? (
+                <>
+                  <Button
+                    className="save-changes-button"
+                    disabled={savingChanges}
+                    onClick={() => void saveChanges()}
+                    type="button"
+                  >
+                    <Save size={17} />
+                    {savingChanges ? 'Saving changes' : 'Save changes'}
+                  </Button>
+                  <Button
+                    className="discard-changes-button"
+                    disabled={savingChanges}
+                    onClick={discardChanges}
+                    type="button"
+                    variant="ghost"
+                  >
+                    <RotateCcw size={17} />
+                    Discard
+                  </Button>
+                </>
+              ) : null}
               <Button
                 aria-describedby={!canExport ? exportActionHintId : undefined}
                 className="secondary-button"
@@ -536,38 +724,25 @@ export function PackDetail({
         </div>
       </div>
 
-      {canEdit ? (
-        <div hidden={activeTab !== 'stickers'}>
-          <UploadPanel
-            api={api}
-            backgroundRemovalStatus={backgroundRemovalStatus}
-            pack={pack}
-            remainingSlots={Math.max(0, 30 - stickers.length)}
-            onChanged={onChanged}
-            onError={onError}
-          />
-        </div>
-      ) : null}
-
       <Tabs className="detail-tabs" aria-label="Pack sections">
         <TabsList>
           {detailTabs.map((tab) => (
-          <TabsTrigger
-            aria-controls={tabPanelId(tab.id)}
-            aria-selected={activeTab === tab.id}
-            className={activeTab === tab.id ? 'active' : undefined}
-            id={tabButtonId(tab.id)}
-            key={tab.id}
-            onClick={() => {
-              setActiveTab(tab.id);
-              onSectionChange?.(tab.id);
-            }}
-            role="tab"
-            type="button"
-          >
-            {tab.label}
-          </TabsTrigger>
-        ))}
+            <TabsTrigger
+              aria-controls={tabPanelId(tab.id)}
+              aria-selected={activeTab === tab.id}
+              className={activeTab === tab.id ? 'active' : undefined}
+              id={tabButtonId(tab.id)}
+              key={tab.id}
+              onClick={() => {
+                setActiveTab(tab.id);
+                onSectionChange?.(tab.id);
+              }}
+              role="tab"
+              type="button"
+            >
+              {tab.label}
+            </TabsTrigger>
+          ))}
         </TabsList>
       </Tabs>
 
@@ -578,13 +753,62 @@ export function PackDetail({
           id={tabPanelId('overview')}
           role="tabpanel"
         >
-          <div className="stats-grid">
-            <Metric label="Stickers" value={`${stickers.length}/30`} />
-            <Metric label="Export" value={`${exportStickerCount}/30`} />
-            <Metric label="Format" value={pack.isAnimated ? 'Animated' : 'Static'} />
-            <Metric label="Role" value={roleLabel(pack.role)} />
-            <Metric label="Version" value={pack.imageDataVersion} />
-            <Metric label="Updated" value={new Date(pack.updatedAt).toLocaleDateString()} />
+          <div className="overview-layout">
+            <Card className="overview-summary">
+              <div className="section-heading">
+                <div>
+                  <p className="eyebrow">Pack snapshot</p>
+                  <h3>Overview</h3>
+                </div>
+                <Archive size={18} />
+              </div>
+              <div className="overview-stats">
+                <div className="overview-stat">
+                  <span>Stickers</span>
+                  <strong>{stickers.length}/30</strong>
+                  <small>
+                    {pack.requiresApproval ? 'Approved stickers count toward export' : 'Ready to arrange and export'}
+                  </small>
+                </div>
+                <div className="overview-stat">
+                  <span>Format</span>
+                  <strong>{pack.isAnimated ? 'Animated' : 'Static'}</strong>
+                  <small>{pack.isAnimated ? 'GIF / animated export' : 'WebP sticker pack'}</small>
+                </div>
+                <div className="overview-stat">
+                  <span>Role</span>
+                  <strong>{roleLabel(pack.role)}</strong>
+                  <small>{canManage ? 'Can manage this pack' : 'Collaborator access'}</small>
+                </div>
+                <div className="overview-stat">
+                  <span>Export version</span>
+                  <strong>{pack.imageDataVersion}</strong>
+                  <small>Image data revision</small>
+                </div>
+                <div className="overview-stat">
+                  <span>Exported</span>
+                  <strong>{exportStickerCount}/30</strong>
+                  <small>{pack.requiresApproval ? 'Approved for export' : 'Included in export'}</small>
+                </div>
+                <div className="overview-stat">
+                  <span>Updated</span>
+                  <strong>{new Date(pack.updatedAt).toLocaleDateString()}</strong>
+                  <small>Last pack update</small>
+                </div>
+              </div>
+              {pack.description ? <p className="overview-description">{pack.description}</p> : null}
+            </Card>
+
+            <ActivityPanel
+              api={api}
+              compact
+              pack={pack}
+              onError={onError}
+              onViewAll={() => {
+                setActiveTab('activity');
+                onSectionChange?.('activity');
+              }}
+            />
           </div>
 
           <ExportReadiness
@@ -595,8 +819,6 @@ export function PackDetail({
           />
 
           {contentsPreview ? <pre className="contents-preview">{contentsPreview}</pre> : null}
-
-          <ActivityPanel api={api} pack={pack} onError={onError} />
         </div>
       ) : null}
 
@@ -607,11 +829,29 @@ export function PackDetail({
           id={tabPanelId('stickers')}
           role="tabpanel"
         >
-          <Card className="stickers-section">
-            <div className="section-heading">
-              <h3>Stickers</h3>
-              <Archive size={18} />
+          <div className="stickers-workspace-header">
+            <div className="section-heading stickers-heading">
+              <div>
+                <h3>Stickers</h3>
+                <p>Drag to reorder, hover to select, and use Shift-click for a range.</p>
+              </div>
+              <div className="stickers-heading-meta">
+                <span className="counter">{stickers.length}/30</span>
+                <Archive size={18} />
+              </div>
             </div>
+            {canEdit ? (
+              <UploadPanel
+                api={api}
+                backgroundRemovalStatus={backgroundRemovalStatus}
+                pack={pack}
+                remainingSlots={Math.max(0, 30 - stickers.length)}
+                onChanged={onChanged}
+                onError={onError}
+              />
+            ) : null}
+          </div>
+          <Card className="stickers-section">
             {canEdit && stickers.length > 0 ? (
               <div className={`bulk-toolbar ${hasBulkSelection ? 'active' : 'idle'}`}>
                 <span className="counter">{selectedStickerIds.length}</span>
@@ -622,7 +862,10 @@ export function PackDetail({
                   <>
                     <Button
                       disabled={bulkSaving}
-                      onClick={() => setSelectedStickerIds([])}
+                      onClick={() => {
+                        setSelectedStickerIds([]);
+                        setSelectionAnchorId(null);
+                      }}
                       type="button"
                       variant="secondary"
                     >
@@ -719,7 +962,7 @@ export function PackDetail({
                             onChanged={() => onChanged('Sticker updated')}
                             onDeleted={() => onChanged('Sticker deleted')}
                             onError={onError}
-                            onSelectedChange={(selected) => toggleStickerSelection(sticker.id, selected)}
+                            onSelectedChange={(event) => handleStickerSelection(sticker.id, event)}
                           />
                         )}
                       </SortableSticker>
@@ -766,9 +1009,18 @@ export function PackDetail({
           id={tabPanelId('settings')}
           role="tabpanel"
         >
-          {canManage ? <PackEditForm api={api} pack={pack} onChanged={onChanged} onError={onError} /> : null}
-
-          {canEdit ? <TrayIconPanel api={api} pack={pack} onChanged={onChanged} onError={onError} /> : null}
+          <PackSettingsPanel
+            api={api}
+            canEdit={canEdit}
+            canManage={canManage}
+            draft={settingsDraft}
+            errors={settingsErrors}
+            hasDirty={settingsDirty || Boolean(trayIconFile)}
+            pack={pack}
+            trayIconFile={trayIconFile}
+            onDraftChange={setSettingsDraft}
+            onTrayIconFileChange={setTrayIconFile}
+          />
         </div>
       ) : null}
       {dialog}
@@ -798,23 +1050,58 @@ function SortableSticker({
   );
 }
 
+function PackHeaderIcon({ api, pack }: { api: StickerFoundryApi; pack: Pack }) {
+  const [url, setUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    let objectUrl: string | null = null;
+    api
+      .trayIconBlob(pack.id)
+      .then((blob) => {
+        if (!alive) return;
+        objectUrl = URL.createObjectURL(blob);
+        setUrl(objectUrl);
+      })
+      .catch(() => undefined);
+
+    return () => {
+      alive = false;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [api, pack.id, pack.imageDataVersion]);
+
+  return (
+    <div aria-label={`${pack.name} sticker pack icon`} className="pack-header-icon" role="img">
+      {url ? <img alt="" src={url} /> : <Archive aria-hidden="true" size={28} />}
+    </div>
+  );
+}
+
 function ActivityPanel({
   api,
+  compact = false,
   pack,
   onError,
+  onViewAll,
 }: {
   api: StickerFoundryApi;
+  compact?: boolean;
   pack: Pack;
   onError: (error: unknown) => void;
+  onViewAll?: () => void;
 }) {
   const [entries, setEntries] = useState<AuditLogEntry[]>([]);
   const [loading, setLoading] = useState(false);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState<ActivityPageSize>(10);
+  const [selectedEntry, setSelectedEntry] = useState<AuditLogEntry | null>(null);
 
   useEffect(() => {
     let alive = true;
     setLoading(true);
     api
-      .packActivity(pack.id)
+      .packActivity(pack.id, compact ? 1 : undefined)
       .then((nextEntries) => {
         if (alive) setEntries(nextEntries);
       })
@@ -826,31 +1113,236 @@ function ActivityPanel({
     return () => {
       alive = false;
     };
-  }, [api, onError, pack.id]);
+  }, [api, compact, onError, pack.id]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [pack.id]);
+
+  const totalPages = pageSize === 'all' ? 1 : Math.max(1, Math.ceil(entries.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const visibleEntries = useMemo(() => {
+    if (pageSize === 'all') {
+      return entries;
+    }
+    const start = (currentPage - 1) * pageSize;
+    return entries.slice(start, start + pageSize);
+  }, [currentPage, entries, pageSize]);
+  const pageItems = useMemo(() => activityPaginationItems(currentPage, totalPages), [currentPage, totalPages]);
+  const firstVisibleEntry = entries.length === 0 ? 0 : pageSize === 'all' ? 1 : (currentPage - 1) * pageSize + 1;
+  const lastVisibleEntry = pageSize === 'all' ? entries.length : Math.min(entries.length, currentPage * pageSize);
+  const renderedEntries = compact ? entries.slice(0, 1) : visibleEntries;
+
+  function handlePageSizeChange(value: string) {
+    const parsed = Number(value);
+    const nextPageSize: ActivityPageSize =
+      value === 'all'
+        ? 'all'
+        : activityPageSizes.includes(parsed as (typeof activityPageSizes)[number])
+          ? (parsed as (typeof activityPageSizes)[number])
+          : 10;
+    setPageSize(nextPageSize);
+    setPage(1);
+  }
 
   return (
-    <Card className="activity-panel">
+    <Card className={compact ? 'last-activity-card' : 'activity-panel'}>
       <div className="section-heading">
-        <h3>Activity</h3>
-        <Archive size={18} />
+        <div>
+          {compact ? <p className="eyebrow">Recent</p> : null}
+          <h3>{compact ? 'Last activity' : 'Activity'}</h3>
+          <p>{compact ? 'The latest change in this pack.' : 'Track pack changes and collaboration events.'}</p>
+        </div>
+        <div className="activity-heading-meta">
+          {!compact ? <span className="counter">{entries.length}</span> : null}
+          <Archive size={18} />
+        </div>
       </div>
-      <div className="activity-list">
+      <div className={compact ? 'last-activity-content' : 'activity-list'}>
         {loading ? <span className="muted-row">Loading activity</span> : null}
-        {entries.map((entry) => (
-          <div className="activity-row" key={entry.id}>
-            <span>
-              <strong>{auditActionLabel(entry.action)}</strong>
-              <small>
-                {entry.actor?.email ?? 'System'} · {new Date(entry.createdAt).toLocaleString()}
-              </small>
-            </span>
-            <small>{entry.entityType}</small>
-          </div>
+        {renderedEntries.map((entry) => (
+          <ActivityEntryRow entry={entry} key={entry.id} onSelect={setSelectedEntry} />
         ))}
         {!loading && entries.length === 0 ? <span className="muted-row">No activity yet.</span> : null}
       </div>
+      {!compact && !loading && entries.length > 0 ? (
+        <div className="activity-pagination">
+          <span className="activity-pagination-summary">
+            Showing {firstVisibleEntry}–{lastVisibleEntry} of {entries.length}
+          </span>
+          <div className="activity-pagination-controls" aria-label="Activity pagination">
+            <Button
+              aria-label="Previous activity page"
+              disabled={currentPage === 1}
+              onClick={() => setPage((value) => Math.max(1, value - 1))}
+              size="sm"
+              type="button"
+              variant="ghost"
+            >
+              <ChevronLeft size={16} />
+              Previous
+            </Button>
+            <div className="activity-page-buttons">
+              {pageItems.map((item, index) =>
+                item === 'ellipsis' ? (
+                  <span className="activity-page-ellipsis" key={`ellipsis-${index}`}>
+                    …
+                  </span>
+                ) : (
+                  <button
+                    aria-current={currentPage === item ? 'page' : undefined}
+                    aria-label={`Activity page ${item}`}
+                    className={`activity-page-button${currentPage === item ? ' active' : ''}`}
+                    key={item}
+                    onClick={() => setPage(item)}
+                    type="button"
+                  >
+                    {item}
+                  </button>
+                ),
+              )}
+            </div>
+            <Button
+              aria-label="Next activity page"
+              disabled={currentPage === totalPages}
+              onClick={() => setPage((value) => Math.min(totalPages, value + 1))}
+              size="sm"
+              type="button"
+              variant="ghost"
+            >
+              Next
+              <ChevronRight size={16} />
+            </Button>
+          </div>
+          <label className="activity-page-size">
+            <span>Per page</span>
+            <Select
+              aria-label="Activities per page"
+              value={pageSize}
+              onChange={(event) => handlePageSizeChange(event.target.value)}
+            >
+              {activityPageSizes.map((size) => (
+                <option key={size} value={size}>
+                  {size}
+                </option>
+              ))}
+              <option value="all">All</option>
+            </Select>
+          </label>
+        </div>
+      ) : null}
+      {compact && !loading && onViewAll ? (
+        <Button className="last-activity-link" onClick={onViewAll} size="sm" type="button" variant="ghost">
+          View full activity
+          <ChevronRight size={16} />
+        </Button>
+      ) : null}
+      {selectedEntry ? (
+        <Dialog open onOpenChange={(open) => !open && setSelectedEntry(null)}>
+          <DialogContent className="activity-detail-dialog">
+            <DialogHeader>
+              <p className="eyebrow">Activity detail</p>
+              <DialogTitle>{auditActionLabel(selectedEntry.action)}</DialogTitle>
+              <DialogDescription>
+                {selectedEntry.actor?.email ?? 'System'} · {new Date(selectedEntry.createdAt).toLocaleString()}
+              </DialogDescription>
+            </DialogHeader>
+            <ActivityChangeDetails entry={selectedEntry} />
+            <div className="dialog-actions">
+              <Button onClick={() => setSelectedEntry(null)} type="button" variant="secondary">
+                Close
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      ) : null}
     </Card>
   );
+}
+
+function ActivityEntryRow({ entry, onSelect }: { entry: AuditLogEntry; onSelect: (entry: AuditLogEntry) => void }) {
+  return (
+    <button
+      aria-label={`View ${auditActionLabel(entry.action)} activity details`}
+      className="activity-row activity-row-button"
+      onClick={() => onSelect(entry)}
+      type="button"
+    >
+      <span>
+        <strong>{auditActionLabel(entry.action)}</strong>
+        <small>
+          {entry.actor?.email ?? 'System'} · {new Date(entry.createdAt).toLocaleString()}
+        </small>
+      </span>
+      <small>{entry.entityType}</small>
+    </button>
+  );
+}
+
+function ActivityChangeDetails({ entry }: { entry: AuditLogEntry }) {
+  const metadata = asRecord(entry.metadata);
+  const before = metadata?.before;
+  const after = metadata?.after;
+  const extraMetadata = metadata
+    ? Object.fromEntries(Object.entries(metadata).filter(([key]) => key !== 'before' && key !== 'after'))
+    : null;
+  const hasExtraMetadata = Boolean(extraMetadata && Object.keys(extraMetadata).length > 0);
+
+  return (
+    <div className="activity-detail-content">
+      <div className="activity-detail-context">
+        <span className="status-pill">{entry.entityType}</span>
+        {entry.entityId ? <span>#{entry.entityId}</span> : null}
+      </div>
+      <div className="activity-diff-grid">
+        <ActivitySnapshot label="Before" value={before} />
+        <ActivitySnapshot label="After" value={after} />
+      </div>
+      {hasExtraMetadata ? (
+        <details className="activity-metadata">
+          <summary>Event metadata</summary>
+          <pre>{JSON.stringify(extraMetadata, null, 2)}</pre>
+        </details>
+      ) : null}
+    </div>
+  );
+}
+
+function ActivitySnapshot({ label, value }: { label: string; value: unknown }) {
+  const snapshot = value === undefined ? 'No snapshot recorded for this event.' : JSON.stringify(value, null, 2);
+
+  return (
+    <section className="activity-snapshot">
+      <h4>{label}</h4>
+      <pre>{snapshot}</pre>
+    </section>
+  );
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  return value as Record<string, unknown>;
+}
+
+function activityPaginationItems(currentPage: number, totalPages: number): ActivityPageItem[] {
+  if (totalPages <= 7) {
+    return Array.from({ length: totalPages }, (_, index) => index + 1);
+  }
+
+  const pages = new Set([1, totalPages, currentPage - 1, currentPage, currentPage + 1]);
+  const items: ActivityPageItem[] = [];
+
+  for (let pageNumber = 1; pageNumber <= totalPages; pageNumber += 1) {
+    if (!pages.has(pageNumber)) {
+      if (items[items.length - 1] !== 'ellipsis') {
+        items.push('ellipsis');
+      }
+      continue;
+    }
+    items.push(pageNumber);
+  }
+
+  return items;
 }
 
 function ExportReadiness({
@@ -893,6 +1385,28 @@ function exportReadinessMessage(stickerCount: number, requiresApproval: boolean,
     return `Remove ${stickerCount - 30} sticker${stickerCount - 30 === 1 ? '' : 's'} to stay under the WhatsApp 30 sticker limit.`;
   }
   return 'Export is blocked until this pack meets the WhatsApp sticker rules.';
+}
+
+function packSettingsFromPack(pack: Pack): PackSettingsDraft {
+  return {
+    name: pack.name,
+    publisher: pack.publisher,
+    description: pack.description ?? '',
+    isPublic: pack.isPublic,
+    requiresApproval: pack.requiresApproval,
+    isAnimated: pack.isAnimated,
+  };
+}
+
+function packSettingsEqual(draft: PackSettingsDraft, pack: Pack) {
+  return (
+    draft.name === pack.name &&
+    draft.publisher === pack.publisher &&
+    draft.description === (pack.description ?? '') &&
+    draft.isPublic === pack.isPublic &&
+    draft.requiresApproval === pack.requiresApproval &&
+    draft.isAnimated === pack.isAnimated
+  );
 }
 
 function roleLabel(role?: PackRole) {

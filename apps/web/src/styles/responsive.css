@@ -57,7 +57,12 @@
     grid-template-columns: 1fr 1fr;
   }
 
+  .pack-settings-layout {
+    grid-template-columns: 1fr;
+  }
+
   .stats-grid,
+  .overview-layout,
   .collaboration-grid,
   .sticker-detail-layout,
   .sticker-transfer-form,
@@ -105,6 +110,16 @@
   .export-panel {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .detail-header-info {
+    align-items: flex-start;
+  }
+
+  .pack-header-icon {
+    width: 56px;
+    height: 56px;
+    border-radius: 13px;
   }
 
   .topbar-actions,
@@ -206,10 +221,6 @@
     display: none;
   }
 
-  .sticker-select span {
-    display: none;
-  }
-
   .sticker-tile .secondary-button,
   .sticker-tile .icon-button {
     min-width: 0;
@@ -220,16 +231,34 @@
     width: min(100%, 180px);
   }
 
-  .sticker-meta,
-  .sticker-select {
+  .sticker-meta {
     font-size: 11px;
+  }
+
+  .sticker-select-button {
+    width: 30px;
+    height: 30px;
   }
 
   .sticker-tile-actions {
     grid-template-columns: 1fr;
   }
 
+  .activity-pagination {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .activity-pagination-controls {
+    justify-content: space-between;
+  }
+
+  .activity-page-size {
+    justify-content: space-between;
+  }
+
   .stats-grid,
+  .overview-layout,
   .upload-form,
   .upload-edit-summary,
   .edit-form,
@@ -243,6 +272,24 @@
   .invite-form,
   .image-edit-controls {
     grid-template-columns: 1fr;
+  }
+
+  .pack-settings-details-grid,
+  .pack-settings-toggles {
+    grid-template-columns: 1fr;
+  }
+
+  .activity-diff-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .pack-settings-details-grid > .ui-field:nth-child(3),
+  .pack-settings-toggles {
+    grid-column: auto;
+  }
+
+  .overview-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .image-edit-controls.compare-mode,

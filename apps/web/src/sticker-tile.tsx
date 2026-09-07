@@ -1,13 +1,5 @@
-import {
-  Copy,
-  Edit3,
-  GripVertical,
-  ImagePlus,
-  MessageSquare,
-  MoveRight,
-  Trash2,
-} from 'lucide-react';
-import { type FormEvent, useEffect, useState } from 'react';
+import { Check, Copy, Edit3, GripVertical, ImagePlus, MessageSquare, MoveRight, Trash2 } from 'lucide-react';
+import { type FormEvent, type MouseEvent, useEffect, useState } from 'react';
 import type { AdminSettings, Pack, Sticker, StickerComment, StickerFoundryApi } from './api';
 import {
   cloneImageEditOptions,
@@ -20,7 +12,6 @@ import {
 } from './image-editor';
 import { LabeledIconButton as IconButton } from './components/ui/labeled-icon-button';
 import { Button } from './components/ui/button';
-import { Checkbox } from './components/ui/checkbox';
 import { Field } from './components/ui/field';
 import { Input } from './components/ui/input';
 import { Metric } from './components/ui/metric';
@@ -57,7 +48,7 @@ export function StickerTile({
   onChanged: () => Promise<void>;
   onDeleted: () => Promise<void>;
   onError: (error: unknown) => void;
-  onSelectedChange: (selected: boolean) => void;
+  onSelectedChange: (event: MouseEvent<HTMLButtonElement>) => void;
 }) {
   const [url, setUrl] = useState<string | null>(null);
   const [emojis, setEmojis] = useState(sticker.emojis.join(','));
@@ -220,7 +211,11 @@ export function StickerTile({
     return (
       <div className="sticker-transfer-form">
         <Field label="Target pack" htmlFor={`transfer-target-${sticker.id}`}>
-          <Select id={`transfer-target-${sticker.id}`} value={transferTargetPackId} onChange={(event) => setTransferTargetPackId(event.target.value)}>
+          <Select
+            id={`transfer-target-${sticker.id}`}
+            value={transferTargetPackId}
+            onChange={(event) => setTransferTargetPackId(event.target.value)}
+          >
             <option value="">Choose pack</option>
             {transferTargets.map((target) => (
               <option key={target.id} value={target.id}>
@@ -263,23 +258,32 @@ export function StickerTile({
           <span className="sticker-drag-handle" aria-hidden="true" title="Drag to reorder">
             <GripVertical size={16} />
           </span>
-          <label className="sticker-select">
-            <Checkbox checked={isSelected} onChange={(event) => onSelectedChange(event.target.checked)} />
-            <span>Select</span>
-          </label>
           <IconButton label="Delete sticker" onClick={() => void deleteSticker()} danger>
             <Trash2 size={16} />
           </IconButton>
         </div>
       ) : null}
-      <Button
-        className="sticker-preview sticker-preview-button"
-        onClick={() => setDetailOpen(true)}
-        type="button"
-        variant="unstyled"
-      >
-        {url ? <img alt={sticker.accessibilityText ?? sticker.fileName} src={url} /> : null}
-      </Button>
+      <div className="sticker-preview-wrap">
+        <Button
+          className="sticker-preview sticker-preview-button"
+          onClick={() => setDetailOpen(true)}
+          type="button"
+          variant="unstyled"
+        >
+          {url ? <img alt={sticker.accessibilityText ?? sticker.fileName} src={url} /> : null}
+        </Button>
+        {canEdit ? (
+          <button
+            aria-label={isSelected ? 'Deselect sticker' : 'Select sticker'}
+            className={`sticker-select-button ${isSelected ? 'selected' : ''}`}
+            onClick={onSelectedChange}
+            onPointerDown={(event) => event.stopPropagation()}
+            type="button"
+          >
+            {isSelected ? <Check size={17} strokeWidth={3} /> : null}
+          </button>
+        ) : null}
+      </div>
       <div className="sticker-meta">
         <span>{formatBytes(sticker.sizeBytes)}</span>
         <span>{sticker.emojis.join(' ') || 'No emoji'}</span>

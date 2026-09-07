@@ -170,10 +170,38 @@ textarea:focus-visible {
   padding: 22px;
   min-width: 0;
   overflow: auto;
+  scrollbar-gutter: stable;
+}
+
+.dialog-header {
+  display: grid;
+  gap: 4px;
+}
+
+.dialog-header > p,
+.dialog-header h2,
+.dialog-header h3 {
+  margin: 0;
+}
+
+.dialog-title {
+  color: var(--text);
+  font-size: 20px;
+}
+
+.dialog-description {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 4px;
 }
 
 .tool-panel,
-.upload-panel,
 .edit-panel,
 .tray-panel,
 .collaboration-panel,
@@ -188,7 +216,6 @@ textarea:focus-visible {
 }
 
 .tool-panel,
-.upload-panel,
 .edit-panel,
 .tray-panel,
 .collaboration-panel,
@@ -196,6 +223,12 @@ textarea:focus-visible {
 .export-panel,
 .stickers-section {
   padding: 16px;
+}
+
+.upload-panel {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
 }
 
 .section-heading {
@@ -210,6 +243,32 @@ textarea:focus-visible {
 .section-heading h3 {
   margin: 0;
   font-size: 15px;
+}
+
+.stickers-workspace-header {
+  display: grid;
+  gap: 12px;
+}
+
+.stickers-heading {
+  margin-bottom: 0;
+}
+
+.stickers-heading > div:first-child {
+  min-width: 0;
+}
+
+.stickers-heading p {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.stickers-heading-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
 }
 
 .counter {
@@ -371,6 +430,8 @@ select:focus {
 }
 
 .modal-panel {
+  position: relative;
+  z-index: 21;
   width: min(440px, 100%);
   max-height: calc(100vh - 36px);
   overflow: auto;

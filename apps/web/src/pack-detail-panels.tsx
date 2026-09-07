@@ -1,27 +1,8 @@
-import {
-  AlertCircle,
-  Edit3,
-  ImagePlus,
-  RotateCcw,
-  Trash2,
-  Upload,
-  UserPlus,
-  Users,
-} from 'lucide-react';
+import { AlertCircle, Edit3, ImagePlus, RotateCcw, Trash2, Upload, UserPlus, Users } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { type DragEvent, type FormEvent, useCallback, useEffect, useRef, useState } from 'react';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { useForm } from 'react-hook-form';
 import { z } from 'zod';
-import {
-  AdminSettings,
-  JobResponse,
-  Pack,
-  PackInvite,
-  PackMember,
-  PackRole,
-  StickerFoundryApi,
-} from './api';
+import { AdminSettings, JobResponse, Pack, PackInvite, PackMember, PackRole, StickerFoundryApi } from './api';
 import {
   cloneImageEditOptions,
   defaultImageEditOptions,
@@ -128,11 +109,14 @@ export function CollaborationPanel({
   }
 
   async function removeMember(memberId: string) {
-    if (!(await confirm({
-      title: 'Remove pack member?',
-      description: 'This member will lose access to the pack immediately.',
-      confirmLabel: 'Remove member',
-    }))) return;
+    if (
+      !(await confirm({
+        title: 'Remove pack member?',
+        description: 'This member will lose access to the pack immediately.',
+        confirmLabel: 'Remove member',
+      }))
+    )
+      return;
     try {
       await api.removePackMember(pack.id, memberId);
       setMembers((current) => current.filter((member) => member.id !== memberId));
@@ -200,13 +184,22 @@ export function CollaborationPanel({
             />
           </Field>
           <Field label="Role" htmlFor="pack-invite-role">
-            <Select id="pack-invite-role" value={role} onChange={(event) => setRole(event.target.value as Exclude<PackRole, 'OWNER'>)}>
+            <Select
+              id="pack-invite-role"
+              value={role}
+              onChange={(event) => setRole(event.target.value as Exclude<PackRole, 'OWNER'>)}
+            >
               <option value="EDITOR">Editor</option>
               <option value="VIEWER">Viewer</option>
             </Select>
           </Field>
           <Field label="Expires" htmlFor="pack-invite-expires">
-            <Input id="pack-invite-expires" value={expiresAt} onChange={(event) => setExpiresAt(event.target.value)} type="datetime-local" />
+            <Input
+              id="pack-invite-expires"
+              value={expiresAt}
+              onChange={(event) => setExpiresAt(event.target.value)}
+              type="datetime-local"
+            />
           </Field>
           <Button disabled={creating} type="submit" variant="secondary">
             <UserPlus size={17} />
@@ -258,110 +251,42 @@ export function CollaborationPanel({
   );
 }
 
-export function PackEditForm({
+export const packSettingsSchema = z.object({
+  name: z.string().trim().min(1, 'Name is required').max(128),
+  publisher: z.string().trim().min(1, 'Publisher is required').max(128),
+  description: z.string().max(500),
+  isPublic: z.boolean(),
+  requiresApproval: z.boolean(),
+  isAnimated: z.boolean(),
+});
+
+export type PackSettingsDraft = z.infer<typeof packSettingsSchema>;
+
+export function PackSettingsPanel({
   api,
+  canEdit,
+  canManage,
+  draft,
+  errors,
+  hasDirty,
+  onDraftChange,
+  onTrayIconFileChange,
   pack,
-  onChanged,
-  onError,
+  trayIconFile,
 }: {
   api: StickerFoundryApi;
+  canEdit: boolean;
+  canManage: boolean;
+  draft: PackSettingsDraft;
+  errors: Partial<Record<keyof PackSettingsDraft, string>>;
+  hasDirty: boolean;
+  onDraftChange: (draft: PackSettingsDraft) => void;
+  onTrayIconFileChange: (file: File | null) => void;
   pack: Pack;
-  onChanged: (message: string) => Promise<void>;
-  onError: (error: unknown) => void;
-}) {
-  const schema = z.object({
-    name: z.string().trim().min(1, 'Name is required').max(128),
-    publisher: z.string().trim().min(1, 'Publisher is required').max(128),
-    description: z.string().max(500),
-    isPublic: z.boolean(),
-    requiresApproval: z.boolean(),
-    isAnimated: z.boolean(),
-  });
-  type FormValues = z.infer<typeof schema>;
-  const { register, reset, handleSubmit, formState } = useForm<FormValues>({
-    resolver: zodResolver(schema),
-    defaultValues: {
-      name: pack.name,
-      publisher: pack.publisher,
-      description: pack.description ?? '',
-      isPublic: pack.isPublic,
-      requiresApproval: pack.requiresApproval,
-      isAnimated: pack.isAnimated,
-    },
-  });
-
-  useEffect(() => {
-    reset({
-      name: pack.name,
-      publisher: pack.publisher,
-      description: pack.description ?? '',
-      isPublic: pack.isPublic,
-      requiresApproval: pack.requiresApproval,
-      isAnimated: pack.isAnimated,
-    });
-  }, [pack.description, pack.isAnimated, pack.isPublic, pack.name, pack.publisher, pack.requiresApproval, reset]);
-
-  async function submit(values: FormValues) {
-    try {
-      await api.updatePack(pack.id, {
-        ...values,
-      });
-      await onChanged('Pack updated');
-    } catch (error) {
-      onError(error);
-    }
-  }
-
-  return (
-    <Card className="edit-panel">
-      <div className="section-heading">
-        <h3>Details</h3>
-        <Edit3 size={18} />
-      </div>
-      <form className="edit-form" onSubmit={handleSubmit(submit)}>
-        <Field label="Name" htmlFor="pack-name">
-          <Input id="pack-name" {...register('name')} maxLength={128} required />
-          {formState.errors.name ? <small className="field-error">{formState.errors.name.message}</small> : null}
-        </Field>
-        <Field label="Publisher" htmlFor="pack-publisher">
-          <Input id="pack-publisher" {...register('publisher')} maxLength={128} required />
-          {formState.errors.publisher ? <small className="field-error">{formState.errors.publisher.message}</small> : null}
-        </Field>
-        <Field label="Description" htmlFor="pack-description">
-          <Input id="pack-description" {...register('description')} maxLength={500} />
-        </Field>
-        <CheckboxField className="edit-toggle" label="Public">
-          <Checkbox {...register('isPublic')} />
-        </CheckboxField>
-        <CheckboxField className="edit-toggle" label="Require approval">
-          <Checkbox {...register('requiresApproval')} />
-        </CheckboxField>
-        <CheckboxField className="edit-toggle" label="Animated pack">
-          <Checkbox {...register('isAnimated')} />
-        </CheckboxField>
-        <Button disabled={!formState.isDirty || formState.isSubmitting} type="submit" variant="secondary">
-          <Edit3 size={17} />
-          {formState.isSubmitting ? 'Saving' : 'Save'}
-        </Button>
-      </form>
-    </Card>
-  );
-}
-
-export function TrayIconPanel({
-  api,
-  pack,
-  onChanged,
-  onError,
-}: {
-  api: StickerFoundryApi;
-  pack: Pack;
-  onChanged: (message: string) => Promise<void>;
-  onError: (error: unknown) => void;
+  trayIconFile: File | null;
 }) {
   const [url, setUrl] = useState<string | null>(null);
-  const [file, setFile] = useState<File | null>(null);
-  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     let alive = true;
@@ -373,7 +298,9 @@ export function TrayIconPanel({
         objectUrl = URL.createObjectURL(blob);
         setUrl(objectUrl);
       })
-      .catch(() => setUrl(null));
+      .catch(() => {
+        if (alive) setUrl(null);
+      });
 
     return () => {
       alive = false;
@@ -381,41 +308,121 @@ export function TrayIconPanel({
     };
   }, [api, pack.id, pack.imageDataVersion]);
 
-  async function submit(event: FormEvent) {
-    event.preventDefault();
-    if (!file) return;
-    setUploading(true);
-    try {
-      await api.uploadTrayIcon(pack.id, file);
-      setFile(null);
-      await onChanged('Tray icon updated');
-    } catch (error) {
-      onError(error);
-    } finally {
-      setUploading(false);
-    }
-  }
+  useEffect(() => {
+    if (!trayIconFile && fileInputRef.current) fileInputRef.current.value = '';
+  }, [trayIconFile]);
 
   return (
-    <Card className="tray-panel">
+    <Card className="pack-settings-panel">
       <div className="section-heading">
-        <h3>Tray icon</h3>
-        <ImagePlus size={18} />
-      </div>
-      <form className="tray-form" onSubmit={submit}>
-        <div className="tray-preview" aria-label="Current tray icon">
-          {url ? <img alt={`${pack.name} tray icon`} src={url} /> : <ImagePlus size={24} />}
+        <div>
+          <p className="eyebrow">Pack configuration</p>
+          <h3>Settings</h3>
         </div>
-        <label className="file-drop compact-drop">
-          <Input accept="image/*" onChange={(event) => setFile(event.target.files?.[0] ?? null)} type="file" />
-          <ImagePlus size={20} />
-          <span>{file ? file.name : 'Choose tray image'}</span>
-        </label>
-        <Button disabled={!file || uploading} type="submit" variant="secondary">
-          <Upload size={17} />
-          Replace
-        </Button>
-      </form>
+        <Edit3 size={18} />
+      </div>
+
+      <div className="pack-settings-layout">
+        {canManage ? (
+          <section aria-labelledby="pack-details-settings-title" className="pack-settings-section">
+            <div className="panel-subheading">
+              <div>
+                <h4 id="pack-details-settings-title">Details</h4>
+                <p>Name, visibility and export behavior.</p>
+              </div>
+              <Edit3 size={16} />
+            </div>
+            <div className="pack-settings-details-grid">
+              <Field label="Name" htmlFor="pack-name">
+                <Input
+                  id="pack-name"
+                  maxLength={128}
+                  required
+                  value={draft.name}
+                  onChange={(event) => onDraftChange({ ...draft, name: event.target.value })}
+                />
+                {errors.name ? <small className="field-error">{errors.name}</small> : null}
+              </Field>
+              <Field label="Publisher" htmlFor="pack-publisher">
+                <Input
+                  id="pack-publisher"
+                  maxLength={128}
+                  required
+                  value={draft.publisher}
+                  onChange={(event) => onDraftChange({ ...draft, publisher: event.target.value })}
+                />
+                {errors.publisher ? <small className="field-error">{errors.publisher}</small> : null}
+              </Field>
+              <Field label="Description" htmlFor="pack-description">
+                <Input
+                  id="pack-description"
+                  maxLength={500}
+                  value={draft.description}
+                  onChange={(event) => onDraftChange({ ...draft, description: event.target.value })}
+                />
+                {errors.description ? <small className="field-error">{errors.description}</small> : null}
+              </Field>
+              <div className="pack-settings-toggles">
+                <CheckboxField className="edit-toggle" label="Public">
+                  <Checkbox
+                    checked={draft.isPublic}
+                    onChange={(event) => onDraftChange({ ...draft, isPublic: event.target.checked })}
+                  />
+                </CheckboxField>
+                <CheckboxField className="edit-toggle" label="Require approval">
+                  <Checkbox
+                    checked={draft.requiresApproval}
+                    onChange={(event) => onDraftChange({ ...draft, requiresApproval: event.target.checked })}
+                  />
+                </CheckboxField>
+                <CheckboxField className="edit-toggle" label="Animated pack">
+                  <Checkbox
+                    checked={draft.isAnimated}
+                    onChange={(event) => onDraftChange({ ...draft, isAnimated: event.target.checked })}
+                  />
+                </CheckboxField>
+              </div>
+            </div>
+          </section>
+        ) : null}
+
+        {canEdit ? (
+          <section aria-labelledby="tray-settings-title" className="pack-settings-section tray-settings-section">
+            <div className="panel-subheading">
+              <div>
+                <h4 id="tray-settings-title">Tray icon</h4>
+                <p>Shown as the pack thumbnail in WhatsApp.</p>
+              </div>
+              <ImagePlus size={16} />
+            </div>
+            <div className="tray-settings-content">
+              <div aria-label="Current tray icon" className="tray-preview">
+                {url ? <img alt={`${pack.name} tray icon`} src={url} /> : <ImagePlus size={24} />}
+              </div>
+              <div className="tray-settings-copy">
+                <label className="tray-file-picker">
+                  <input
+                    ref={fileInputRef}
+                    accept="image/*"
+                    onChange={(event) => onTrayIconFileChange(event.target.files?.[0] ?? null)}
+                    type="file"
+                  />
+                  <Upload size={16} />
+                  <span>{trayIconFile ? trayIconFile.name : 'Choose tray icon'}</span>
+                </label>
+                <small>Changes are staged until you press Save changes in the header.</small>
+              </div>
+            </div>
+          </section>
+        ) : null}
+      </div>
+
+      <div className="pack-settings-footer">
+        <span className={hasDirty ? 'dirty-indicator' : 'saved-indicator'}>
+          {hasDirty ? 'Unsaved changes' : 'All changes saved'}
+        </span>
+        <span className="pack-settings-save-hint">Save applies details and tray icon together.</span>
+      </div>
     </Card>
   );
 }
@@ -494,7 +501,19 @@ export function UploadPanel({
         uploadStarting.current = false;
       }
     })();
-  }, [accessibilityText, api, editOptions, emojis, onError, pack.id, pack.isAnimated, queryClient, uploadPlan, uploading, activeUpload]);
+  }, [
+    accessibilityText,
+    api,
+    editOptions,
+    emojis,
+    onError,
+    pack.id,
+    pack.isAnimated,
+    queryClient,
+    uploadPlan,
+    uploading,
+    activeUpload,
+  ]);
 
   useEffect(() => {
     const job = polledJobQuery.data;
@@ -587,12 +606,8 @@ export function UploadPanel({
         : `${files.length} images selected`;
 
   return (
-    <Card className="upload-panel">
-      <div className="section-heading">
-        <h3>Upload</h3>
-        <span className="counter">{remainingSlots}</span>
-      </div>
-      <form className="upload-form" onSubmit={submit}>
+    <div className="upload-panel">
+      <form className="upload-form sticker-upload-form" onSubmit={submit}>
         <label
           className={`file-drop ${isFileDragActive ? 'drag-active' : ''}`}
           onDragEnter={(event) => {
@@ -616,10 +631,15 @@ export function UploadPanel({
           <ImagePlus size={22} />
           <span>{fileLabel}</span>
         </label>
-        <Field label="Default emojis" htmlFor="upload-emojis">
-          <Input id="upload-emojis" value={emojis} onChange={(event) => setEmojis(event.target.value)} placeholder="smile,laugh,heart" />
+        <Field className="upload-default-field" label="Default emojis" htmlFor="upload-emojis">
+          <Input
+            id="upload-emojis"
+            value={emojis}
+            onChange={(event) => setEmojis(event.target.value)}
+            placeholder="smile,laugh,heart"
+          />
         </Field>
-        <Field label="Default alt text" htmlFor="upload-alt-text">
+        <Field className="upload-default-field" label="Default alt text" htmlFor="upload-alt-text">
           <Input
             id="upload-alt-text"
             value={accessibilityText}
@@ -667,7 +687,9 @@ export function UploadPanel({
         <section className="job-progress-panel" aria-live="polite">
           <div className="section-heading">
             <h4>Media jobs</h4>
-            <span className="counter">{jobs.filter((job) => job.status === 'COMPLETED').length}/{jobs.length}</span>
+            <span className="counter">
+              {jobs.filter((job) => job.status === 'COMPLETED').length}/{jobs.length}
+            </span>
           </div>
           <div className="job-list">
             {jobs.map((job) => {
@@ -712,7 +734,7 @@ export function UploadPanel({
           </div>
         </section>
       ) : null}
-    </Card>
+    </div>
   );
 }
 

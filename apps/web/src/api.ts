@@ -398,8 +398,9 @@ export class StickerFoundryApi {
     return this.request<PackInvite[]>(`/packs/${id}/invites`, { auth: true });
   }
 
-  async packActivity(id: string) {
-    return this.request<AuditLogEntry[]>(`/packs/${id}/activity`, { auth: true });
+  async packActivity(id: string, limit?: number) {
+    const query = limit === undefined ? '' : `?limit=${limit}`;
+    return this.request<AuditLogEntry[]>(`/packs/${id}/activity${query}`, { auth: true });
   }
 
   async createPackInvite(id: string, role: Exclude<PackRole, 'OWNER'>, email?: string, expiresAt?: string) {
@@ -424,7 +425,13 @@ export class StickerFoundryApi {
     });
   }
 
-  async uploadSticker(packId: string, file: File, emojis: string[], accessibilityText: string, uploadOptions?: StickerUploadOptions) {
+  async uploadSticker(
+    packId: string,
+    file: File,
+    emojis: string[],
+    accessibilityText: string,
+    uploadOptions?: StickerUploadOptions,
+  ) {
     const form = new FormData();
     form.append('file', file);
     form.append('emojis', emojis.join(','));

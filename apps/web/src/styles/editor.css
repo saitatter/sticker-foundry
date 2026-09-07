@@ -385,18 +385,25 @@
   padding: 12px;
   border: 1px dashed var(--border);
   border-radius: 8px;
-  background: #fbfdfd;
+  background: var(--surface-muted);
   color: var(--text);
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 9px;
+  cursor: pointer;
+  transition:
+    border-color 160ms ease,
+    background-color 160ms ease,
+    box-shadow 160ms ease,
+    transform 160ms ease;
 }
 
 .file-drop:hover,
 .file-drop.drag-active {
   border-color: var(--primary);
-  background: #e8f5f2;
+  background: color-mix(in srgb, var(--primary) 10%, var(--surface));
+  transform: translateY(-1px);
 }
 
 .file-drop.drag-active {
@@ -405,6 +412,18 @@
 
 .file-drop input {
   display: none;
+}
+
+.file-drop svg {
+  flex: 0 0 auto;
+  color: var(--primary);
+}
+
+.file-drop span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .sticker-grid {
@@ -445,6 +464,15 @@
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--surface);
+  transition:
+    transform 160ms ease,
+    border-color 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.sticker-tile:hover {
+  border-color: color-mix(in srgb, var(--primary) 38%, var(--border));
+  box-shadow: var(--shadow-soft);
 }
 
 .sticker-tile.dragging {
@@ -486,30 +514,55 @@
   cursor: grabbing;
 }
 
-.sticker-select {
-  min-height: 34px;
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  justify-self: start;
+.sticker-preview-wrap {
+  position: relative;
   min-width: 0;
-  padding: 0 8px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--surface-muted);
-  color: var(--muted);
-  font-size: 12px;
 }
 
-.sticker-select input {
-  width: 16px;
-  height: 16px;
+.sticker-select-button {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 2;
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 2px solid color-mix(in srgb, var(--surface) 92%, var(--border));
+  border-radius: 999px;
+  color: var(--primary-foreground);
+  background: color-mix(in srgb, var(--surface) 86%, transparent);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.16);
+  opacity: 0;
+  pointer-events: none;
+  transform: scale(0.86);
+  transition:
+    opacity 140ms ease,
+    transform 140ms ease,
+    background-color 140ms ease,
+    border-color 140ms ease;
 }
 
-.sticker-select span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.sticker-preview-wrap:hover .sticker-select-button,
+.sticker-preview-wrap:focus-within .sticker-select-button,
+.sticker-tile.selected .sticker-select-button,
+.sticker-select-button:focus-visible {
+  opacity: 1;
+  pointer-events: auto;
+  transform: scale(1);
+}
+
+.sticker-select-button:hover,
+.sticker-select-button.selected {
+  border-color: var(--primary);
+  background: var(--primary);
+  color: var(--primary-foreground);
+}
+
+.sticker-select-button:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
 }
 
 .sticker-preview {

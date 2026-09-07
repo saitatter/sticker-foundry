@@ -9,6 +9,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   Put,
   Res,
   UploadedFile,
@@ -94,8 +95,9 @@ export class PacksController {
   }
 
   @Get(':id/activity')
-  activity(@CurrentUser() user: RequestUser, @Param('id') id: string) {
-    return this.packsService.activity(user.sub, id);
+  activity(@CurrentUser() user: RequestUser, @Param('id') id: string, @Query('limit') limit?: string) {
+    const parsedLimit = limit === undefined ? undefined : Number.parseInt(limit, 10);
+    return this.packsService.activity(user.sub, id, Number.isFinite(parsedLimit) ? parsedLimit : undefined);
   }
 
   @Post(':id/invites')
@@ -209,7 +211,9 @@ export class PacksController {
     @UploadedFile() file: Express.Multer.File,
     @Body() dto: UploadStickerDto,
   ) {
-    return this.packsService.assertPackVersion(user.sub, id, ifMatch).then(() => this.packsService.queueStickerUpload(user.sub, id, file, dto));
+    return this.packsService
+      .assertPackVersion(user.sub, id, ifMatch)
+      .then(() => this.packsService.queueStickerUpload(user.sub, id, file, dto));
   }
 
   @Patch(':id/stickers')

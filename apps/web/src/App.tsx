@@ -39,7 +39,11 @@ export type AppRoute =
       view: 'packs' | 'pack';
       packId?: string;
       section?: 'overview' | 'stickers' | 'collaboration' | 'activity' | 'settings';
-      filters?: { q?: string; visibility?: 'all' | 'public' | 'private' | 'ready' | 'needs-work'; sort?: 'updated' | 'name' | 'stickers' };
+      filters?: {
+        q?: string;
+        visibility?: 'all' | 'public' | 'private' | 'ready' | 'needs-work';
+        sort?: 'updated' | 'name' | 'stickers';
+      };
     }
   | { kind: 'share'; packId: string }
   | { kind: 'reset'; token: string | null };
@@ -52,7 +56,7 @@ export function App({ route }: { route: AppRoute }) {
   const [sessionUser, setSessionUser] = useState<User | null>(null);
   const [notice, setNotice] = useState<Notice | null>(null);
   const [showMobileTools, setShowMobileTools] = useState(false);
-  const selectedPackId = route.kind === 'workspace' && route.view === 'pack' ? route.packId ?? null : null;
+  const selectedPackId = route.kind === 'workspace' && route.view === 'pack' ? (route.packId ?? null) : null;
   const workspaceView = route.kind === 'workspace' ? route.view : 'packs';
   const sidebarView = route.kind === 'settings' ? (route.section === 'admin' ? 'admin' : 'account') : workspaceView;
   const isPublicRoute = route.kind === 'login' || route.kind === 'share' || route.kind === 'reset';
@@ -70,14 +74,7 @@ export function App({ route }: { route: AppRoute }) {
     setSessionUser(auth.user);
   }, []);
 
-  const api = useMemo(
-    () =>
-      new StickerFoundryApi(
-        () => token,
-        saveAuth,
-      ),
-    [saveAuth, token],
-  );
+  const api = useMemo(() => new StickerFoundryApi(() => token, saveAuth), [saveAuth, token]);
   const packsQuery = usePacksQuery(api, Boolean(token));
   const teamsQuery = useTeamsQuery(api, Boolean(token));
   const selectedPackQuery = usePackQuery(api, selectedPackId);
@@ -194,6 +191,20 @@ export function App({ route }: { route: AppRoute }) {
   const loading = packsQuery.isPending;
   const selectedPackSummary = packs.find((pack) => pack.id === selectedPackId) ?? selectedPack;
 
+  if (!isPublicRoute && !authBootstrapped) {
+    return (
+      <main aria-busy="true" className="auth-loading-screen">
+        <div className="auth-loading-card">
+          <BrandMark />
+          <div>
+            <strong>Restoring your session</strong>
+            <span>Just a moment…</span>
+          </div>
+        </div>
+      </main>
+    );
+  }
+
   if (!token) {
     return (
       <AuthScreen
@@ -245,7 +256,8 @@ export function App({ route }: { route: AppRoute }) {
             onChanged={invalidateWorkspace}
             onClose={() => {
               setShowMobileTools(false);
-              if (route.kind === 'team') void navigate({ to: '/app/packs', search: { q: undefined, visibility: undefined, sort: undefined } });
+              if (route.kind === 'team')
+                void navigate({ to: '/app/packs', search: { q: undefined, visibility: undefined, sort: undefined } });
             }}
             onError={reportError}
             onNotice={(message) => setNotice({ tone: 'success', text: message })}
@@ -290,86 +302,86 @@ export function App({ route }: { route: AppRoute }) {
         </Button>
       }
     >
-          {notice ? <NoticeBar notice={notice} onClose={() => setNotice(null)} /> : null}
-          {route.kind === 'settings' && route.section === 'admin' ? (
-            <AdminSettingsPage
-              api={api}
-              isAdmin={Boolean(user?.isAdmin)}
-              instanceSettings={instanceSettings}
-              onClose={() => {
-                void navigate({ to: '/app/packs', search: { q: undefined, visibility: undefined, sort: undefined } });
-              }}
-              onChanged={(message, settings) => {
-                if (settings) queryClient.setQueryData(queryKeys.instance, settings);
-                setNotice({ tone: 'success', text: message });
-              }}
-              onError={reportError}
-            />
-          ) : route.kind === 'settings' ? (
-            <AccountSettingsPage
-              api={api}
-              onClose={() => {
-                void navigate({ to: '/app/packs', search: { q: undefined, visibility: undefined, sort: undefined } });
-              }}
-              onChanged={(message) => setNotice({ tone: 'success', text: message })}
-              onError={reportError}
-            />
-          ) : workspaceView === 'packs' ? (
-            <PackLibrary
-              api={api}
-              packs={packs}
-              selectedPackId={selectedPackId}
-              loading={loading}
-              filters={route.kind === 'workspace' ? route.filters : undefined}
-              onSelect={openPack}
-            />
-          ) : selectedPack ? (
-            <PackDetail
-              api={api}
-              backgroundRemovalStatus={backgroundRemovalStatus}
-              pack={selectedPack}
-              packs={packs}
-              initialTab={route.kind === 'workspace' ? route.section ?? 'overview' : 'overview'}
-              onSectionChange={(section) => {
-                if (section === 'overview') {
-                  void navigate({ to: '/app/packs/$packId', params: { packId: selectedPack.id } });
-                } else if (section === 'stickers') {
-                  void navigate({ to: '/app/packs/$packId/stickers', params: { packId: selectedPack.id } });
-                } else if (section === 'collaboration') {
-                  void navigate({ to: '/app/packs/$packId/collaboration', params: { packId: selectedPack.id } });
-                } else if (section === 'activity') {
-                  void navigate({ to: '/app/packs/$packId/activity', params: { packId: selectedPack.id } });
-                } else if (section === 'settings') {
-                  void navigate({ to: '/app/packs/$packId/settings', params: { packId: selectedPack.id } });
-                }
-              }}
-              onChanged={async (message) => {
-                await invalidateWorkspace();
-                setNotice({ tone: 'success', text: message });
-              }}
-              onDeleted={() => {
-                queryClient.setQueryData<Pack[]>(queryKeys.packs.list, (current = []) =>
-                  current.filter((pack) => pack.id !== selectedPack.id),
-                );
-                queryClient.removeQueries({ queryKey: queryKeys.packs.detail(selectedPack.id) });
-                void navigate({ to: '/app/packs', search: { q: undefined, visibility: undefined, sort: undefined } });
-                setNotice({ tone: 'success', text: 'Pack deleted' });
-              }}
-              onCloned={(pack) => {
-                queryClient.setQueryData<Pack[]>(queryKeys.packs.list, (current = []) => [pack, ...current]);
-                openPack(pack.id);
-                setNotice({ tone: 'success', text: 'Pack cloned' });
-              }}
-              onError={reportError}
-              onNotice={(message) => setNotice({ tone: 'success', text: message })}
-            />
-          ) : (
-            <EmptyStateComponent
-              description="Create or select a pack."
-              icon={<ImagePlus size={34} />}
-              title="No pack selected"
-            />
-          )}
+      {notice ? <NoticeBar notice={notice} onClose={() => setNotice(null)} /> : null}
+      {route.kind === 'settings' && route.section === 'admin' ? (
+        <AdminSettingsPage
+          api={api}
+          isAdmin={Boolean(user?.isAdmin)}
+          instanceSettings={instanceSettings}
+          onClose={() => {
+            void navigate({ to: '/app/packs', search: { q: undefined, visibility: undefined, sort: undefined } });
+          }}
+          onChanged={(message, settings) => {
+            if (settings) queryClient.setQueryData(queryKeys.instance, settings);
+            setNotice({ tone: 'success', text: message });
+          }}
+          onError={reportError}
+        />
+      ) : route.kind === 'settings' ? (
+        <AccountSettingsPage
+          api={api}
+          onClose={() => {
+            void navigate({ to: '/app/packs', search: { q: undefined, visibility: undefined, sort: undefined } });
+          }}
+          onChanged={(message) => setNotice({ tone: 'success', text: message })}
+          onError={reportError}
+        />
+      ) : workspaceView === 'packs' ? (
+        <PackLibrary
+          api={api}
+          packs={packs}
+          selectedPackId={selectedPackId}
+          loading={loading}
+          filters={route.kind === 'workspace' ? route.filters : undefined}
+          onSelect={openPack}
+        />
+      ) : selectedPack ? (
+        <PackDetail
+          api={api}
+          backgroundRemovalStatus={backgroundRemovalStatus}
+          pack={selectedPack}
+          packs={packs}
+          initialTab={route.kind === 'workspace' ? (route.section ?? 'overview') : 'overview'}
+          onSectionChange={(section) => {
+            if (section === 'overview') {
+              void navigate({ to: '/app/packs/$packId', params: { packId: selectedPack.id } });
+            } else if (section === 'stickers') {
+              void navigate({ to: '/app/packs/$packId/stickers', params: { packId: selectedPack.id } });
+            } else if (section === 'collaboration') {
+              void navigate({ to: '/app/packs/$packId/collaboration', params: { packId: selectedPack.id } });
+            } else if (section === 'activity') {
+              void navigate({ to: '/app/packs/$packId/activity', params: { packId: selectedPack.id } });
+            } else if (section === 'settings') {
+              void navigate({ to: '/app/packs/$packId/settings', params: { packId: selectedPack.id } });
+            }
+          }}
+          onChanged={async (message) => {
+            await invalidateWorkspace();
+            setNotice({ tone: 'success', text: message });
+          }}
+          onDeleted={() => {
+            queryClient.setQueryData<Pack[]>(queryKeys.packs.list, (current = []) =>
+              current.filter((pack) => pack.id !== selectedPack.id),
+            );
+            queryClient.removeQueries({ queryKey: queryKeys.packs.detail(selectedPack.id) });
+            void navigate({ to: '/app/packs', search: { q: undefined, visibility: undefined, sort: undefined } });
+            setNotice({ tone: 'success', text: 'Pack deleted' });
+          }}
+          onCloned={(pack) => {
+            queryClient.setQueryData<Pack[]>(queryKeys.packs.list, (current = []) => [pack, ...current]);
+            openPack(pack.id);
+            setNotice({ tone: 'success', text: 'Pack cloned' });
+          }}
+          onError={reportError}
+          onNotice={(message) => setNotice({ tone: 'success', text: message })}
+        />
+      ) : (
+        <EmptyStateComponent
+          description="Create or select a pack."
+          icon={<ImagePlus size={34} />}
+          title="No pack selected"
+        />
+      )}
     </AppShell>
   );
 }
