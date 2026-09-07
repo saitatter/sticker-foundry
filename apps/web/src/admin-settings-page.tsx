@@ -1,4 +1,4 @@
-import { ArrowLeft, Download, ShieldCheck, Trash2 } from 'lucide-react';
+import { ArrowLeft, ChevronLeft, ChevronRight, Download, ShieldCheck, Trash2 } from 'lucide-react';
 import { type FormEvent, useEffect, useState } from 'react';
 import type {
   AdminSettings,
@@ -19,6 +19,10 @@ const DEFAULT_INSTANCE_SETTINGS: InstanceSettings = {
   instanceName: 'Sticker Foundry',
   instanceDescription: 'Self-hosted sticker pack management',
 };
+const auditPageSizes = [10, 25, 100] as const;
+const AUDIT_LOG_FETCH_LIMIT = 200;
+type AuditPageSize = (typeof auditPageSizes)[number] | 'all';
+type AuditPageItem = number | 'ellipsis';
 
 export function AdminSettingsPage({
   api,
@@ -45,6 +49,8 @@ export function AdminSettingsPage({
   const [instanceDescription, setInstanceDescription] = useState(instanceSettings.instanceDescription);
   const [saving, setSaving] = useState(false);
   const [exportingAudit, setExportingAudit] = useState(false);
+  const [auditPage, setAuditPage] = useState(1);
+  const [auditPageSize, setAuditPageSize] = useState<AuditPageSize>(10);
 
   useEffect(() => {
     if (!isAdmin) return;
@@ -64,7 +70,13 @@ export function AdminSettingsPage({
       })
       .catch(onError);
 
-    api.adminAuditLog().then(setAuditLog).catch(onError);
+    api
+      .adminAuditLog(AUDIT_LOG_FETCH_LIMIT)
+      .then((entries) => {
+        setAuditLog(entries);
+        setAuditPage(1);
+      })
+      .catch(onError);
   }, [api, isAdmin, onError]);
 
   async function saveSettings(event: FormEvent) {
@@ -100,7 +112,8 @@ export function AdminSettingsPage({
       setAuditRetentionDays(settings.auditRetentionDays ? String(settings.auditRetentionDays) : '');
       setInstanceName(settings.instanceName);
       setInstanceDescription(settings.instanceDescription);
-      setAuditLog(await api.adminAuditLog());
+      setAuditLog(await api.adminAuditLog(AUDIT_LOG_FETCH_LIMIT));
+      setAuditPage(1);
       onChanged('Admin settings saved', {
         instanceName: settings.instanceName,
         instanceDescription: settings.instanceDescription,
@@ -127,11 +140,38 @@ export function AdminSettingsPage({
   async function cleanupAuditLog() {
     try {
       const result = await api.cleanupAuditLog();
-      setAuditLog(await api.adminAuditLog());
+      setAuditLog(await api.adminAuditLog(AUDIT_LOG_FETCH_LIMIT));
+      setAuditPage(1);
       onChanged(`Audit cleanup deleted ${result.deleted} entr${result.deleted === 1 ? 'y' : 'ies'}`);
     } catch (error) {
       onError(error);
     }
+  }
+
+  const auditTotalPages = auditPageSize === 'all' ? 1 : Math.max(1, Math.ceil(auditLog.length / auditPageSize));
+  const currentAuditPage = Math.min(auditPage, auditTotalPages);
+  const visibleAuditLog =
+    auditPageSize === 'all'
+      ? auditLog
+      : auditLog.slice((currentAuditPage - 1) * auditPageSize, currentAuditPage * auditPageSize);
+  const auditPageItems = auditPaginationItems(currentAuditPage, auditTotalPages);
+  const firstVisibleAuditEntry = auditLog.length === 0 ? 0 : auditPageSize === 'all' ? 1 : (currentAuditPage - 1) * auditPageSize + 1;
+  const lastVisibleAuditEntry = auditPageSize === 'all' ? auditLog.length : Math.min(auditLog.length, currentAuditPage * auditPageSize);
+
+  useEffect(() => {
+    if (auditPage > auditTotalPages) setAuditPage(auditTotalPages);
+  }, [auditPage, auditTotalPages]);
+
+  function handleAuditPageSizeChange(value: string) {
+    const parsed = Number(value);
+    const nextPageSize: AuditPageSize =
+      value === 'all'
+        ? 'all'
+        : auditPageSizes.includes(parsed as (typeof auditPageSizes)[number])
+          ? (parsed as (typeof auditPageSizes)[number])
+          : 10;
+    setAuditPageSize(nextPageSize);
+    setAuditPage(1);
   }
 
   if (!isAdmin) {
@@ -287,7 +327,7 @@ export function AdminSettingsPage({
         </div>
         <div className="audit-list">
           {auditLog.length > 0 ? (
-            auditLog.map((entry) => (
+            visibleAuditLog.map((entry) => (
               <div className="audit-row" key={entry.id}>
                 <span>
                   <strong>{auditActionLabel(entry.action)}</strong>
@@ -302,6 +342,72 @@ export function AdminSettingsPage({
             <p className="muted-row">No audit events yet.</p>
           )}
         </div>
+        {auditLog.length > 0 ? (
+          <div className="activity-pagination">
+            <span className="activity-pagination-summary">
+              Showing {firstVisibleAuditEntry}â€“{lastVisibleAuditEntry} of {auditLog.length}
+            </span>
+            <div className="activity-pagination-controls" aria-label="Audit pagination">
+              <Button
+                aria-label="Previous audit page"
+                disabled={currentAuditPage === 1}
+                onClick={() => setAuditPage((value) => Math.max(1, value - 1))}
+                size="sm"
+                type="button"
+                variant="ghost"
+              >
+                <ChevronLeft size={16} />
+                Previous
+              </Button>
+              <div className="activity-page-buttons">
+                {auditPageItems.map((item, index) =>
+                  item === 'ellipsis' ? (
+                    <span className="activity-page-ellipsis" key={`ellipsis-${index}`}>
+                      â€¦
+                    </span>
+                  ) : (
+                    <button
+                      aria-current={currentAuditPage === item ? 'page' : undefined}
+                      aria-label={`Audit page ${item}`}
+                      className={`activity-page-button${currentAuditPage === item ? ' active' : ''}`}
+                      key={item}
+                      onClick={() => setAuditPage(item)}
+                      type="button"
+                    >
+                      {item}
+                    </button>
+                  ),
+                )}
+              </div>
+              <Button
+                aria-label="Next audit page"
+                disabled={currentAuditPage === auditTotalPages}
+                onClick={() => setAuditPage((value) => Math.min(auditTotalPages, value + 1))}
+                size="sm"
+                type="button"
+                variant="ghost"
+              >
+                Next
+                <ChevronRight size={16} />
+              </Button>
+            </div>
+            <label className="activity-page-size">
+              <span>Per page</span>
+              <Select
+                aria-label="Audit events per page"
+                value={auditPageSize}
+                onChange={(event) => handleAuditPageSizeChange(event.target.value)}
+              >
+                {auditPageSizes.map((size) => (
+                  <option key={size} value={size}>
+                    {size}
+                  </option>
+                ))}
+                <option value="all">All</option>
+              </Select>
+            </label>
+          </div>
+        ) : null}
       </Card>
     </section>
   );
@@ -312,4 +418,25 @@ function auditActionLabel(action: string) {
     .split('.')
     .map((part) => part.slice(0, 1).toUpperCase() + part.slice(1))
     .join(' ');
+}
+
+function auditPaginationItems(currentPage: number, totalPages: number): AuditPageItem[] {
+  if (totalPages <= 7) {
+    return Array.from({ length: totalPages }, (_, index) => index + 1);
+  }
+
+  const pages = new Set([1, totalPages, currentPage - 1, currentPage, currentPage + 1]);
+  const items: AuditPageItem[] = [];
+
+  for (let pageNumber = 1; pageNumber <= totalPages; pageNumber += 1) {
+    if (!pages.has(pageNumber)) {
+      if (items[items.length - 1] !== 'ellipsis') {
+        items.push('ellipsis');
+      }
+      continue;
+    }
+    items.push(pageNumber);
+  }
+
+  return items;
 }

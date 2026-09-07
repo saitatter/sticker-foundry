@@ -303,6 +303,18 @@ test('opens admin settings as a dedicated page and switches to dark theme', asyn
   await expect(page).toHaveURL(/\/app\/settings\/admin$/);
   await expect(page.getByRole('heading', { name: 'Admin settings' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Instance settings' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Audit log' })).toBeVisible();
+  await expect(page.locator('.audit-row')).toHaveCount(10);
+  await expect(page.getByText('Showing 1â€“10 of 31')).toBeVisible();
+  await page.getByRole('button', { name: 'Audit page 2' }).click();
+  await expect(page.locator('.audit-row')).toHaveCount(10);
+  await expect(page.getByText('Showing 11â€“20 of 31')).toBeVisible();
+  await page.getByLabel('Audit events per page').selectOption('25');
+  await expect(page.locator('.audit-row')).toHaveCount(25);
+  await expect(page.getByText('Showing 1â€“25 of 31')).toBeVisible();
+  await page.getByLabel('Audit events per page').selectOption('all');
+  await expect(page.locator('.audit-row')).toHaveCount(31);
+  await expect(page.getByText('Showing 1â€“31 of 31')).toBeVisible();
   await expect(page.locator('.modal-panel')).toHaveCount(0);
 
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
@@ -455,6 +467,16 @@ function createMockState() {
         actor: { id: 'user-1', email: 'demo@stickerfoundry.local', displayName: 'Demo' },
       }),
     ),
+    adminAudit: Array.from(
+      { length: 31 },
+      (_, index): ActivityEntry => ({
+        id: `admin-audit-${index + 1}`,
+        action: index === 0 ? 'admin.settings.update' : 'admin.settings.read',
+        entityType: 'appSetting',
+        createdAt: new Date(Date.now() - index * 60_000).toISOString(),
+        actor: { id: 'user-1', email: 'demo@stickerfoundry.local', displayName: 'Demo' },
+      }),
+    ),
     uploads: [] as Array<{ packId: string; body: string }>,
     jobs: new Map<string, { id: string }>(),
   };
@@ -508,7 +530,7 @@ async function mockApi(page: Page, state: ReturnType<typeof createMockState>) {
       });
     }
     if (method === 'GET' && path === '/admin/audit-log') {
-      return json(route, []);
+      return json(route, state.adminAudit);
     }
     if (method === 'GET' && path === '/packs') {
       return json(
