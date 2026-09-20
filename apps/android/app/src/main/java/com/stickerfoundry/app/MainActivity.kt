@@ -77,8 +77,9 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.core.view.WindowCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.stickerfoundry.app.data.ImageEditOptions
-import com.stickerfoundry.app.data.StickerRepository
+import com.stickerfoundry.app.data.*
+import com.stickerfoundry.app.packs.PackWorkspaceScreen
+import com.stickerfoundry.app.packs.PacksLibraryScreen
 import com.stickerfoundry.app.ui.theme.StickerFoundryTheme
 import com.stickerfoundry.app.whatsapp.WhatsAppStickerLauncher
 import java.io.File
@@ -127,6 +128,16 @@ private enum class AppDestination {
     SETTINGS,
 }
 
+private fun sharePublicPack(context: Context, serverUrl: String, packId: String) {
+    val baseUrl = serverUrl.trimEnd('/').removeSuffix("/api")
+    val url = "$baseUrl/share/$packId"
+    val shareIntent = Intent(Intent.ACTION_SEND).apply {
+        type = "text/plain"
+        putExtra(Intent.EXTRA_TEXT, url)
+    }
+    context.startActivity(Intent.createChooser(shareIntent, "Share public pack"))
+}
+
 @Composable
 private fun StickerApp(
     viewModel: StickerViewModel,
@@ -134,13 +145,28 @@ private fun StickerApp(
     onToggleTheme: (Boolean) -> Unit,
 ) {
     val packs by viewModel.packs.collectAsState()
-    val stickersByPack by viewModel.stickersByPack.collectAsState()
     val status by viewModel.status.collectAsState()
     val serverStatus by viewModel.serverStatus.collectAsState()
     val checkingServer by viewModel.checkingServer.collectAsState()
     val serverUrl by viewModel.serverUrl.collectAsState()
     val account by viewModel.account.collectAsState()
     val isLoggedIn by viewModel.isLoggedIn.collectAsState()
+    val currentUser by viewModel.currentUser.collectAsState()
+    val remotePacks by viewModel.remotePacks.collectAsState()
+    val publicPacks by viewModel.publicPacks.collectAsState()
+    val teams by viewModel.teams.collectAsState()
+    val teamMembers by viewModel.teamMembers.collectAsState()
+    val selectedPackId by viewModel.selectedPackId.collectAsState()
+    val selectedPack by viewModel.selectedPack.collectAsState()
+    val selectedPackMembers by viewModel.selectedPackMembers.collectAsState()
+    val selectedPackInvites by viewModel.selectedPackInvites.collectAsState()
+    val selectedPackActivity by viewModel.selectedPackActivity.collectAsState()
+    val selectedStickerComments by viewModel.selectedStickerComments.collectAsState()
+    val workspaceLoading by viewModel.workspaceLoading.collectAsState()
+    val activeJobs by viewModel.activeJobs.collectAsState()
+    val sessions by viewModel.sessions.collectAsState()
+    val adminSettings by viewModel.adminSettings.collectAsState()
+    val adminAuditLog by viewModel.adminAuditLog.collectAsState()
     val serverVersion by viewModel.serverVersion.collectAsState()
     val cacheUsage by viewModel.cacheUsage.collectAsState()
     val context = LocalContext.current
@@ -149,7 +175,12 @@ private fun StickerApp(
     }
     var stickerUploadPackId by remember { mutableStateOf<String?>(null) }
     var stickerUploadPackAnimated by remember { mutableStateOf(false) }
+    var batchUploadPackId by remember { mutableStateOf<String?>(null) }
+    var batchUploadPackAnimated by remember { mutableStateOf(false) }
     var trayIconPackId by remember { mutableStateOf<String?>(null) }
+    var replaceStickerPackId by remember { mutableStateOf<String?>(null) }
+    var replaceStickerId by remember { mutableStateOf<String?>(null) }
+    var replaceStickerAnimated by remember { mutableStateOf(false) }
     var pendingEdit by remember { mutableStateOf<PendingImageEdit?>(null) }
     var showTroubleshooting by remember { mutableStateOf(false) }
     var showProfileMenu by remember { mutableStateOf(false) }
@@ -157,7 +188,11 @@ private fun StickerApp(
     var settingsCategory by rememberSaveable { mutableStateOf(SettingsCategory.SERVER) }
     var destination by rememberSaveable { mutableStateOf(AppDestination.HOME) }
     LaunchedEffect(isLoggedIn) {
-        if (!isLoggedIn) destination = AppDestination.HOME
+        if (!isLoggedIn) {
+            destination = AppDestination.HOME
+        } else {
+            viewModel.refreshWorkspace()
+        }
     }
     val stickerPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         val packId = stickerUploadPackId
@@ -175,6 +210,29 @@ private fun StickerApp(
             pendingEdit = PendingImageEdit(packId, uri, ImageEditTarget.TrayIcon)
         }
     }
+    val batchStickerPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetMultipleContents()) { uris ->
+        val packId = batchUploadPackId
+        batchUploadPackId = null
+        batchUploadPackAnimated = false
+        if (packId != null) {
+            viewModel.uploadStickers(
+                packId,
+                uris,
+                ImageEditOptions(backgroundRemovalMode = BackgroundRemovalMode.Ai),
+            )
+        }
+    }
+    val replaceStickerPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        val packId = replaceStickerPackId
+        val stickerId = replaceStickerId
+        val isAnimated = replaceStickerAnimated
+        replaceStickerPackId = null
+        replaceStickerId = null
+        replaceStickerAnimated = false
+        if (uri != null && packId != null && stickerId != null) {
+            pendingEdit = PendingImageEdit(packId, uri, ImageEditTarget.Sticker, isAnimated, stickerId)
+        }
+    }
 
     if (!isLoggedIn) {
         LoginScreen(
@@ -187,6 +245,9 @@ private fun StickerApp(
             onSaveServerUrl = { viewModel.saveServerUrl(it) },
             onCheckServerUrl = { viewModel.checkServerUrl(it) },
             onLogin = { email, password -> viewModel.login(email, password) },
+            onRegister = { email, displayName, password, inviteCode -> viewModel.register(email, displayName, password, inviteCode) },
+            onForgotPassword = { viewModel.requestPasswordReset(it) },
+            onResetPassword = { token, password -> viewModel.resetPassword(token, password) },
         )
     } else {
         Scaffold(
@@ -205,10 +266,12 @@ private fun StickerApp(
                 )
             },
             bottomBar = {
-                MobileNavigationBar(
-                    selected = destination,
-                    onSelect = { destination = it },
-                )
+                if (selectedPackId == null) {
+                    MobileNavigationBar(
+                        selected = destination,
+                        onSelect = { destination = it },
+                    )
+                }
             },
         ) { innerPadding ->
             Box(
@@ -217,12 +280,77 @@ private fun StickerApp(
                     .padding(innerPadding)
                     .padding(horizontal = 16.dp, vertical = 12.dp),
             ) {
-                Crossfade(
-                    targetState = destination,
-                    animationSpec = androidx.compose.animation.core.tween(durationMillis = 280),
-                    label = "mobile-destination",
-                ) { currentDestination ->
-                    when (currentDestination) {
+                if (selectedPack != null) {
+                    val detail = selectedPack ?: return@Box
+                    PackWorkspaceScreen(
+                        pack = detail,
+                        localPack = packs.firstOrNull { it.id == detail.id },
+                        status = status,
+                        currentUser = currentUser,
+                        remotePacks = remotePacks,
+                        members = selectedPackMembers,
+                        invites = selectedPackInvites,
+                        activity = selectedPackActivity,
+                        comments = selectedStickerComments,
+                        onBack = { viewModel.closePack() },
+                        onSync = { viewModel.syncPack(detail.id) },
+                        onExport = { viewModel.exportPack(detail.id) },
+                        onSharePublic = { sharePublicPack(context, serverUrl, detail.id) },
+                        jobs = activeJobs,
+                        onCancelJob = viewModel::cancelJob,
+                        onRetryJob = viewModel::retryJob,
+                        onWhatsApp = { packs.firstOrNull { it.id == detail.id }?.let { WhatsAppStickerLauncher.addPack(context, it) } },
+                        onWhatsAppBusiness = { packs.firstOrNull { it.id == detail.id }?.let { WhatsAppStickerLauncher.addPackToBusiness(context, it) } },
+                        onUpload = {
+                            stickerUploadPackId = detail.id
+                            stickerUploadPackAnimated = detail.isAnimated
+                            stickerPicker.launch("image/*")
+                        },
+                        onUploadBatch = {
+                            batchUploadPackId = detail.id
+                            batchUploadPackAnimated = detail.isAnimated
+                            batchStickerPicker.launch("image/*")
+                        },
+                        onReplaceTrayIcon = {
+                            trayIconPackId = detail.id
+                            trayIconPicker.launch("image/*")
+                        },
+                        onUpdatePack = { viewModel.updatePack(detail.id, it) },
+                        onClone = { viewModel.clonePack(detail.id) },
+                        onDelete = { viewModel.deletePack(detail.id) },
+                        onUpdateSticker = { stickerId, emojis, altText, review ->
+                            viewModel.updateSticker(detail.id, stickerId, UpdateStickerRequest(emojis, altText, review))
+                        },
+                        onDeleteSticker = { viewModel.deleteSticker(detail.id, it) },
+                        onReplaceStickerImage = { stickerId ->
+                            replaceStickerPackId = detail.id
+                            replaceStickerId = stickerId
+                            replaceStickerAnimated = detail.isAnimated
+                            replaceStickerPicker.launch("image/*")
+                        },
+                        onReorder = { viewModel.reorderStickers(detail.id, it) },
+                        onCopy = { targetId, stickerIds -> viewModel.copyStickers(detail.id, targetId, stickerIds) },
+                        onMove = { targetId, stickerIds -> viewModel.moveStickers(detail.id, targetId, stickerIds) },
+                        onLoadComments = { viewModel.loadStickerComments(detail.id, it) },
+                        onCreateComment = { stickerId, body -> viewModel.createStickerComment(detail.id, stickerId, body) },
+                        onDeleteComment = { commentId ->
+                            selectedStickerComments.firstOrNull { it.id == commentId }?.let { comment ->
+                                viewModel.deleteStickerComment(detail.id, comment.stickerId, commentId)
+                            }
+                        },
+                        onLoadActivity = { viewModel.loadPackActivity(detail.id) },
+                        onInvite = { role, email, expires -> viewModel.inviteMember(detail.id, role, email, expires) },
+                        onRevokeInvite = { viewModel.revokeInvite(detail.id, it) },
+                        onUpdateMember = { memberId, role -> viewModel.updateMember(detail.id, memberId, role) },
+                        onRemoveMember = { viewModel.removeMember(detail.id, it) },
+                    )
+                } else {
+                    Crossfade(
+                        targetState = destination,
+                        animationSpec = androidx.compose.animation.core.tween(durationMillis = 280),
+                        label = "mobile-destination",
+                    ) { currentDestination ->
+                        when (currentDestination) {
                         AppDestination.HOME -> HomeScreen(
                             account = account,
                             packs = packs,
@@ -230,34 +358,31 @@ private fun StickerApp(
                             onSync = { viewModel.sync() },
                             onOpenPacks = { destination = AppDestination.PACKS },
                         )
-                        AppDestination.PACKS -> PacksScreen(
-                            packs = packs,
-                            stickersByPack = stickersByPack,
+                        AppDestination.PACKS -> PacksLibraryScreen(
+                            packs = remotePacks,
+                            publicPacks = publicPacks,
                             status = status,
-                            context = context,
+                            localPacks = packs,
+                            loading = workspaceLoading,
                             onSync = { viewModel.sync() },
-                            onSyncPack = { viewModel.syncPack(it) },
-                            onClearPackCache = { viewModel.clearPackCache(it) },
-                            onUploadSticker = { pack ->
-                                stickerUploadPackId = pack.id
-                                stickerUploadPackAnimated = pack.isAnimated
-                                stickerPicker.launch("image/*")
+                            onOpenPack = { viewModel.openPack(it) },
+                            onCreatePack = { name, publisher, description, isPublic, requiresApproval, isAnimated, teamId ->
+                                viewModel.createPack(CreatePackRequest(name, publisher, description.ifBlank { null }, isPublic, requiresApproval, isAnimated, teamId))
                             },
-                            onReplaceTrayIcon = { pack ->
-                                trayIconPackId = pack.id
-                                trayIconPicker.launch("image/*")
-                            },
-                            onExport = { viewModel.exportPack(it) },
+                            onLoadPublicPacks = viewModel::loadPublicPacks,
+                            onSharePublicPack = { sharePublicPack(context, serverUrl, it) },
                         )
                         AppDestination.SETTINGS -> SettingsScreen(
                             account = account,
                             cacheUsage = cacheUsage,
                             darkTheme = darkTheme,
+                            isAdmin = currentUser?.isAdmin == true,
                             onOpenCategory = { category ->
                                 settingsCategory = category
                                 showSettingsWindow = true
                             },
                         )
+                        }
                     }
                 }
             }
@@ -293,6 +418,27 @@ private fun StickerApp(
             onToggleTheme = onToggleTheme,
             onTroubleshooting = { showTroubleshooting = true },
             onDismiss = { showSettingsWindow = false },
+            isAdmin = currentUser?.isAdmin == true,
+            sessions = sessions,
+            onLoadSessions = viewModel::loadSessions,
+            onChangePassword = viewModel::changePassword,
+            onRevokeSession = viewModel::revokeSession,
+            onRevokeAllSessions = viewModel::revokeAllSessions,
+            teams = teams,
+            onCreateTeam = viewModel::createTeam,
+            teamMembers = teamMembers,
+            onLoadTeamMembers = viewModel::loadTeamMembers,
+            onAddTeamMember = viewModel::addTeamMember,
+            onUpdateTeamMember = viewModel::updateTeamMember,
+            onRemoveTeamMember = viewModel::removeTeamMember,
+            onAcceptInvite = viewModel::acceptInvite,
+            adminSettings = adminSettings,
+            adminAuditLog = adminAuditLog,
+            onLoadAdminSettings = viewModel::loadAdminSettings,
+            onUpdateAdminSettings = viewModel::updateAdminSettings,
+            onLoadAdminAuditLog = viewModel::loadAdminAuditLog,
+            onCleanupAuditLog = viewModel::cleanupAdminAuditLog,
+            onExportAuditLog = viewModel::exportAdminAuditLog,
         )
     }
 
@@ -306,7 +452,8 @@ private fun StickerApp(
             onDismiss = { pendingEdit = null },
             onSubmit = { options: ImageEditOptions ->
                 when (edit.target) {
-                    ImageEditTarget.Sticker -> viewModel.uploadSticker(edit.packId, edit.uri, options)
+                    ImageEditTarget.Sticker -> edit.stickerId?.let { viewModel.replaceStickerImage(edit.packId, it, edit.uri, options) }
+                        ?: viewModel.uploadSticker(edit.packId, edit.uri, options)
                     ImageEditTarget.TrayIcon -> viewModel.replaceTrayIcon(edit.packId, edit.uri, options)
                 }
                 pendingEdit = null
@@ -326,6 +473,9 @@ private fun LoginScreen(
     onSaveServerUrl: (String) -> Unit,
     onCheckServerUrl: (String) -> Unit,
     onLogin: (String, String) -> Unit,
+    onRegister: (String, String, String, String?) -> Unit,
+    onForgotPassword: (String) -> Unit,
+    onResetPassword: (String, String) -> Unit,
 ) {
     Column(
         modifier = Modifier
@@ -372,6 +522,9 @@ private fun LoginScreen(
             onSaveServerUrl = onSaveServerUrl,
             onCheckServerUrl = onCheckServerUrl,
             onLogin = onLogin,
+            onRegister = onRegister,
+            onForgotPassword = onForgotPassword,
+            onResetPassword = onResetPassword,
             status = status,
         )
         Spacer(modifier = Modifier.height(14.dp))
@@ -587,6 +740,7 @@ private fun SettingsScreen(
     account: String,
     cacheUsage: String,
     darkTheme: Boolean,
+    isAdmin: Boolean,
     onOpenCategory: (SettingsCategory) -> Unit,
 ) {
     Column(
@@ -621,11 +775,37 @@ private fun SettingsScreen(
             onClick = { onOpenCategory(SettingsCategory.ACCOUNT) },
         )
         SettingsMenuRow(
+            icon = Icons.Outlined.PersonOutline,
+            title = "Security",
+            subtitle = "Password and active sessions",
+            onClick = { onOpenCategory(SettingsCategory.SECURITY) },
+        )
+        SettingsMenuRow(
+            icon = Icons.Outlined.Inventory2,
+            title = "Teams",
+            subtitle = "Shared packs and collaboration",
+            onClick = { onOpenCategory(SettingsCategory.TEAMS) },
+        )
+        SettingsMenuRow(
+            icon = Icons.Outlined.Star,
+            title = "Processing",
+            subtitle = "Background removal and rembg status",
+            onClick = { onOpenCategory(SettingsCategory.PROCESSING) },
+        )
+        SettingsMenuRow(
             icon = Icons.Outlined.Storage,
             title = "Storage",
             subtitle = "Local cache: $cacheUsage",
             onClick = { onOpenCategory(SettingsCategory.STORAGE) },
         )
+        if (isAdmin) {
+            SettingsMenuRow(
+                icon = Icons.Outlined.Storage,
+                title = "Audit and administration",
+                subtitle = "Instance controls and security history",
+                onClick = { onOpenCategory(SettingsCategory.ADMIN) },
+            )
+        }
         SettingsMenuRow(
             icon = Icons.Outlined.HelpOutline,
             title = "Help",
@@ -675,7 +855,7 @@ private fun SettingsMenuRow(
 }
 
 @Composable
-private fun StatusMessage(status: AppStatus) {
+fun StatusMessage(status: AppStatus) {
     if (status.message.isNotBlank()) {
         Text(
             status.message,

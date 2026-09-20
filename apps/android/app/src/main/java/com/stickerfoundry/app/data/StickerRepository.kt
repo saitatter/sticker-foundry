@@ -74,6 +74,174 @@ class StickerRepository private constructor(context: Context) {
         session.saveAccount(response.user.email, response.user.displayName)
     }
 
+    suspend fun register(email: String, displayName: String, password: String, inviteCode: String?) {
+        val response = api().register(RegisterRequest(email, displayName, password, inviteCode?.trim()?.ifBlank { null }))
+        session.saveTokens(response.accessToken, response.refreshToken)
+        session.saveAccount(response.user.email, response.user.displayName)
+    }
+
+    suspend fun currentUser(): UserDto = withAuthRetry { bearer -> api().me(bearer) }
+
+    suspend fun listPacks(): List<PackDto> = withAuthRetry { bearer -> api().packs(bearer) }
+
+    suspend fun publicPacks(): List<PackDto> = api().publicPacks()
+
+    suspend fun pack(packId: String): PackDetailDto = withAuthRetry { bearer -> api().pack(bearer, packId) }
+
+    suspend fun createPack(request: CreatePackRequest): PackDetailDto =
+        withAuthRetry { bearer -> api().createPack(bearer, request) }
+
+    suspend fun updatePack(packId: String, request: UpdatePackRequest): PackDetailDto =
+        withAuthRetry { bearer -> api().updatePack(bearer, packId, request) }
+
+    suspend fun deletePack(packId: String) {
+        withAuthRetry { bearer -> api().deletePack(bearer, packId).close() }
+        db.stickerDao().deletePack(packId)
+        File(packsDirectory(), packId).deleteRecursively()
+    }
+
+    suspend fun clonePack(packId: String): PackDetailDto =
+        withAuthRetry { bearer -> api().clonePack(bearer, packId) }
+
+    suspend fun packMembers(packId: String): List<PackMemberDto> =
+        withAuthRetry { bearer -> api().packMembers(bearer, packId) }
+
+    suspend fun updatePackMember(packId: String, memberId: String, role: String): PackMemberDto =
+        withAuthRetry { bearer -> api().updatePackMember(bearer, packId, memberId, RoleRequest(role)) }
+
+    suspend fun removePackMember(packId: String, memberId: String) {
+        withAuthRetry { bearer -> api().removePackMember(bearer, packId, memberId).close() }
+    }
+
+    suspend fun packInvites(packId: String): List<PackInviteDto> =
+        withAuthRetry { bearer -> api().packInvites(bearer, packId) }
+
+    suspend fun createPackInvite(packId: String, role: String, email: String?, expiresAt: String?): PackInviteDto =
+        withAuthRetry { bearer -> api().createPackInvite(bearer, packId, CreateInviteRequest(role, email?.trim()?.ifBlank { null }, expiresAt)) }
+
+    suspend fun revokePackInvite(packId: String, inviteId: String) {
+        withAuthRetry { bearer -> api().revokePackInvite(bearer, packId, inviteId).close() }
+    }
+
+    suspend fun acceptPackInvite(code: String): PackDetailDto =
+        withAuthRetry { bearer -> api().acceptPackInvite(bearer, code.trim()) }
+
+    suspend fun packActivity(packId: String, limit: Int? = null): List<AuditLogEntryDto> =
+        withAuthRetry { bearer -> api().packActivity(bearer, packId, limit) }
+
+    suspend fun updateSticker(packId: String, stickerId: String, request: UpdateStickerRequest): StickerDto =
+        withAuthRetry { bearer -> api().updateSticker(bearer, packId, stickerId, request) }
+
+    suspend fun deleteSticker(packId: String, stickerId: String) {
+        withAuthRetry { bearer -> api().deleteSticker(bearer, packId, stickerId).close() }
+    }
+
+    suspend fun replaceStickerImage(packId: String, stickerId: String, uri: Uri, options: ImageEditOptions): StickerDto {
+        val version = pack(packId).imageDataVersion
+        return withAuthRetry { bearer ->
+            api().replaceStickerImage(
+                bearer,
+                packId,
+                stickerId,
+                version,
+                multipartFromUri(uri, options),
+                stickerUploadOptionParts(options),
+            )
+        }
+    }
+
+    suspend fun reorderStickers(packId: String, stickerIds: List<String>): PackDetailDto =
+        withAuthRetry { bearer -> api().reorderStickers(bearer, packId, ReorderStickersRequest(stickerIds)) }
+
+    suspend fun copyStickers(packId: String, targetPackId: String, stickerIds: List<String>): PackDetailDto =
+        withAuthRetry { bearer -> api().copyStickers(bearer, packId, TransferStickersRequest(targetPackId, stickerIds)) }
+
+    suspend fun moveStickers(packId: String, targetPackId: String, stickerIds: List<String>): PackDetailDto =
+        withAuthRetry { bearer -> api().moveStickers(bearer, packId, TransferStickersRequest(targetPackId, stickerIds)) }
+
+    suspend fun stickerComments(packId: String, stickerId: String): List<StickerCommentDto> =
+        withAuthRetry { bearer -> api().stickerComments(bearer, packId, stickerId) }
+
+    suspend fun createStickerComment(packId: String, stickerId: String, body: String): StickerCommentDto =
+        withAuthRetry { bearer -> api().createStickerComment(bearer, packId, stickerId, CreateCommentRequest(body.trim())) }
+
+    suspend fun deleteStickerComment(packId: String, stickerId: String, commentId: String) {
+        withAuthRetry { bearer -> api().deleteStickerComment(bearer, packId, stickerId, commentId).close() }
+    }
+
+    suspend fun teams(): List<TeamDto> = withAuthRetry { bearer -> api().teams(bearer) }
+
+    suspend fun createTeam(request: CreateTeamRequest): TeamDto =
+        withAuthRetry { bearer -> api().createTeam(bearer, request) }
+
+    suspend fun teamMembers(teamId: String): List<TeamMemberDto> =
+        withAuthRetry { bearer -> api().teamMembers(bearer, teamId) }
+
+    suspend fun addTeamMember(teamId: String, request: AddTeamMemberRequest): TeamMemberDto =
+        withAuthRetry { bearer -> api().addTeamMember(bearer, teamId, request) }
+
+    suspend fun updateTeamMember(teamId: String, memberId: String, role: String): TeamMemberDto =
+        withAuthRetry { bearer -> api().updateTeamMember(bearer, teamId, memberId, RoleRequest(role)) }
+
+    suspend fun removeTeamMember(teamId: String, memberId: String) {
+        withAuthRetry { bearer -> api().removeTeamMember(bearer, teamId, memberId).close() }
+    }
+
+    suspend fun sessions(): List<UserSessionDto> = withAuthRetry { bearer -> api().sessions(bearer) }
+
+    suspend fun revokeSession(sessionId: String) {
+        withAuthRetry { bearer -> api().revokeSession(bearer, sessionId).close() }
+    }
+
+    suspend fun revokeAllSessions() {
+        withAuthRetry { bearer -> api().revokeAllSessions(bearer).close() }
+    }
+
+    suspend fun changePassword(currentPassword: String, newPassword: String) {
+        withAuthRetry { bearer -> api().changePassword(bearer, ChangePasswordRequest(currentPassword, newPassword)).close() }
+    }
+
+    suspend fun requestPasswordReset(email: String) {
+        api().requestPasswordReset(PasswordResetRequest(email.trim())).close()
+    }
+
+    suspend fun resetPassword(token: String, newPassword: String) {
+        api().resetPassword(PasswordResetConfirmRequest(token.trim(), newPassword)).close()
+    }
+
+    suspend fun adminSettings(): AdminSettingsDto = withAuthRetry { bearer -> api().adminSettings(bearer) }
+
+    suspend fun updateAdminSettings(request: UpdateAdminSettingsRequest): AdminSettingsDto =
+        withAuthRetry { bearer -> api().updateAdminSettings(bearer, request) }
+
+    suspend fun adminAuditLog(limit: Int? = null): List<AuditLogEntryDto> =
+        withAuthRetry { bearer -> api().adminAuditLog(bearer, limit) }
+
+    suspend fun cleanupAuditLog() {
+        withAuthRetry { bearer -> api().cleanupAuditLog(bearer).close() }
+    }
+
+    suspend fun exportAuditLog(limit: Int? = null): ByteArray = withAuthRetry { bearer ->
+        api().exportAuditLog(bearer, limit).use { it.bytes() }
+    }
+
+    suspend fun exportAuditLogFile(limit: Int? = null): File = withContext(Dispatchers.IO) {
+        val exportDir = File(appContext.filesDir, "exports").apply { mkdirs() }
+        val file = File(exportDir, "stickerfoundry-audit-${System.currentTimeMillis()}.csv")
+        file.writeBytes(exportAuditLog(limit))
+        file
+    }
+
+    suspend fun exportContents(packId: String): String = withAuthRetry { bearer ->
+        api().exportContents(bearer, packId).use { it.string() }
+    }
+
+    suspend fun job(jobId: String): JobDto = withAuthRetry { bearer -> api().job(bearer, jobId) }
+
+    suspend fun cancelJob(jobId: String): JobDto = withAuthRetry { bearer -> api().cancelJob(bearer, jobId) }
+
+    suspend fun retryJob(jobId: String): JobDto = withAuthRetry { bearer -> api().retryJob(bearer, jobId) }
+
     suspend fun sync() = withContext(Dispatchers.IO) {
         val remotePacks = withAuthRetry { bearer -> api().syncPacks(bearer).packs }
         val remotePackIds = remotePacks.map { it.id }.toSet()
@@ -115,21 +283,40 @@ class StickerRepository private constructor(context: Context) {
     }
 
     suspend fun uploadSticker(packId: String, uri: Uri, options: ImageEditOptions) = withContext(Dispatchers.IO) {
-        mutatePackWithConflictSync(packId) { bearer, version ->
-            val job = api().queueStickerUpload(
-                bearer,
-                packId,
-                version,
-                multipartFromUri(uri, options),
-                stickerUploadOptionParts(options),
-            )
-            awaitJob(job.id)
+        val job = queueStickerUpload(packId, uri, options)
+        awaitJob(job.id)
+    }
+
+    suspend fun queueStickerUpload(packId: String, uri: Uri, options: ImageEditOptions): JobDto = withContext(Dispatchers.IO) {
+        val version = db.stickerDao().getPack(packId)?.imageDataVersion ?: error("Sync this pack before uploading")
+        try {
+            withAuthRetry { bearer ->
+                api().queueStickerUpload(
+                    bearer,
+                    packId,
+                    version,
+                    multipartFromUri(uri, options),
+                    stickerUploadOptionParts(options),
+                )
+            }
+        } catch (error: HttpException) {
+            if (error.code() == 409) {
+                runCatching { syncPack(packId) }
+                error("Pack changed on the server. Synced the latest version; retry the upload.")
+            }
+            throw error
         }
     }
 
     suspend fun exportPack(packId: String): File = withContext(Dispatchers.IO) {
-        val job = withAuthRetry { bearer -> api().queueExport(bearer, packId) }
+        val job = queueExport(packId)
         awaitJob(job.id)
+        downloadExportToFile(packId)
+    }
+
+    suspend fun queueExport(packId: String): JobDto = withAuthRetry { bearer -> api().queueExport(bearer, packId) }
+
+    suspend fun downloadExport(packId: String): File = withContext(Dispatchers.IO) {
         downloadExportToFile(packId)
     }
 
@@ -384,6 +571,9 @@ class StickerRepository private constructor(context: Context) {
 
     private fun stickerUploadOptionParts(options: ImageEditOptions): List<MultipartBody.Part> {
         val parts = mutableListOf<MultipartBody.Part>()
+
+        if (options.emojis.isNotEmpty()) parts += formPart("emojis", options.emojis.joinToString(","))
+        if (options.accessibilityText.isNotBlank()) parts += formPart("accessibilityText", options.accessibilityText.trim())
 
         if (options.backgroundRemovalMode != BackgroundRemovalMode.None) {
             parts += formPart("backgroundRemovalMode", options.backgroundRemovalMode.wireValue)

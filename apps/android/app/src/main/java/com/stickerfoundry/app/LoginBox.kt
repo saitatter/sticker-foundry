@@ -7,10 +7,12 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Card
 import androidx.compose.material3.Button
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -32,11 +34,18 @@ fun LoginBox(
     onSaveServerUrl: (String) -> Unit,
     onCheckServerUrl: (String) -> Unit,
     onLogin: (String, String) -> Unit,
+    onRegister: (String, String, String, String?) -> Unit,
+    onForgotPassword: (String) -> Unit,
+    onResetPassword: (String, String) -> Unit,
     status: AppStatus,
 ) {
     var editedServerUrl by remember(serverUrl) { mutableStateOf(serverUrl) }
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
+    var displayName by remember { mutableStateOf("") }
+    var inviteCode by remember { mutableStateOf("") }
+    var registerMode by remember { mutableStateOf(false) }
+    var showResetDialog by remember { mutableStateOf(false) }
 
     Card(modifier = Modifier.fillMaxWidth().widthIn(max = 380.dp)) {
         Column(
@@ -45,9 +54,9 @@ fun LoginBox(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Text("Connect your account", style = MaterialTheme.typography.titleMedium)
+            Text(if (registerMode) "Create your account" else "Connect your account", style = MaterialTheme.typography.titleMedium)
             Text(
-                "Set the server once, then sign in and sync your packs.",
+                if (registerMode) "Create an account on this Sticker Foundry server." else "Set the server once, then sign in and sync your packs.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -107,6 +116,15 @@ fun LoginBox(
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
             )
+            if (registerMode) {
+                OutlinedTextField(
+                    value = displayName,
+                    onValueChange = { displayName = it },
+                    label = { Text("Display name") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                )
+            }
             OutlinedTextField(
                 value = password,
                 onValueChange = { password = it },
@@ -115,15 +133,36 @@ fun LoginBox(
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
             )
+            if (registerMode) {
+                OutlinedTextField(
+                    value = inviteCode,
+                    onValueChange = { inviteCode = it },
+                    label = { Text("Invite code (if required)") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                )
+            }
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 Button(
                     modifier = Modifier.weight(1f),
-                    onClick = { onLogin(email, password) },
+                    enabled = email.isNotBlank() && password.isNotBlank() && (!registerMode || displayName.isNotBlank()),
+                    onClick = {
+                        if (registerMode) onRegister(email, displayName, password, inviteCode)
+                        else onLogin(email, password)
+                    },
                 ) {
-                    Text("Login")
+                    Text(if (registerMode) "Create account" else "Login")
+                }
+            }
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                TextButton(onClick = { registerMode = !registerMode }) {
+                    Text(if (registerMode) "Already have an account? Login" else "Create an account")
+                }
+                if (!registerMode) {
+                    TextButton(onClick = { showResetDialog = true }) { Text("Forgot password?") }
                 }
             }
             if (status.message.isNotBlank()) {
@@ -134,6 +173,33 @@ fun LoginBox(
                 )
             }
         }
+    }
+    if (showResetDialog) {
+        var resetEmail by remember { mutableStateOf(email) }
+        var resetToken by remember { mutableStateOf("") }
+        var resetPassword by remember { mutableStateOf("") }
+        AlertDialog(
+            onDismissRequest = { showResetDialog = false },
+            title = { Text("Reset password") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Request a reset email, or paste the token from your server here.", style = MaterialTheme.typography.bodySmall)
+                    OutlinedTextField(resetEmail, { resetEmail = it }, label = { Text("Email") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                    OutlinedTextField(resetToken, { resetToken = it }, label = { Text("Reset token (optional)") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                    if (resetToken.isNotBlank()) OutlinedTextField(resetPassword, { resetPassword = it }, label = { Text("New password") }, visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth(), singleLine = true)
+                }
+            },
+            confirmButton = {
+                Button(
+                    enabled = if (resetToken.isBlank()) resetEmail.isNotBlank() else resetPassword.length >= 8,
+                    onClick = {
+                        if (resetToken.isBlank()) onForgotPassword(resetEmail) else onResetPassword(resetToken, resetPassword)
+                        showResetDialog = false
+                    },
+                ) { Text(if (resetToken.isBlank()) "Send reset link" else "Reset password") }
+            },
+            dismissButton = { TextButton(onClick = { showResetDialog = false }) { Text("Cancel") } },
+        )
     }
 }
 

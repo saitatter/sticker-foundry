@@ -124,8 +124,12 @@ private class ImageEditDialogState(private val isSticker: Boolean) {
     var animatedTrimEnd by mutableStateOf(10f)
     var animatedFrameRate by mutableStateOf(15f)
     var animatedQuality by mutableStateOf(80f)
+    var emojis by mutableStateOf("")
+    var accessibilityText by mutableStateOf("")
 
     fun options(edit: PendingImageEdit) = ImageEditOptions(
+        emojis = emojis.split(',').map { it.trim() }.filter { it.isNotBlank() }.take(3),
+        accessibilityText = accessibilityText,
         rotationDegrees = rotation,
         cropSquare = cropSquare,
         zoom = zoom,
@@ -216,6 +220,8 @@ private class ImageEditDialogState(private val isSticker: Boolean) {
         activeBrushPoints = emptyList()
         backgroundRemovalMode = if (isSticker) BackgroundRemovalMode.Ai else BackgroundRemovalMode.None
         animatedOptionsEnabled = false
+        emojis = ""
+        accessibilityText = ""
     }
 
     fun startBrush(point: BrushPoint) {
@@ -266,6 +272,7 @@ private fun ImageEditDialogContent(
     ) {
         ImageEditPreview(preview, state)
         PresetSection(state)
+        if (edit.target == ImageEditTarget.Sticker) StickerMetadataSection(state)
         TransformSection(state)
         ColorSection(state)
         TextSection(state)
@@ -275,6 +282,27 @@ private fun ImageEditDialogContent(
         Text(
             text = estimatedBytes?.let { "Estimated upload: ~${formatBytes(it)}" } ?: "Estimated upload: unavailable",
             style = MaterialTheme.typography.bodySmall,
+        )
+    }
+}
+
+@Composable
+private fun StickerMetadataSection(state: ImageEditDialogState) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text("Sticker metadata", style = MaterialTheme.typography.titleSmall)
+        OutlinedTextField(
+            value = state.emojis,
+            onValueChange = { state.emojis = it },
+            label = { Text("Emojis (comma separated, up to 3)") },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+        )
+        OutlinedTextField(
+            value = state.accessibilityText,
+            onValueChange = { state.accessibilityText = it },
+            label = { Text("Accessibility text") },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
         )
     }
 }
@@ -517,6 +545,7 @@ data class PendingImageEdit(
     val uri: Uri,
     val target: ImageEditTarget,
     val isAnimated: Boolean = false,
+    val stickerId: String? = null,
 )
 
 private data class ImageSourceInfo(

@@ -1,6 +1,8 @@
 package com.stickerfoundry.app.data
 
 data class ImageEditOptions(
+    val emojis: List<String> = emptyList(),
+    val accessibilityText: String = "",
     val rotationDegrees: Int = 0,
     val cropSquare: Boolean = false,
     val zoom: Float = 1f,
