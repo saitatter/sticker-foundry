@@ -1,0 +1,14 @@
+# Use with the base stack to run the published container packages:
+# docker compose -f docker-compose.yml -f docker-compose.ghcr.yml up -d
+services:
+  backend:
+    image: ${STICKER_FOUNDRY_BACKEND_IMAGE:-ghcr.io/saitatter/sticker-foundry-backend}:${STICKER_FOUNDRY_IMAGE_TAG:-latest}
+    build: !reset null
+
+  worker:
+    image: ${STICKER_FOUNDRY_BACKEND_IMAGE:-ghcr.io/saitatter/sticker-foundry-backend}:${STICKER_FOUNDRY_IMAGE_TAG:-latest}
+    build: !reset null
+
+  web:
+    image: ${STICKER_FOUNDRY_WEB_IMAGE:-ghcr.io/saitatter/sticker-foundry-web}:${STICKER_FOUNDRY_IMAGE_TAG:-latest}
+    build: !reset null

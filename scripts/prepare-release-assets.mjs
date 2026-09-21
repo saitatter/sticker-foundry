@@ -44,6 +44,7 @@ async function copyServerPackage() {
     '.env.example',
     'assets',
     'docker-compose.yml',
+    'docker-compose.ghcr.yml',
     'docker-compose.dev.yml',
     'docker-compose.ai.yml',
     'README.md',

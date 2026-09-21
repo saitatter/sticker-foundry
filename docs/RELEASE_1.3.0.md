@@ -1,55 +1,35 @@
-# Sticker Foundry v1.3.0
+## What's Changed
 
-Sticker Foundry v1.3 brings the web workspace and Android app much closer together, with faster syncing, clearer pack management, and a more reliable WhatsApp workflow.
+Sticker Foundry 1.3.0 brings the web workspace and Android app together with a clearer mobile layout, faster cross-device sync, a more reliable WhatsApp workflow, and published split container packages for the current Docker Compose stack.
 
-## Highlights
+### ✨ Features
 
-### A better Android workspace
+* **android:** Added a login-first workspace with Home, Packs, and Settings areas, an Immich-inspired layout, profile menu, categorized settings, persistent themes, safe-area handling, and refreshed branding. ([98d46ea](https://github.com/saitatter/sticker-foundry/commit/98d46eacefbf6cf1090b396e6a8a2aa380b78782), [b3c799e](https://github.com/saitatter/sticker-foundry/commit/b3c799e0aeb035ba979d1ccdc3b159302f383395), [ed726de](https://github.com/saitatter/sticker-foundry/commit/ed726debd597327c6e47420d733b87109fd30503))
+* **android:** Added mobile pack editing, comments, collaboration, activity, settings, export, sync, and WhatsApp workflows. ([7ca59c9](https://github.com/saitatter/sticker-foundry/commit/7ca59c9eb74f8f935d25bb661f02ed20c727d68b), [c4ba874](https://github.com/saitatter/sticker-foundry/commit/c4ba8740662518b9dd499ba4e96efaa2ddc9be45))
+* **sync:** Added automatic cache invalidation for pack, sticker, tray-icon, and WhatsApp image updates across browser and Android clients. ([30eb942](https://github.com/saitatter/sticker-foundry/commit/30eb9424ce55c481fb0e069e65774d532601b2d0), [c4ba874](https://github.com/saitatter/sticker-foundry/commit/c4ba8740662518b9dd499ba4e96efaa2ddc9be45))
+* **activity:** Added before/after snapshots, pagination, individual deletion, and Clear all controls for pack activity and audit history. ([c4ba874](https://github.com/saitatter/sticker-foundry/commit/c4ba8740662518b9dd499ba4e96efaa2ddc9be45), [c67a07b](https://github.com/saitatter/sticker-foundry/commit/c67a07b66bdaf07b60ffc8a6d8bbeff2cae69df7))
+* **docker:** Published separate backend and web container packages for the current Compose stack, with `latest`, `v1.3.0`, `1.3.0`, and `1.3` tags. ([docker-packages.yml](https://github.com/saitatter/sticker-foundry/blob/main/.github/workflows/docker-packages.yml))
 
-- Separate login, Home, Packs, and Settings areas.
-- Immich-inspired mobile navigation with a profile menu and categorized settings.
-- Persistent light and dark themes, including correct status-bar and safe-area colors.
-- Improved branding and adaptive app icon with less empty space.
-- Android pack views now include editing, comments, collaboration, activity, settings, export, and sync workflows.
+### 🐛 Fixes
 
-### Reliable sync across devices
+* **whatsapp:** Added visible feedback when a pack is not synced, has an invalid sticker count, or WhatsApp is unavailable, and support for recognizing Sticker Foundry packs already installed in WhatsApp and WhatsApp Business. ([c4ba874](https://github.com/saitatter/sticker-foundry/commit/c4ba8740662518b9dd499ba4e96efaa2ddc9be45))
+* **android:** Fixed sticker previews that could show only a selection checkmark, stale tray icons, refresh-session failures, and adaptive-icon whitespace. ([30eb942](https://github.com/saitatter/sticker-foundry/commit/30eb9424ce55c481fb0e069e65774d532601b2d0), [ab668b0](https://github.com/saitatter/sticker-foundry/commit/ab668b07bffebc825e67d02ed83f4cfa350f5fdb))
+* **web:** Stabilized browser sessions across refreshes and made toast notifications stack, animate, and dismiss automatically. ([9942cb2](https://github.com/saitatter/sticker-foundry/commit/9942cb2ab3f2fb1e47c49b337a25b02875f46289), [519ed58](https://github.com/saitatter/sticker-foundry/commit/519ed580978ec86ae51aff725e163d5d4111d721))
+* **editor:** Made `rembg` the primary background-removal provider and disabled background sticker reordering while editing. ([7f307b5](https://github.com/saitatter/sticker-foundry/commit/7f307b51840ea3840cab864d7899333627960fce), [3662bfb](https://github.com/saitatter/sticker-foundry/commit/3662bfb57907fce1e0a1d6f22628e0e3b3bf7a7e))
+* **release:** Fixed semantic-release preparation on Windows so the APK and server package can be generated reliably. ([069138b](https://github.com/saitatter/sticker-foundry/commit/069138bd57544ef8b024180c00488a777d6793f8))
 
-- Pack and sticker changes now invalidate cached data automatically.
-- Updated sticker images and tray icons refresh without manually clearing the browser cache.
-- Android sticker previews fall back to the server when a local copy is not available.
-- Pack image data versions keep WhatsApp content synchronized after edits.
+### 📦 Release Assets
 
-### WhatsApp improvements
+* `sticker-foundry-android.apk` - debug APK for device testing.
+* `sticker-foundry-server-package.tar.gz` - source package with the web/API Compose stack and the published-image override.
+* `ghcr.io/saitatter/sticker-foundry-backend:v1.3.0` - API and worker image with CPU AI background removal.
+* `ghcr.io/saitatter/sticker-foundry-web:v1.3.0` - web application image.
 
-- WhatsApp import buttons now provide visible feedback when a pack is not synced, has an invalid sticker count, or WhatsApp is unavailable.
-- Sticker Foundry packs already added to WhatsApp can be detected and opened directly from the app.
-- Editing a pack keeps the same provider identity and updates its image data version so WhatsApp can refresh it.
-- The same workflow is available for WhatsApp Business.
+### ⚠️ Notes
 
-### Activity and audit history
+* The attached Android APK is a debug build because Android signing secrets are not configured yet.
+* The 1.3.0 containers follow the current split Compose architecture. Use `docker-compose.yml` with `docker-compose.ghcr.yml`; the old 1.2.0 all-in-one image was removed with the previous deployment architecture.
+* Pin `STICKER_FOUNDRY_IMAGE_TAG=v1.3.0` for this release, or use `latest` when you want the current published image.
+* WhatsApp packs must contain between 3 and 30 stickers. Packs installed by other apps cannot be edited or deleted through WhatsApp's public sticker integration.
 
-- New pack, sticker, collaboration, invite, and comment events include before/after snapshots.
-- Existing metadata-only events show their recorded event data instead of two empty panels.
-- Activity history supports pagination, individual entry deletion, and Clear all for pack managers.
-
-### Web workspace polish
-
-- Improved pack navigation, search, theme persistence, and responsive layouts.
-- Toast notifications stack without moving the page and disappear automatically.
-- Sticker previews, selection, editing, ordering, and WhatsApp-related states are more consistent across the workspace.
-
-## Android installation
-
-1. Download `sticker-foundry-android.apk` from the assets below.
-2. Allow installation from the browser or file manager when Android asks.
-3. Open Sticker Foundry, set the server URL, and sign in.
-4. Sync a pack before using the WhatsApp import action.
-
-The server package is available as `sticker-foundry-server-package.tar.gz`.
-
-## Known limitations
-
-- The attached APK is an unsigned debug build for testing, not a Play Store release.
-- WhatsApp packs must contain between 3 and 30 stickers.
-- Sticker Foundry can detect and update packs provided by its own content provider. Packs installed by other apps cannot be edited or deleted through WhatsApp's public sticker integration.
-- Old audit entries that were created without metadata cannot be reconstructed with historical before/after values.
+**Full Changelog**: https://github.com/saitatter/sticker-foundry/compare/v1.2.0...v1.3.0

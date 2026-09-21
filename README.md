@@ -73,6 +73,13 @@ The easiest local setup uses Docker Desktop. After Docker is installed:
    docker compose up -d --build
    ```
 
+   To use the published container packages instead of building locally, use the
+   release override:
+
+   ```bash
+   docker compose -f docker-compose.yml -f docker-compose.ghcr.yml up -d
+   ```
+
 4. Add the demo account and sample pack:
 
    ```bash
@@ -126,6 +133,8 @@ Sticker Foundry is ready for a private home network out of the box. Before expos
 - make regular backups of the database and uploaded files.
 
 See the [production checklist](docs/PRODUCTION_CHECKLIST.md) and [reverse proxy examples](docs/REVERSE_PROXY.md) for the full setup.
+
+Published backend and web images are available from the [GitHub Container Registry](https://github.com/saitatter/sticker-foundry/pkgs/container/sticker-foundry-backend). Pin both images with `STICKER_FOUNDRY_IMAGE_TAG` when you want a fixed release instead of `latest`.
 
 ## Useful commands
 
