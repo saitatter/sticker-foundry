@@ -23,7 +23,7 @@ function run(command, args, options) {
   const result = spawnSync(command, args, {
     ...options,
     env: process.env,
-    shell: process.platform === 'win32',
+    shell: process.platform === 'win32' && /\.(?:bat|cmd)$/i.test(command),
     stdio: 'inherit',
   });
 
