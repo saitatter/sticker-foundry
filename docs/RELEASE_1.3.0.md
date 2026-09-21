@@ -21,7 +21,7 @@ Sticker Foundry 1.3.0 brings the web workspace and Android app together with a c
 ### 📦 Release Assets
 
 * `sticker-foundry-android.apk` - debug APK for device testing.
-* `sticker-foundry-server-package.tar.gz` - source package with the web/API Compose stack and the published-image override.
+* `sticker-foundry-server-package.tar.gz` - source package with the production web/API Compose stack, environment template, and published-image override.
 * `ghcr.io/saitatter/sticker-foundry-backend:v1.3.0` - API and worker image with CPU AI background removal.
 * `ghcr.io/saitatter/sticker-foundry-web:v1.3.0` - web application image.
 

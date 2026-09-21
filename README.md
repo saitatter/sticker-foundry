@@ -123,6 +123,10 @@ cd apps/android
 ./gradlew :app:assembleDebug
 ```
 
+## Host it on a server
+
+For a server installation using the published Docker images, use the [server deployment guide](docs/DEPLOY_SERVER.md). It includes the production Compose file, environment template, updates, backups, and HTTPS guidance.
+
 ## Sharing the installation
 
 Sticker Foundry is ready for a private home network out of the box. Before exposing it to the internet:
