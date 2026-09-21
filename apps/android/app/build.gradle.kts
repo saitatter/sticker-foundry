@@ -13,8 +13,8 @@ android {
         applicationId = "com.stickerfoundry.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 10200
-        versionName = "1.2.0"
+        versionCode = 10300
+        versionName = "1.3.0"
 
         val authority = "$applicationId.stickercontentprovider"
         buildConfigField("String", "API_BASE_URL", "\"http://10.0.2.2:8080/api/\"")
