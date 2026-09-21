@@ -36,7 +36,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 
 enum class SettingsCategory(val title: String) {
     SERVER("Server"),
@@ -224,8 +223,8 @@ private fun SecuritySettingsCard(
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text("Security", style = MaterialTheme.typography.titleMedium)
             Text("Change your password and manage active sessions.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            OutlinedTextField(currentPassword, { currentPassword = it }, label = { Text("Current password") }, visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth(), singleLine = true)
-            OutlinedTextField(newPassword, { newPassword = it }, label = { Text("New password") }, visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth(), singleLine = true)
+            FoundryPasswordField(currentPassword, { currentPassword = it }, "Current password", Modifier.fillMaxWidth())
+            FoundryPasswordField(newPassword, { newPassword = it }, "New password", Modifier.fillMaxWidth())
             Button(
                 enabled = currentPassword.isNotBlank() && newPassword.length >= 8,
                 onClick = { onChangePassword(currentPassword, newPassword); currentPassword = ""; newPassword = "" },

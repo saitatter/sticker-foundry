@@ -77,7 +77,6 @@ class StickerViewModel(
                     account.value = repository.accountLabel()
                     isLoggedIn.value = true
                     setInfo("Logged in")
-                    refreshWorkspace()
                 }
                 .onFailure { setError(it, "Login failed") }
         }
@@ -150,7 +149,6 @@ class StickerViewModel(
                     account.value = repository.accountLabel()
                     isLoggedIn.value = true
                     setInfo("Account created")
-                    refreshWorkspace()
                 }
                 .onFailure { setError(it, "Registration failed") }
         }
@@ -350,6 +348,25 @@ class StickerViewModel(
         }
     }
 
+    fun deletePackActivity(packId: String, activityId: String) {
+        viewModelScope.launch {
+            runCatching { repository.deletePackActivity(packId, activityId) }
+                .onSuccess { loadPackActivity(packId); setInfo("Activity deleted") }
+                .onFailure { setError(it, "Could not delete activity") }
+        }
+    }
+
+    fun clearPackActivity(packId: String) {
+        viewModelScope.launch {
+            runCatching { repository.clearPackActivity(packId) }
+                .onSuccess {
+                    selectedPackActivity.value = emptyList()
+                    setInfo("Activity cleared")
+                }
+                .onFailure { setError(it, "Could not clear activity") }
+        }
+    }
+
     fun createPack(request: CreatePackRequest) {
         viewModelScope.launch {
             runCatching { repository.createPack(request) }
@@ -413,6 +430,9 @@ class StickerViewModel(
                 .onFailure { setError(it, "Sticker deletion failed") }
         }
     }
+
+    suspend fun loadStickerImage(packId: String, stickerId: String): ByteArray? =
+        runCatching { repository.stickerImageBytes(packId, stickerId) }.getOrNull()
 
     fun replaceStickerImage(packId: String, stickerId: String, uri: Uri, options: ImageEditOptions) {
         viewModelScope.launch {
@@ -727,7 +747,7 @@ class StickerViewModel(
 
     private fun httpErrorMessage(error: HttpException, fallback: String): String = when (error.code()) {
         400 -> "The server rejected the request. Check the selected image or settings."
-        401 -> "Session expired. Log in again."
+        401 -> if (fallback.contains("login", ignoreCase = true)) "Email or password is incorrect." else "Session expired. Log in again."
         403 -> "This account does not have permission for that action."
         404 -> "The server endpoint was not found. Check that the URL includes /api/."
         in 500..599 -> "Sticker Foundry server error (${error.code()}). Check the backend logs."

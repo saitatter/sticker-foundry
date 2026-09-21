@@ -129,11 +129,23 @@ class StickerRepository private constructor(context: Context) {
     suspend fun packActivity(packId: String, limit: Int? = null): List<AuditLogEntryDto> =
         withAuthRetry { bearer -> api().packActivity(bearer, packId, limit) }
 
+    suspend fun deletePackActivity(packId: String, activityId: String) {
+        withAuthRetry { bearer -> api().deletePackActivity(bearer, packId, activityId).close() }
+    }
+
+    suspend fun clearPackActivity(packId: String) {
+        withAuthRetry { bearer -> api().clearPackActivity(bearer, packId).close() }
+    }
+
     suspend fun updateSticker(packId: String, stickerId: String, request: UpdateStickerRequest): StickerDto =
         withAuthRetry { bearer -> api().updateSticker(bearer, packId, stickerId, request) }
 
     suspend fun deleteSticker(packId: String, stickerId: String) {
         withAuthRetry { bearer -> api().deleteSticker(bearer, packId, stickerId).close() }
+    }
+
+    suspend fun stickerImageBytes(packId: String, stickerId: String): ByteArray = withAuthRetry { bearer ->
+        api().stickerFile(bearer, packId, stickerId).use { it.bytes() }
     }
 
     suspend fun replaceStickerImage(packId: String, stickerId: String, uri: Uri, options: ImageEditOptions): StickerDto {

@@ -90,14 +90,18 @@ export function App({ route }: { route: AppRoute }) {
   const api = useMemo(() => new StickerFoundryApi(() => token, saveAuth), [saveAuth, token]);
   const packsQuery = usePacksQuery(api, Boolean(token));
   const teamsQuery = useTeamsQuery(api, Boolean(token));
-  const selectedPackQuery = usePackQuery(api, selectedPackId);
+  const packs = packsQuery.data ?? [];
+  const selectedPackSummary = packs.find((pack) => pack.id === selectedPackId) ?? null;
+  const selectedPackRevision = selectedPackSummary
+    ? `${selectedPackSummary.updatedAt}:${selectedPackSummary.imageDataVersion}`
+    : undefined;
+  const selectedPackQuery = usePackQuery(api, selectedPackId, selectedPackRevision);
   const meQuery = useMeQuery(api, Boolean(token));
   const instanceQuery = useInstanceQuery(api);
   const adminSettingsQuery = useAdminSettingsQuery(
     api,
     Boolean(token && (meQuery.data?.isAdmin || sessionUser?.isAdmin)),
   );
-  const packs = packsQuery.data ?? [];
   const teams = teamsQuery.data ?? [];
   const selectedPack = selectedPackQuery.data ?? null;
   const user = meQuery.data ?? sessionUser;
@@ -204,7 +208,7 @@ export function App({ route }: { route: AppRoute }) {
   };
 
   const loading = packsQuery.isPending;
-  const selectedPackSummary = packs.find((pack) => pack.id === selectedPackId) ?? selectedPack;
+  const currentPackSummary = selectedPackSummary ?? selectedPack;
 
   if (!isPublicRoute && !authBootstrapped) {
     return (
@@ -298,7 +302,7 @@ export function App({ route }: { route: AppRoute }) {
           isAdmin={Boolean(user?.isAdmin)}
           packs={packs}
           packCount={packs.length}
-          selectedPack={selectedPackSummary}
+          selectedPack={currentPackSummary}
           onOpenAccount={() => void navigate({ to: '/app/settings/account' })}
           onOpenAdmin={() => void navigate({ to: '/app/settings/admin' })}
           onOpenPack={(packId) => {

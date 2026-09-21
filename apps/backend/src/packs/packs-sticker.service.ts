@@ -126,7 +126,19 @@ export class PacksStickerService {
       action: 'sticker.upload',
       entityType: 'sticker',
       entityId: sticker.id,
-      metadata: { packId, sizeBytes: sticker.sizeBytes },
+      metadata: {
+        packId,
+        before: null,
+        after: {
+          id: sticker.id,
+          fileName: sticker.fileName,
+          emojis: sticker.emojis,
+          accessibilityText: sticker.accessibilityText,
+          reviewStatus: sticker.reviewStatus,
+          sizeBytes: sticker.sizeBytes,
+          position: sticker.position,
+        },
+      },
     });
 
     return sticker;
@@ -473,7 +485,12 @@ export class PacksStickerService {
       action: 'sticker.comment.create',
       entityType: 'stickerComment',
       entityId: comment.id,
-      metadata: { packId, stickerId },
+      metadata: {
+        packId,
+        stickerId,
+        before: null,
+        after: { id: comment.id, userId: comment.userId, body: comment.body },
+      },
     });
     return comment;
   }
@@ -494,7 +511,12 @@ export class PacksStickerService {
       action: 'sticker.comment.delete',
       entityType: 'stickerComment',
       entityId: commentId,
-      metadata: { packId, stickerId },
+      metadata: {
+        packId,
+        stickerId,
+        before: { id: comment.id, userId: comment.userId, body: comment.body },
+        after: null,
+      },
     });
     return { deleted: true };
   }
@@ -599,7 +621,19 @@ export class PacksStickerService {
       action: 'sticker.copy',
       entityType: 'pack',
       entityId: dto.targetPackId,
-      metadata: { sourcePackId, stickerCount: stickers.length },
+      metadata: {
+        sourcePackId,
+        before: {
+          sourcePackId,
+          targetPackId: dto.targetPackId,
+          stickerIds: stickers.map((sticker) => sticker.id),
+        },
+        after: {
+          targetPackId: dto.targetPackId,
+          stickerCount: copies.length,
+          copiedFileNames: copies.map((copy) => copy.fileName),
+        },
+      },
     });
   }
 
@@ -709,7 +743,20 @@ export class PacksStickerService {
       action: 'sticker.move',
       entityType: 'pack',
       entityId: dto.targetPackId,
-      metadata: { sourcePackId, stickerCount: stickers.length },
+      metadata: {
+        sourcePackId,
+        before: {
+          sourcePackId,
+          targetPackId: dto.targetPackId,
+          stickerIds: stickers.map((sticker) => sticker.id),
+        },
+        after: {
+          sourcePackId,
+          targetPackId: dto.targetPackId,
+          stickerCount: moves.length,
+          movedStickerIds: moves.map((move) => move.sticker.id),
+        },
+      },
     });
   }
 

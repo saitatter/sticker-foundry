@@ -88,7 +88,7 @@ export function StickerTile({
     let alive = true;
     let objectUrl: string | null = null;
     api
-      .stickerBlob(packId, sticker.id)
+      .stickerBlob(packId, sticker.id, version)
       .then((blob) => {
         if (!alive) return;
         objectUrl = URL.createObjectURL(blob);

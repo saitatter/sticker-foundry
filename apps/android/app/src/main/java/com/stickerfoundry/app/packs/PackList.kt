@@ -97,14 +97,12 @@ fun PackRow(
                 Button(
                     modifier = Modifier.weight(1f),
                     onClick = onAdd,
-                    enabled = pack.stickerCount >= 3 && cacheReady,
                 ) {
                     Text("WhatsApp")
                 }
                 Button(
                     modifier = Modifier.weight(1f),
                     onClick = onAddBusiness,
-                    enabled = pack.stickerCount >= 3 && cacheReady,
                 ) {
                     Text("Business")
                 }

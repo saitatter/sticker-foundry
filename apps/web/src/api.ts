@@ -287,7 +287,7 @@ export class StickerFoundryApi {
   }
 
   async packs() {
-    return this.request<Pack[]>('/packs', { auth: true });
+    return this.request<Pack[]>('/packs', { auth: true, cache: 'no-store' });
   }
 
   async publicPacks() {
@@ -342,7 +342,7 @@ export class StickerFoundryApi {
   }
 
   async pack(id: string) {
-    return this.request<Pack>(`/packs/${id}`, { auth: true });
+    return this.request<Pack>(`/packs/${id}`, { auth: true, cache: 'no-store' });
   }
 
   async createPack(input: CreatePackInput) {
@@ -401,6 +401,20 @@ export class StickerFoundryApi {
   async packActivity(id: string, limit?: number) {
     const query = limit === undefined ? '' : `?limit=${limit}`;
     return this.request<AuditLogEntry[]>(`/packs/${id}/activity${query}`, { auth: true });
+  }
+
+  async deletePackActivity(packId: string, activityId: string) {
+    return this.request<{ deleted: boolean }>(`/packs/${packId}/activity/${activityId}`, {
+      method: 'DELETE',
+      auth: true,
+    });
+  }
+
+  async clearPackActivity(packId: string) {
+    return this.request<{ deleted: number }>(`/packs/${packId}/activity`, {
+      method: 'DELETE',
+      auth: true,
+    });
   }
 
   async createPackInvite(id: string, role: Exclude<PackRole, 'OWNER'>, email?: string, expiresAt?: string) {
@@ -506,12 +520,14 @@ export class StickerFoundryApi {
     return this.http.blob(`/packs/${packId}/tray-icon${version}`, { auth: true });
   }
 
-  async coverBlob(packId: string) {
-    return this.http.blob(`/packs/${packId}/cover`, { auth: true });
+  async coverBlob(packId: string, imageDataVersion?: string) {
+    const version = imageDataVersion ? `?v=${encodeURIComponent(imageDataVersion)}` : '';
+    return this.http.blob(`/packs/${packId}/cover${version}`, { auth: true });
   }
 
-  async publicCoverBlob(packId: string) {
-    return this.http.blob(`/public/packs/${packId}/cover`);
+  async publicCoverBlob(packId: string, imageDataVersion?: string) {
+    const version = imageDataVersion ? `?v=${encodeURIComponent(imageDataVersion)}` : '';
+    return this.http.blob(`/public/packs/${packId}/cover${version}`);
   }
 
   async deleteSticker(packId: string, stickerId: string) {
@@ -595,8 +611,9 @@ export class StickerFoundryApi {
     });
   }
 
-  async stickerBlob(packId: string, stickerId: string) {
-    return this.http.blob(`/packs/${packId}/stickers/${stickerId}/file`, { auth: true });
+  async stickerBlob(packId: string, stickerId: string, imageDataVersion?: string) {
+    const version = imageDataVersion ? `?v=${encodeURIComponent(imageDataVersion)}` : '';
+    return this.http.blob(`/packs/${packId}/stickers/${stickerId}/file${version}`, { auth: true });
   }
 
   async exportPack(packId: string) {

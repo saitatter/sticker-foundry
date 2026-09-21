@@ -4,7 +4,8 @@ export const queryKeys = {
   packs: {
     all: ['packs'] as const,
     list: ['packs', 'list'] as const,
-    detail: (packId: string) => ['packs', 'detail', packId] as const,
+    detail: (packId: string, revision?: string) =>
+      revision ? (['packs', 'detail', packId, revision] as const) : (['packs', 'detail', packId] as const),
     cover: (packId: string, version: string) => ['packs', 'cover', packId, version] as const,
     members: (packId: string) => ['packs', packId, 'members'] as const,
     invites: (packId: string) => ['packs', packId, 'invites'] as const,

@@ -100,6 +100,20 @@ export class PacksController {
     return this.packsService.activity(user.sub, id, Number.isFinite(parsedLimit) ? parsedLimit : undefined);
   }
 
+  @Delete(':id/activity/:activityId')
+  deleteActivity(
+    @CurrentUser() user: RequestUser,
+    @Param('id') id: string,
+    @Param('activityId') activityId: string,
+  ) {
+    return this.packsService.deleteActivity(user.sub, id, activityId);
+  }
+
+  @Delete(':id/activity')
+  clearActivity(@CurrentUser() user: RequestUser, @Param('id') id: string) {
+    return this.packsService.clearActivity(user.sub, id);
+  }
+
   @Post(':id/invites')
   createInvite(@CurrentUser() user: RequestUser, @Param('id') id: string, @Body() dto: CreatePackInviteDto) {
     return this.packsService.createInvite(user.sub, id, dto);

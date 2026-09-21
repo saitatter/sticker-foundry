@@ -4,6 +4,11 @@
     <queries>
         <package android:name="com.whatsapp" />
         <package android:name="com.whatsapp.w4b" />
+        <provider android:authorities="com.whatsapp.provider.sticker_whitelist_check" />
+        <provider android:authorities="com.whatsapp.w4b.provider.sticker_whitelist_check" />
+        <intent>
+            <action android:name="com.whatsapp.intent.action.ENABLE_STICKER_PACK" />
+        </intent>
     </queries>
 
     <application

@@ -171,6 +171,19 @@ interface StickerApi {
         @Query("limit") limit: Int? = null,
     ): List<AuditLogEntryDto>
 
+    @DELETE("packs/{id}/activity/{activityId}")
+    suspend fun deletePackActivity(
+        @Header("Authorization") bearerToken: String,
+        @Path("id") packId: String,
+        @Path("activityId") activityId: String,
+    ): ResponseBody
+
+    @DELETE("packs/{id}/activity")
+    suspend fun clearPackActivity(
+        @Header("Authorization") bearerToken: String,
+        @Path("id") packId: String,
+    ): ResponseBody
+
     @GET("sync/packs")
     suspend fun syncPacks(@Header("Authorization") bearerToken: String): SyncPacksResponse
 
@@ -215,6 +228,14 @@ interface StickerApi {
 
     @DELETE("packs/{id}/stickers/{stickerId}")
     suspend fun deleteSticker(
+        @Header("Authorization") bearerToken: String,
+        @Path("id") packId: String,
+        @Path("stickerId") stickerId: String,
+    ): ResponseBody
+
+    @Streaming
+    @GET("packs/{id}/stickers/{stickerId}/file")
+    suspend fun stickerFile(
         @Header("Authorization") bearerToken: String,
         @Path("id") packId: String,
         @Path("stickerId") stickerId: String,

@@ -8,11 +8,16 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Card
 import androidx.compose.material3.Button
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Visibility
+import androidx.compose.material.icons.outlined.VisibilityOff
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -20,11 +25,38 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.widthIn
 
 private const val DEMO_EMAIL = "demo@stickerfoundry.local"
 private const val DEMO_PASSWORD = "stickerfoundry123"
+
+@Composable
+fun FoundryPasswordField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    label: String,
+    modifier: Modifier = Modifier,
+) {
+    var visible by remember { mutableStateOf(false) }
+    OutlinedTextField(
+        value = value,
+        onValueChange = onValueChange,
+        label = { Text(label) },
+        visualTransformation = if (visible) VisualTransformation.None else PasswordVisualTransformation(),
+        trailingIcon = {
+            IconButton(onClick = { visible = !visible }) {
+                Icon(
+                    imageVector = if (visible) Icons.Outlined.VisibilityOff else Icons.Outlined.Visibility,
+                    contentDescription = if (visible) "Hide password" else "Show password",
+                )
+            }
+        },
+        modifier = modifier,
+        singleLine = true,
+    )
+}
 
 @Composable
 fun LoginBox(
@@ -125,13 +157,11 @@ fun LoginBox(
                     singleLine = true,
                 )
             }
-            OutlinedTextField(
+            FoundryPasswordField(
                 value = password,
                 onValueChange = { password = it },
-                label = { Text("Password") },
-                visualTransformation = PasswordVisualTransformation(),
+                label = "Password",
                 modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
             )
             if (registerMode) {
                 OutlinedTextField(
@@ -186,7 +216,7 @@ fun LoginBox(
                     Text("Request a reset email, or paste the token from your server here.", style = MaterialTheme.typography.bodySmall)
                     OutlinedTextField(resetEmail, { resetEmail = it }, label = { Text("Email") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
                     OutlinedTextField(resetToken, { resetToken = it }, label = { Text("Reset token (optional)") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
-                    if (resetToken.isNotBlank()) OutlinedTextField(resetPassword, { resetPassword = it }, label = { Text("New password") }, visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth(), singleLine = true)
+                    if (resetToken.isNotBlank()) FoundryPasswordField(resetPassword, { resetPassword = it }, "New password", Modifier.fillMaxWidth())
                 }
             },
             confirmButton = {

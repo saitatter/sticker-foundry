@@ -49,7 +49,25 @@ export class PacksService {
         isAnimated: dto.isAnimated ?? false,
       },
     });
-    await this.audit.record({ actorId: ownerId, action: 'pack.create', entityType: 'pack', entityId: pack.id });
+    await this.audit.record({
+      actorId: ownerId,
+      action: 'pack.create',
+      entityType: 'pack',
+      entityId: pack.id,
+      metadata: {
+        before: null,
+        after: {
+          id: pack.id,
+          name: pack.name,
+          publisher: pack.publisher,
+          description: pack.description,
+          isPublic: pack.isPublic,
+          requiresApproval: pack.requiresApproval,
+          isAnimated: pack.isAnimated,
+          teamId: pack.teamId,
+        },
+      },
+    });
     return this.get(ownerId, pack.id);
   }
 
@@ -178,7 +196,25 @@ export class PacksService {
 
     await this.prisma.pack.delete({ where: { id } });
     await this.storage.deletePack(id);
-    await this.audit.record({ actorId: ownerId, action: 'pack.delete', entityType: 'pack', entityId: id });
+    await this.audit.record({
+      actorId: ownerId,
+      action: 'pack.delete',
+      entityType: 'pack',
+      entityId: id,
+      metadata: {
+        before: {
+          id: pack.id,
+          name: pack.name,
+          publisher: pack.publisher,
+          description: pack.description,
+          isPublic: pack.isPublic,
+          requiresApproval: pack.requiresApproval,
+          isAnimated: pack.isAnimated,
+          teamId: pack.teamId,
+        },
+        after: null,
+      },
+    });
 
     return { deleted: true };
   }
@@ -201,6 +237,14 @@ export class PacksService {
 
   async activity(userId: string, packId: string, limit?: number) {
     return this.collaboration.activity(userId, packId, limit);
+  }
+
+  async deleteActivity(userId: string, packId: string, activityId: string) {
+    return this.collaboration.deleteActivity(userId, packId, activityId);
+  }
+
+  async clearActivity(userId: string, packId: string) {
+    return this.collaboration.clearActivity(userId, packId);
   }
 
   async createInvite(ownerId: string, packId: string, dto: CreatePackInviteDto) {
@@ -278,7 +322,18 @@ export class PacksService {
       action: 'pack.clone',
       entityType: 'pack',
       entityId: cloned.id,
-      metadata: { sourcePackId: source.id },
+      metadata: {
+        before: { sourcePackId: source.id },
+        after: {
+          id: cloned.id,
+          name: cloned.name,
+          publisher: cloned.publisher,
+          description: cloned.description,
+          isPublic: cloned.isPublic,
+          isAnimated: cloned.isAnimated,
+          stickerCount: source.stickers.length,
+        },
+      },
     });
     return this.get(userId, cloned.id);
   }

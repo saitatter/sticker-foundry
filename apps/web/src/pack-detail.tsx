@@ -808,6 +808,7 @@ export function PackDetail({
             <ActivityPanel
               api={api}
               compact
+              canManage={canManage}
               pack={pack}
               onError={onError}
               onViewAll={() => {
@@ -1010,7 +1011,7 @@ export function PackDetail({
           id={tabPanelId('activity')}
           role="tabpanel"
         >
-          <ActivityPanel api={api} pack={pack} onError={onError} />
+          <ActivityPanel api={api} canManage={canManage} pack={pack} onError={onError} />
         </div>
       ) : null}
 
@@ -1094,12 +1095,14 @@ function PackHeaderIcon({ api, pack }: { api: StickerFoundryApi; pack: Pack }) {
 
 function ActivityPanel({
   api,
+  canManage,
   compact = false,
   pack,
   onError,
   onViewAll,
 }: {
   api: StickerFoundryApi;
+  canManage: boolean;
   compact?: boolean;
   pack: Pack;
   onError: (error: unknown) => void;
@@ -1110,6 +1113,8 @@ function ActivityPanel({
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState<ActivityPageSize>(10);
   const [selectedEntry, setSelectedEntry] = useState<AuditLogEntry | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [clearing, setClearing] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -1159,6 +1164,35 @@ function ActivityPanel({
     setPage(1);
   }
 
+  async function handleDelete(entry: AuditLogEntry) {
+    if (!window.confirm(`Delete this ${auditActionLabel(entry.action)} activity entry?`)) return;
+    setDeletingId(entry.id);
+    try {
+      await api.deletePackActivity(pack.id, entry.id);
+      setEntries((current) => current.filter((item) => item.id !== entry.id));
+      setSelectedEntry(null);
+    } catch (error) {
+      onError(error);
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
+  async function handleClearAll() {
+    if (!window.confirm('Clear all activity for this pack? This cannot be undone.')) return;
+    setClearing(true);
+    try {
+      await api.clearPackActivity(pack.id);
+      setEntries([]);
+      setSelectedEntry(null);
+      setPage(1);
+    } catch (error) {
+      onError(error);
+    } finally {
+      setClearing(false);
+    }
+  }
+
   return (
     <Card className={compact ? 'last-activity-card' : 'activity-panel'}>
       <div className="section-heading">
@@ -1169,6 +1203,12 @@ function ActivityPanel({
         </div>
         <div className="activity-heading-meta">
           {!compact ? <span className="counter">{entries.length}</span> : null}
+          {!compact && canManage && entries.length > 0 ? (
+            <Button disabled={clearing} onClick={() => void handleClearAll()} size="sm" type="button" variant="destructive">
+              <Trash2 size={15} />
+              Clear all
+            </Button>
+          ) : null}
           <Archive size={18} />
         </div>
       </div>
@@ -1263,6 +1303,17 @@ function ActivityPanel({
             </DialogHeader>
             <ActivityChangeDetails entry={selectedEntry} />
             <div className="dialog-actions">
+              {canManage ? (
+                <Button
+                  disabled={deletingId === selectedEntry.id}
+                  onClick={() => void handleDelete(selectedEntry)}
+                  type="button"
+                  variant="destructive"
+                >
+                  <Trash2 size={15} />
+                  Delete activity
+                </Button>
+              ) : null}
               <Button onClick={() => setSelectedEntry(null)} type="button" variant="secondary">
                 Close
               </Button>
@@ -1295,10 +1346,38 @@ function ActivityEntryRow({ entry, onSelect }: { entry: AuditLogEntry; onSelect:
 
 function ActivityChangeDetails({ entry }: { entry: AuditLogEntry }) {
   const metadata = asRecord(entry.metadata);
-  const before = metadata?.before;
-  const after = metadata?.after;
-  const extraMetadata = metadata
+  const explicitBefore = metadata?.before;
+  const explicitAfter = metadata?.after;
+  const fallbackSnapshot = metadata
     ? Object.fromEntries(Object.entries(metadata).filter(([key]) => key !== 'before' && key !== 'after'))
+    : null;
+  const hasFallbackSnapshot = Boolean(fallbackSnapshot && Object.keys(fallbackSnapshot).length > 0);
+  const isDeleteAction = /(?:\.delete|\.remove|\.revoke)$/.test(entry.action);
+  const before =
+    explicitBefore !== undefined
+      ? explicitBefore
+      : isDeleteAction
+        ? hasFallbackSnapshot
+          ? fallbackSnapshot
+          : undefined
+        : /(?:\.create|\.upload|\.clone)$/.test(entry.action)
+          ? null
+          : undefined;
+  const after =
+    explicitAfter !== undefined
+      ? explicitAfter
+      : isDeleteAction
+        ? null
+        : hasFallbackSnapshot
+          ? fallbackSnapshot
+          : undefined;
+  const fallbackWasUsed = explicitBefore === undefined && explicitAfter === undefined && hasFallbackSnapshot;
+  const extraMetadata = metadata
+    ? Object.fromEntries(
+        Object.entries(metadata).filter(
+          ([key]) => key !== 'before' && key !== 'after' && !fallbackWasUsed,
+        ),
+      )
     : null;
   const hasExtraMetadata = Boolean(extraMetadata && Object.keys(extraMetadata).length > 0);
 

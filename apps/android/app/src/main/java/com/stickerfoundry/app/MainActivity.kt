@@ -87,6 +87,7 @@ import java.io.File
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        WindowCompat.setDecorFitsSystemWindows(window, false)
         applySystemBars(StickerRepository.get(this).darkTheme())
         setContent {
             val appViewModel: StickerViewModel = viewModel(factory = StickerViewModel.factory(this@MainActivity))
@@ -282,9 +283,10 @@ private fun StickerApp(
             ) {
                 if (selectedPack != null) {
                     val detail = selectedPack ?: return@Box
+                    val cachedPack = packs.firstOrNull { it.id == detail.id }
                     PackWorkspaceScreen(
                         pack = detail,
-                        localPack = packs.firstOrNull { it.id == detail.id },
+                        localPack = cachedPack,
                         status = status,
                         currentUser = currentUser,
                         remotePacks = remotePacks,
@@ -299,8 +301,16 @@ private fun StickerApp(
                         jobs = activeJobs,
                         onCancelJob = viewModel::cancelJob,
                         onRetryJob = viewModel::retryJob,
-                        onWhatsApp = { packs.firstOrNull { it.id == detail.id }?.let { WhatsAppStickerLauncher.addPack(context, it) } },
-                        onWhatsAppBusiness = { packs.firstOrNull { it.id == detail.id }?.let { WhatsAppStickerLauncher.addPackToBusiness(context, it) } },
+                        onWhatsApp = {
+                            cachedPack?.let { WhatsAppStickerLauncher.addPack(context, it) }
+                                ?: android.widget.Toast.makeText(context, "Sync this pack before importing it into WhatsApp", android.widget.Toast.LENGTH_LONG).show()
+                        },
+                        onWhatsAppBusiness = {
+                            cachedPack?.let { WhatsAppStickerLauncher.addPackToBusiness(context, it) }
+                                ?: android.widget.Toast.makeText(context, "Sync this pack before importing it into WhatsApp Business", android.widget.Toast.LENGTH_LONG).show()
+                        },
+                        onOpenWhatsApp = { WhatsAppStickerLauncher.openWhatsApp(context) },
+                        onOpenWhatsAppBusiness = { WhatsAppStickerLauncher.openWhatsApp(context, business = true) },
                         onUpload = {
                             stickerUploadPackId = detail.id
                             stickerUploadPackAnimated = detail.isAnimated
@@ -328,6 +338,7 @@ private fun StickerApp(
                             replaceStickerAnimated = detail.isAnimated
                             replaceStickerPicker.launch("image/*")
                         },
+                        onLoadStickerImage = { stickerId -> viewModel.loadStickerImage(detail.id, stickerId) },
                         onReorder = { viewModel.reorderStickers(detail.id, it) },
                         onCopy = { targetId, stickerIds -> viewModel.copyStickers(detail.id, targetId, stickerIds) },
                         onMove = { targetId, stickerIds -> viewModel.moveStickers(detail.id, targetId, stickerIds) },
@@ -339,6 +350,8 @@ private fun StickerApp(
                             }
                         },
                         onLoadActivity = { viewModel.loadPackActivity(detail.id) },
+                        onDeleteActivity = { activityId -> viewModel.deletePackActivity(detail.id, activityId) },
+                        onClearActivity = { viewModel.clearPackActivity(detail.id) },
                         onInvite = { role, email, expires -> viewModel.inviteMember(detail.id, role, email, expires) },
                         onRevokeInvite = { viewModel.revokeInvite(detail.id, it) },
                         onUpdateMember = { memberId, role -> viewModel.updateMember(detail.id, memberId, role) },
@@ -987,9 +1000,8 @@ private fun MobileNavigationBar(
 }
 
 private fun MainActivity.applySystemBars(darkTheme: Boolean) {
-    val chromeColor = AndroidColor.parseColor(if (darkTheme) "#0D1716" else "#F5F7F8")
-    window.statusBarColor = chromeColor
-    window.navigationBarColor = chromeColor
+    window.statusBarColor = AndroidColor.TRANSPARENT
+    window.navigationBarColor = AndroidColor.TRANSPARENT
     WindowCompat.getInsetsController(window, window.decorView).apply {
         isAppearanceLightStatusBars = !darkTheme
         isAppearanceLightNavigationBars = !darkTheme

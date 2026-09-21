@@ -637,7 +637,7 @@ function PackNavThumbnail({ api, pack }: { api: StickerFoundryApi; pack: Pack })
   const [coverUrl, setCoverUrl] = useState<string | null>(null);
   const coverQuery = useQuery({
     queryKey: queryKeys.packs.cover(pack.id, pack.imageDataVersion),
-    queryFn: () => api.coverBlob(pack.id),
+    queryFn: () => api.coverBlob(pack.id, pack.imageDataVersion),
     staleTime: Infinity,
     retry: false,
     refetchOnWindowFocus: false,

@@ -1,5 +1,6 @@
 package com.stickerfoundry.app.packs
 
+import android.graphics.BitmapFactory
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -8,6 +9,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -54,9 +56,11 @@ import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.produceState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -65,12 +69,19 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.stickerfoundry.app.AppStatus
 import com.stickerfoundry.app.StatusMessage
 import com.stickerfoundry.app.loadImageBitmap
 import com.stickerfoundry.app.data.AuditLogEntryDto
+import com.stickerfoundry.app.data.EXTRACTION_READY
 import com.stickerfoundry.app.data.PackDetailDto
 import com.stickerfoundry.app.data.PackEntity
 import com.stickerfoundry.app.data.PackInviteDto
@@ -84,6 +95,9 @@ import com.stickerfoundry.app.data.UserDto
 import java.io.File
 import java.text.DateFormat
 import java.util.Date
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import com.stickerfoundry.app.whatsapp.WhatsAppStickerLauncher
 
 private enum class PackTab(val title: String) {
     OVERVIEW("Overview"),
@@ -113,6 +127,8 @@ fun PackWorkspaceScreen(
     onRetryJob: (String) -> Unit,
     onWhatsApp: () -> Unit,
     onWhatsAppBusiness: () -> Unit,
+    onOpenWhatsApp: () -> Unit,
+    onOpenWhatsAppBusiness: () -> Unit,
     onUpload: () -> Unit,
     onUploadBatch: () -> Unit,
     onReplaceTrayIcon: () -> Unit,
@@ -122,6 +138,7 @@ fun PackWorkspaceScreen(
     onUpdateSticker: (String, List<String>, String, String) -> Unit,
     onDeleteSticker: (String) -> Unit,
     onReplaceStickerImage: (String) -> Unit,
+    onLoadStickerImage: suspend (String) -> ByteArray?,
     onReorder: (List<String>) -> Unit,
     onCopy: (String, List<String>) -> Unit,
     onMove: (String, List<String>) -> Unit,
@@ -129,6 +146,8 @@ fun PackWorkspaceScreen(
     onCreateComment: (String, String) -> Unit,
     onDeleteComment: (String) -> Unit,
     onLoadActivity: () -> Unit,
+    onDeleteActivity: (String) -> Unit,
+    onClearActivity: () -> Unit,
     onInvite: (String, String, String?) -> Unit,
     onRevokeInvite: (String) -> Unit,
     onUpdateMember: (String, String) -> Unit,
@@ -187,6 +206,8 @@ fun PackWorkspaceScreen(
                 onRetryJob = onRetryJob,
                 onWhatsApp = onWhatsApp,
                 onWhatsAppBusiness = onWhatsAppBusiness,
+                onOpenWhatsApp = onOpenWhatsApp,
+                onOpenWhatsAppBusiness = onOpenWhatsAppBusiness,
                 onUpload = onUpload,
                 onUploadBatch = onUploadBatch,
                 onReplaceTrayIcon = onReplaceTrayIcon,
@@ -202,12 +223,18 @@ fun PackWorkspaceScreen(
                 onUpdateSticker = onUpdateSticker,
                 onDeleteSticker = onDeleteSticker,
                 onReplaceStickerImage = onReplaceStickerImage,
+                onLoadStickerImage = onLoadStickerImage,
                 onReorder = onReorder,
                 onCopy = onCopy,
                 onMove = onMove,
                 onOpenSticker = { selectedSticker = it; onLoadComments(it.id) },
             )
-            PackTab.ACTIVITY -> ActivityTab(activity = activity)
+            PackTab.ACTIVITY -> ActivityTab(
+                activity = activity,
+                canManage = pack.canManage == true,
+                onDeleteActivity = onDeleteActivity,
+                onClearActivity = onClearActivity,
+            )
             PackTab.COLLABORATION -> CollaborationTab(
                 members = members,
                 invites = invites,
@@ -301,11 +328,49 @@ private fun OverviewTab(
     onRetryJob: (String) -> Unit,
     onWhatsApp: () -> Unit,
     onWhatsAppBusiness: () -> Unit,
+    onOpenWhatsApp: () -> Unit,
+    onOpenWhatsAppBusiness: () -> Unit,
     onUpload: () -> Unit,
     onUploadBatch: () -> Unit,
     onReplaceTrayIcon: () -> Unit,
 ) {
-    LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxSize()) {
+    val localCacheReady = localPack?.extractionStatus == EXTRACTION_READY
+    val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+    var whatsappStatusRefresh by remember { mutableIntStateOf(0) }
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) whatsappStatusRefresh++
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+    val whatsappAdded by produceState<Boolean?>(
+        initialValue = null,
+        localPack?.id,
+        localPack?.imageDataVersion,
+        whatsappStatusRefresh,
+    ) {
+        value = localPack?.let { cached ->
+            withContext(Dispatchers.IO) { WhatsAppStickerLauncher.isPackAdded(context, cached) }
+        }
+    }
+    val whatsappBusinessAdded by produceState<Boolean?>(
+        initialValue = null,
+        localPack?.id,
+        localPack?.imageDataVersion,
+        whatsappStatusRefresh,
+    ) {
+        value = localPack?.let { cached ->
+            withContext(Dispatchers.IO) { WhatsAppStickerLauncher.isPackAdded(context, cached, business = true) }
+        }
+    }
+
+    LazyColumn(
+        contentPadding = PaddingValues(bottom = 24.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+        modifier = Modifier.fillMaxSize(),
+    ) {
         if (jobs.isNotEmpty()) {
             item {
                 Card(modifier = Modifier.fillMaxWidth()) {
@@ -331,13 +396,31 @@ private fun OverviewTab(
         item {
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(pack.name, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.Top,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Text(pack.name, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
+                            Text(pack.publisher, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        Text(
+                            if (pack.isPublic) "Public" else "Private",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(50))
+                                .background(MaterialTheme.colorScheme.primaryContainer)
+                                .padding(horizontal = 10.dp, vertical = 6.dp),
+                        )
+                    }
                     Text(pack.description?.ifBlank { "No description yet" } ?: "No description yet", style = MaterialTheme.typography.bodyMedium)
                     Text("Updated ${formatDate(pack.updatedAt)}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         SummaryPill("Stickers", "${pack.stickerCount}", Modifier.weight(1f))
                         SummaryPill("Export", if (pack.canExport == true) "Ready" else "Not ready", Modifier.weight(1f))
-                        SummaryPill("Visibility", if (pack.isPublic) "Public" else "Private", Modifier.weight(1f))
+                        SummaryPill("Offline", if (localCacheReady) "Ready" else "Sync", Modifier.weight(1f))
                     }
                 }
             }
@@ -345,19 +428,21 @@ private fun OverviewTab(
         item {
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text("Pack actions", style = MaterialTheme.typography.titleMedium)
+                    Text("Workspace actions", style = MaterialTheme.typography.titleMedium)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                         Button(modifier = Modifier.weight(1f), onClick = onUpload) {
                             Icon(Icons.Outlined.Download, contentDescription = null)
                             Spacer(Modifier.width(6.dp))
                             Text("Upload")
                         }
+                        OutlinedButton(modifier = Modifier.weight(1f), onClick = onUploadBatch) {
+                            Text("Upload multiple")
+                        }
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                         OutlinedButton(modifier = Modifier.weight(1f), onClick = onReplaceTrayIcon) {
                             Text("Tray icon")
                         }
-                    }
-                    TextButton(onClick = onUploadBatch) { Text("Upload multiple stickers") }
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                         OutlinedButton(modifier = Modifier.weight(1f), onClick = onExport, enabled = pack.canExport == true) {
                             Icon(Icons.Outlined.Share, contentDescription = null)
                             Spacer(Modifier.width(6.dp))
@@ -377,15 +462,33 @@ private fun OverviewTab(
         item {
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text("WhatsApp", style = MaterialTheme.typography.titleMedium)
+                    Text("Import to WhatsApp", style = MaterialTheme.typography.titleMedium)
                     Text(
-                        if (localPack != null) "This pack is cached locally and ready to import." else "Sync this pack when it has 3–30 stickers to import it.",
+                        when {
+                            localPack == null -> "Sync this pack first to create the offline files WhatsApp needs."
+                            !localCacheReady -> "The local copy is still syncing. Try again when it is ready."
+                            localPack.stickerCount !in 3..30 -> "WhatsApp packs need between 3 and 30 stickers."
+                            whatsappAdded == true || whatsappBusinessAdded == true ->
+                                "This pack is already available in WhatsApp. Edit it here, then open WhatsApp to see the refreshed version."
+                            whatsappAdded == null && whatsappBusinessAdded == null -> "Checking whether this pack is already in WhatsApp..."
+                            else -> "Ready to add this offline copy to either WhatsApp app."
+                        },
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                        Button(modifier = Modifier.weight(1f), onClick = onWhatsApp, enabled = localPack != null) { Text("WhatsApp") }
-                        OutlinedButton(modifier = Modifier.weight(1f), onClick = onWhatsAppBusiness, enabled = localPack != null) { Text("Business") }
+                        Button(
+                            modifier = Modifier.weight(1f),
+                            onClick = if (whatsappAdded == true) onOpenWhatsApp else onWhatsApp,
+                        ) {
+                            Text(if (whatsappAdded == true) "Open WhatsApp" else "WhatsApp")
+                        }
+                        OutlinedButton(
+                            modifier = Modifier.weight(1f),
+                            onClick = if (whatsappBusinessAdded == true) onOpenWhatsAppBusiness else onWhatsAppBusiness,
+                        ) {
+                            Text(if (whatsappBusinessAdded == true) "Open Business" else "Business")
+                        }
                     }
                 }
             }
@@ -419,6 +522,7 @@ private fun StickersTab(
     onUpdateSticker: (String, List<String>, String, String) -> Unit,
     onDeleteSticker: (String) -> Unit,
     onReplaceStickerImage: (String) -> Unit,
+    onLoadStickerImage: suspend (String) -> ByteArray?,
     onReorder: (List<String>) -> Unit,
     onCopy: (String, List<String>) -> Unit,
     onMove: (String, List<String>) -> Unit,
@@ -459,6 +563,7 @@ private fun StickersTab(
                 canEdit = pack.canEdit == true,
                 localPath = localPack?.localPath,
                 localFileName = sticker.fileName,
+                onLoadRemote = onLoadStickerImage,
                 canMoveUp = sticker.position > 0,
                 canMoveDown = sticker.position < sortedStickers.lastIndex,
                 onSelected = { checked ->
@@ -507,6 +612,7 @@ private fun StickerMobileRow(
     canEdit: Boolean,
     localPath: String?,
     localFileName: String,
+    onLoadRemote: suspend (String) -> ByteArray?,
     canMoveUp: Boolean,
     canMoveDown: Boolean,
     onSelected: (Boolean) -> Unit,
@@ -517,12 +623,22 @@ private fun StickerMobileRow(
     Card(modifier = Modifier.fillMaxWidth().clickable(onClick = onOpen)) {
         Row(modifier = Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Checkbox(checked = selected, onCheckedChange = onSelected, enabled = canEdit)
-            val preview = remember(localPath, localFileName, sticker.sha256) {
-                localPath?.let { loadImageBitmap(File(it, localFileName).absolutePath) }
+            val preview by produceState<ImageBitmap?>(
+                initialValue = null,
+                key1 = localPath,
+                key2 = localFileName,
+                key3 = sticker.sha256,
+            ) {
+                value = localPath?.let { loadImageBitmap(File(it, localFileName).absolutePath) }
+                if (value == null) {
+                    value = onLoadRemote(sticker.id)?.let { bytes ->
+                        BitmapFactory.decodeByteArray(bytes, 0, bytes.size)?.asImageBitmap()
+                    }
+                }
             }
-            if (preview != null) {
-                Image(bitmap = preview, contentDescription = sticker.accessibilityText, modifier = Modifier.size(58.dp), contentScale = ContentScale.Fit)
-            } else {
+            preview?.let { image ->
+                Image(bitmap = image, contentDescription = sticker.accessibilityText, modifier = Modifier.size(58.dp), contentScale = ContentScale.Fit)
+            } ?: run {
                 Box(modifier = Modifier.size(58.dp).clip(RoundedCornerShape(12.dp)).background(MaterialTheme.colorScheme.surfaceVariant), contentAlignment = Alignment.Center) {
                     Icon(Icons.Outlined.CheckCircle, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                 }
@@ -541,10 +657,17 @@ private fun StickerMobileRow(
 }
 
 @Composable
-private fun ActivityTab(activity: List<AuditLogEntryDto>) {
+private fun ActivityTab(
+    activity: List<AuditLogEntryDto>,
+    canManage: Boolean,
+    onDeleteActivity: (String) -> Unit,
+    onClearActivity: () -> Unit,
+) {
     var pageSize by rememberSaveable { mutableIntStateOf(10) }
     var page by rememberSaveable { mutableIntStateOf(1) }
     var selectedEntry by remember { mutableStateOf<AuditLogEntryDto?>(null) }
+    var deleteEntry by remember { mutableStateOf<AuditLogEntryDto?>(null) }
+    var clearAllRequested by remember { mutableStateOf(false) }
     val totalPages = maxOf(1, (activity.size + pageSize - 1) / pageSize)
     val currentPage = page.coerceIn(1, totalPages)
     val visible = activity.drop((currentPage - 1) * pageSize).take(pageSize)
@@ -555,16 +678,35 @@ private fun ActivityTab(activity: List<AuditLogEntryDto>) {
                     Text("Activity", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
                     Text("Tap an entry to inspect the before and after state.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
-                PageSizeMenu(pageSize = pageSize, onChange = { pageSize = it; page = 1 })
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    if (canManage && activity.isNotEmpty()) {
+                        TextButton(onClick = { clearAllRequested = true }) {
+                            Icon(Icons.Outlined.Delete, contentDescription = null)
+                            Spacer(Modifier.width(4.dp))
+                            Text("Clear all")
+                        }
+                    }
+                    PageSizeMenu(pageSize = pageSize, onChange = { pageSize = it; page = 1 })
+                }
             }
         }
         if (visible.isEmpty()) item { EmptyPanel("No activity yet") }
         items(visible, key = { it.id }) { entry ->
-            Card(modifier = Modifier.fillMaxWidth().clickable { selectedEntry = entry }) {
-                Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(activityLabel(entry), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Medium)
-                    Text(entry.actor?.displayName ?: entry.actor?.email ?: "System", style = MaterialTheme.typography.bodySmall)
-                    Text(formatDate(entry.createdAt), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Row(modifier = Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Column(
+                        modifier = Modifier.weight(1f).clickable { selectedEntry = entry }.padding(4.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        Text(activityLabel(entry), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Medium)
+                        Text(entry.actor?.displayName ?: entry.actor?.email ?: "System", style = MaterialTheme.typography.bodySmall)
+                        Text(formatDate(entry.createdAt), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    if (canManage) {
+                        IconButton(onClick = { deleteEntry = entry }) {
+                            Icon(Icons.Outlined.Delete, contentDescription = "Delete activity")
+                        }
+                    }
                 }
             }
         }
@@ -585,6 +727,28 @@ private fun ActivityTab(activity: List<AuditLogEntryDto>) {
                 }
             },
             confirmButton = { TextButton(onClick = { selectedEntry = null }) { Text("Close") } },
+        )
+    }
+    deleteEntry?.let { entry ->
+        AlertDialog(
+            onDismissRequest = { deleteEntry = null },
+            title = { Text("Delete activity?") },
+            text = { Text("This activity entry will be removed permanently.") },
+            confirmButton = {
+                Button(onClick = { deleteEntry = null; onDeleteActivity(entry.id) }) { Text("Delete") }
+            },
+            dismissButton = { TextButton(onClick = { deleteEntry = null }) { Text("Cancel") } },
+        )
+    }
+    if (clearAllRequested) {
+        AlertDialog(
+            onDismissRequest = { clearAllRequested = false },
+            title = { Text("Clear all activity?") },
+            text = { Text("All activity entries for this pack will be removed permanently.") },
+            confirmButton = {
+                Button(onClick = { clearAllRequested = false; onClearActivity() }) { Text("Clear all") }
+            },
+            dismissButton = { TextButton(onClick = { clearAllRequested = false }) { Text("Cancel") } },
         )
     }
 }

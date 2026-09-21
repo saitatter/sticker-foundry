@@ -45,7 +45,11 @@ export class PacksCollaborationService {
       action: 'pack.member.update',
       entityType: 'packMember',
       entityId: memberId,
-      metadata: { packId, role: dto.role },
+      metadata: {
+        packId,
+        before: { userId: member.userId, role: member.role },
+        after: { userId: updated.userId, role: updated.role },
+      },
     });
     return updated;
   }
@@ -63,7 +67,7 @@ export class PacksCollaborationService {
       action: 'pack.member.remove',
       entityType: 'packMember',
       entityId: memberId,
-      metadata: { packId, userId: member.userId },
+      metadata: { packId, before: { userId: member.userId, role: member.role }, after: null },
     });
     return { deleted: true };
   }
@@ -103,6 +107,38 @@ export class PacksCollaborationService {
     });
   }
 
+  async deleteActivity(userId: string, packId: string, activityId: string) {
+    await this.access.requireManage(userId, packId);
+    const result = await this.prisma.auditLog.deleteMany({
+      where: {
+        id: activityId,
+        OR: [
+          { entityType: 'pack', entityId: packId },
+          { metadata: { path: ['packId'], equals: packId } },
+          { metadata: { path: ['sourcePackId'], equals: packId } },
+        ],
+      },
+    });
+    if (result.count === 0) {
+      throw new NotFoundException('Activity entry not found');
+    }
+    return { deleted: true };
+  }
+
+  async clearActivity(userId: string, packId: string) {
+    await this.access.requireManage(userId, packId);
+    const result = await this.prisma.auditLog.deleteMany({
+      where: {
+        OR: [
+          { entityType: 'pack', entityId: packId },
+          { metadata: { path: ['packId'], equals: packId } },
+          { metadata: { path: ['sourcePackId'], equals: packId } },
+        ],
+      },
+    });
+    return { deleted: result.count };
+  }
+
   async createInvite(ownerId: string, packId: string, dto: CreatePackInviteDto) {
     await this.access.requireManage(ownerId, packId);
     if (dto.role === PackRole.OWNER) {
@@ -130,9 +166,12 @@ export class PacksCollaborationService {
       entityId: invite.id,
       metadata: {
         packId,
-        role: invite.role,
-        email: invite.email ?? null,
-        expiresAt: invite.expiresAt?.toISOString() ?? null,
+        before: null,
+        after: {
+          role: invite.role,
+          email: invite.email ?? null,
+          expiresAt: invite.expiresAt?.toISOString() ?? null,
+        },
       },
     });
     return invite;
@@ -140,17 +179,29 @@ export class PacksCollaborationService {
 
   async revokeInvite(ownerId: string, packId: string, inviteId: string) {
     await this.access.requireManage(ownerId, packId);
+    const invite = await this.prisma.packInvite.findUnique({ where: { id: inviteId } });
     const result = await this.prisma.packInvite.deleteMany({ where: { id: inviteId, packId, acceptedAt: null } });
     if (result.count === 0) {
       throw new NotFoundException('Pending invite not found');
     }
+    const before = invite
+      ? {
+          role: invite.role,
+          email: invite.email ?? null,
+          expiresAt: invite.expiresAt?.toISOString() ?? null,
+        }
+      : { id: inviteId };
 
     await this.audit.record({
       actorId: ownerId,
       action: 'pack.invite.revoke',
       entityType: 'packInvite',
       entityId: inviteId,
-      metadata: { packId },
+      metadata: {
+        packId,
+        before,
+        after: null,
+      },
     });
     return { deleted: true };
   }
@@ -189,7 +240,11 @@ export class PacksCollaborationService {
       action: 'pack.invite.accept',
       entityType: 'packInvite',
       entityId: invite.id,
-      metadata: { packId: invite.packId, role: invite.role },
+      metadata: {
+        packId: invite.packId,
+        before: { role: invite.role, acceptedAt: null, acceptedById: null },
+        after: { role: invite.role, acceptedAt: 'now', acceptedById: userId },
+      },
     });
 
     return invite.packId;
