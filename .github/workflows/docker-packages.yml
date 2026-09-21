@@ -88,8 +88,3 @@ jobs:
             OCI_SOURCE=${{ github.server_url }}/${{ github.repository }}
             OCI_REVISION=${{ github.sha }}
             OCI_VERSION=${{ steps.version.outputs.version }}
-
-      - name: Make package public
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh api --method PATCH "/user/packages/container/sticker-foundry-${{ matrix.name }}" -f visibility=public
