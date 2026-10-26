@@ -5,7 +5,7 @@
 The API and queue worker are two processes built from the same NestJS backend image. PostgreSQL stores application state, Redis backs BullMQ, and the storage module selects disk or S3 for binary assets.
 
 ```text
-Browser (React/Vite)
+Flutter (Android / desktop / web)
         │ REST + HttpOnly refresh cookie
         ▼
 NestJS API ─────── PostgreSQL
@@ -15,13 +15,14 @@ NestJS API ─────── PostgreSQL
                        └── disk/S3 storage
 ```
 
-## Web data flow
+## Client data flow
 
-- TanStack Router owns route and search-parameter state.
-- TanStack Query owns instance, user, packs, teams, admin, and job server state.
-- `lib/api/http.ts` owns credentials, bearer headers, refresh retry, blob responses, and structured `ApiError` values.
-- Feature API modules wrap the compatibility client while endpoint migration continues.
-- Access tokens are memory-only. The refresh token is an HttpOnly cookie when cookie auth is enabled.
+- `apps/client/lib/ui` owns adaptive screens and GoRouter deep routes.
+- `core/store.dart` owns session, library, jobs and account-scoped offline exports.
+- `core/api.dart` owns multipart/JSON requests, token rotation with a shared refresh future, one replay after 401, and structured errors.
+- Native tokens use secure platform storage; web access tokens remain in memory and refresh tokens use HttpOnly cookies.
+- Android's small Kotlin adapter preserves the WhatsApp ContentProvider identity and SQLite schema. All application screens and image editing are Dart.
+- ZIP downloads are cached on disk for native platforms and in IndexedDB on web. Account/server changes clear both Flutter and provider caches.
 
 ## Media and jobs
 

@@ -8,11 +8,11 @@
 
 ## Project Context
 
-- Sticker Foundry is a self-hosted collaborative WhatsApp sticker pack manager with a NestJS backend, React/Vite web frontend, and Kotlin Android app.
+- Sticker Foundry is a self-hosted collaborative WhatsApp sticker pack manager with a NestJS backend, Flutter client for mobile, desktop and web.
 - Monorepo managed with npm workspaces.
 - Backend: `apps/backend` — NestJS, Prisma/PostgreSQL, JWT auth, media processing, ZIP exports.
-- Web: `apps/web` — React/Vite, Playwright e2e tests.
-- Android: `apps/android` — Kotlin, Room cache, WhatsApp ContentProvider bridge.
+- Client: `apps/client` - Flutter/Dart shared mobile, desktop and web UI.
+- Android adapter: `apps/client/android` - Kotlin, SQLite cache, WhatsApp ContentProvider.
 - Shared types: `packages/shared-types`.
 - Docker: `docker-compose.yml` (source), with `docker-compose.dev.yml` and `docker-compose.ai.yml` as optional overrides.
 
@@ -30,9 +30,9 @@
 ## TypeScript and Style
 
 - Backend targets Node 22+ with NestJS conventions.
-- Web uses React with TypeScript, Vite bundler.
+- Client uses Dart and Flutter Material 3. Run `dart format` and `flutter analyze`.
 - Prettier config lives in `.prettierrc.json` (120 width, single quotes, trailing commas).
-- ESLint configs live per-app: `apps/backend/eslint.config.mjs` and `apps/web/eslint.config.js`.
+- ESLint configs live per-app: `apps/backend/eslint.config.mjs`.
 - Keep type hints on new public helpers and DTOs.
 
 ## Database and Migrations
@@ -44,8 +44,8 @@
 
 ## Android
 
-- Kotlin-only, no Java.
-- Room is the local cache layer; server is always the source of truth.
+- Flutter UI; Kotlin only for the native Android bridge.
+- Flutter owns cached exports; the Android bridge retains the existing SQLite schema for WhatsApp. The server is the source of truth.
 - `ContentProvider` is required for WhatsApp integration; do not remove or rename it without understanding WhatsApp's query protocol.
 - Gradle Kotlin DSL (`build.gradle.kts`).
 
@@ -53,7 +53,7 @@
 
 - Backend: `npm run test:backend` (unit), `npm run test:e2e:backend` (e2e).
 - Web: `npm run test:web` (Playwright smoke flows).
-- Android: `./gradlew :app:lintDebug` in `apps/android`.
+- Android: `./gradlew :app:lintDebug` in `apps/client/android`.
 - Add regression tests for bug fixes and new API endpoints.
 
 ## Docker

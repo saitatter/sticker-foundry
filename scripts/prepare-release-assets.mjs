@@ -24,8 +24,8 @@ console.log(`Prepared ${relative(serverArchive)}`);
 
 async function copyAndroidApk() {
   const candidates = [
-    'apps/android/app/build/outputs/apk/release/app-release.apk',
-    'apps/android/app/build/outputs/apk/debug/app-debug.apk',
+    'apps/client/build/app/outputs/flutter-apk/app-release.apk',
+    'apps/client/build/app/outputs/flutter-apk/app-debug.apk',
   ];
 
   const source = candidates.map((candidate) => join(repoRoot, candidate)).find((candidate) => existsSync(candidate));
@@ -61,14 +61,12 @@ async function copyServerPackage() {
     'apps/backend/tsconfig.build.json',
     'apps/backend/prisma',
     'apps/backend/src',
-    'apps/web/Dockerfile',
-    'apps/web/index.html',
-    'apps/web/nginx.conf',
-    'apps/web/package.json',
-    'apps/web/public',
-    'apps/web/tsconfig.json',
-    'apps/web/vite.config.ts',
-    'apps/web/src',
+    'apps/client/Dockerfile',
+    'apps/client/nginx.conf',
+    'apps/client/pubspec.yaml',
+    'apps/client/pubspec.lock',
+    'apps/client/web',
+    'apps/client/lib',
     'packages/shared-types/package.json',
     'packages/shared-types/tsconfig.json',
     'packages/shared-types/src',

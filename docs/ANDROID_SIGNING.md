@@ -32,14 +32,14 @@ export ANDROID_KEYSTORE_PASSWORD=replace-me
 export ANDROID_KEY_ALIAS=stickerfoundry
 export ANDROID_KEY_PASSWORD=replace-me
 
-cd apps/android
-./gradlew :app:assembleRelease
+cd apps/client
+flutter build apk --release
 ```
 
 The signed APK is written under:
 
 ```text
-apps/android/app/build/outputs/apk/release/
+apps/client/build/app/outputs/flutter-apk/
 ```
 
 ## GitHub Actions Secrets
@@ -51,4 +51,4 @@ When package identity is finalized, store these as repository secrets:
 - `ANDROID_KEY_ALIAS`
 - `ANDROID_KEY_PASSWORD`
 
-Then add a release workflow step that decodes the keystore, sets `ANDROID_KEYSTORE_PATH`, and runs `./gradlew :app:assembleRelease`.
+Then add a release workflow step that decodes the keystore, sets `ANDROID_KEYSTORE_PATH`, and runs `flutter build apk --release`.

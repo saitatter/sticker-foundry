@@ -112,15 +112,16 @@ Change or remove the demo account before sharing the installation with other peo
 5. Open Activity to inspect the change history.
 6. Export the pack or sync it from the Android app.
 
-## Android companion app
+## One Flutter client for mobile, desktop and web
 
 The Android app keeps a local copy of your packs and can hand them to WhatsApp or WhatsApp Business. Point it at the server address reachable from your phone, sign in, sync, and choose a pack to import.
 
 If you are building the Android app from this repository, use JDK 17 and run:
 
 ```bash
-cd apps/android
-./gradlew :app:assembleDebug
+cd apps/client
+flutter pub get
+flutter build apk --debug
 ```
 
 ## Host it on a server
@@ -156,10 +157,14 @@ docker compose stop
 docker compose down
 ```
 
-For local development, install Node.js 20 or newer, then run:
+For local development, install Flutter 3.47.7, Node.js 22 and JDK 17. The server remains NestJS; all active client screens are in `apps/client/lib`. The previous React and Compose clients are archived in `legacy`. See [Flutter migration and testing](docs/FLUTTER_MIGRATION.md).
+
+Then run:
 
 ```bash
 npm install
+cd apps/client && flutter pub get
+cd ../..
 npm run dev:seeded
 ```
 

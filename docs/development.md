@@ -1,9 +1,13 @@
 # Development workflow
 
+Use Flutter 3.47.7, JDK 17 and Node 22. See [Flutter migration](FLUTTER_MIGRATION.md) for platform builds and physical-device testing.
+
 ## Install and run
 
 ```bash
 npm ci
+cd apps/client && flutter pub get
+cd ../..
 npm run prisma:generate
 npm run dev
 ```
@@ -38,7 +42,7 @@ npm run test:web
 
 ## API generation
 
-Start the backend, then run `npm run api:generate`. The generated file is written to `apps/web/src/lib/api/generated/schema.d.ts`; CI can compare it with the committed contract output.
+Start the backend, then run `npm run api:generate`. The generated file is written to `packages/shared-types/openapi.d.ts`; CI can compare it with the committed contract output.
 
 ## Security configuration
 

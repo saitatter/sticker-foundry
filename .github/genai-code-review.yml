@@ -12,5 +12,5 @@ review:
   ignore:
     - "*.lock"
     - "CHANGELOG.md"
-    - "apps/android/.gradle/**"
-    - "apps/android/build/**"
+    - "apps/client/android/.gradle/**"
+    - "apps/client/build/**"

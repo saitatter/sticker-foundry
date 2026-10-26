@@ -28,7 +28,7 @@ jobs:
           - name: web
             title: Sticker Foundry Web
             description: Sticker Foundry web application image
-            file: apps/web/Dockerfile
+            file: apps/client/Dockerfile
 
     steps:
       - name: Checkout

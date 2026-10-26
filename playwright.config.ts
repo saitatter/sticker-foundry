@@ -1,7 +1,8 @@
 import { defineConfig, devices } from '@playwright/test';
 
 export default defineConfig({
-  testDir: './apps/web/e2e',
+  testDir: './apps/client/e2e',
+  outputDir: './test-results/playwright',
   fullyParallel: true,
   reporter: [['list']],
   use: {
@@ -9,7 +10,7 @@ export default defineConfig({
     trace: 'on-first-retry',
   },
   webServer: {
-    command: 'npm --workspace apps/web run dev -- --host 127.0.0.1 --port 5173 --strictPort',
+    command: 'node scripts/serve-client.mjs',
     url: 'http://127.0.0.1:5173',
     reuseExistingServer: !process.env.CI,
     timeout: 180_000,

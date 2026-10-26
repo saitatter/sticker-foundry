@@ -16,7 +16,7 @@ function writeJson(relativePath, value) {
   fs.writeFileSync(path.join(repoRoot, relativePath), `${JSON.stringify(value, null, 2)}\n`);
 }
 
-for (const packagePath of ['package.json', 'apps/backend/package.json', 'apps/web/package.json', 'packages/shared-types/package.json']) {
+for (const packagePath of ['package.json', 'apps/backend/package.json', 'packages/shared-types/package.json']) {
   const packageJson = readJson(packagePath);
   packageJson.version = version;
   writeJson(packagePath, packageJson);
@@ -26,7 +26,7 @@ const lockPath = 'package-lock.json';
 const lockJson = readJson(lockPath);
 lockJson.version = version;
 if (lockJson.packages) {
-  for (const packagePath of ['', 'apps/backend', 'apps/web', 'packages/shared-types']) {
+  for (const packagePath of ['', 'apps/backend', 'packages/shared-types']) {
     if (lockJson.packages[packagePath]) {
       lockJson.packages[packagePath].version = version;
     }
@@ -36,9 +36,6 @@ writeJson(lockPath, lockJson);
 
 const [major, minor, patch] = version.split(/[+-]/)[0].split('.').map((part) => Number.parseInt(part, 10));
 const versionCode = major * 10000 + minor * 100 + patch;
-const androidBuildPath = path.join(repoRoot, 'apps/android/app/build.gradle.kts');
-let androidBuild = fs.readFileSync(androidBuildPath, 'utf8');
-androidBuild = androidBuild
-  .replace(/versionCode = \d+/, `versionCode = ${versionCode}`)
-  .replace(/versionName = "[^"]+"/, `versionName = "${version}"`);
-fs.writeFileSync(androidBuildPath, androidBuild);
+const pubspecPath = path.join(repoRoot, 'apps/client/pubspec.yaml');
+const pubspec = fs.readFileSync(pubspecPath, 'utf8').replace(/^version: .+$/m, `version: ${version}+${versionCode}`);
+fs.writeFileSync(pubspecPath, pubspec);

@@ -48,4 +48,19 @@ export class PublicPacksController {
     response.setHeader('ETag', this.exportService.etagForHash(cached.contentHash));
     return response.sendFile(cached.path);
   }
+
+  @Get(':id/stickers/:stickerId/file')
+  async stickerFile(@Param('id') id: string, @Param('stickerId') stickerId: string, @Res() response: Response) {
+    const pack = await this.packsService.publicPack(id);
+    if (
+      pack.requiresApproval &&
+      !pack.stickers?.some((sticker) => sticker.id === stickerId && sticker.reviewStatus === 'APPROVED')
+    ) {
+      throw new NotFoundException('Public sticker not found');
+    }
+    const file = await this.packsService.getStickerFilePath('', id, stickerId);
+    response.setHeader('Content-Type', 'image/webp');
+    response.setHeader('Cache-Control', 'public, max-age=300');
+    return file.stream.pipe(response);
+  }
 }

@@ -5,3 +5,11 @@ dist
 data
 apps/android/.gradle
 apps/android/app/build
+
+legacy
+test-results
+apps/client/build
+apps/client/.dart_tool
+apps/client/android/.gradle
+apps/client/android/local.properties
+**/.env*
