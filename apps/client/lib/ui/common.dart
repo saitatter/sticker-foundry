@@ -7,6 +7,24 @@ import 'package:share_plus/share_plus.dart';
 import '../core/api.dart';
 import '../core/store.dart';
 
+String fieldLabel(String key) =>
+    const {
+      'teamId': 'Team',
+      'role': 'Role',
+      'reviewStatus': 'Review status',
+      'registrationMode': 'Registration policy',
+      'isPublic': 'Public pack',
+      'requiresApproval': 'Require approval before export',
+      'isAnimated': 'Animated stickers',
+      'PENDING': 'Pending review',
+      'APPROVED': 'Approved',
+      'NEEDS_WORK': 'Needs changes',
+      'EDITOR': 'Editor',
+      'VIEWER': 'Viewer',
+      'OWNER': 'Owner',
+    }[key] ??
+    key;
+
 Widget action(IconData icon, String label, VoidCallback? callback) =>
     IconButton(tooltip: label, onPressed: callback, icon: Icon(icon));
 Future<bool> confirm(BuildContext context, String title) async =>
@@ -33,6 +51,7 @@ Future<Json?> formDialog(
   Map<String, String> fields, {
   Json values = const {},
   Map<String, List<String>> choices = const {},
+  Map<String, Map<String, String>> choiceLabels = const {},
   List<String> flags = const [],
   Set<String> secrets = const {},
   Set<String> optional = const {},
@@ -81,12 +100,19 @@ Future<Json?> formDialog(
                       padding: const EdgeInsets.only(bottom: 14),
                       child: DropdownButtonFormField<String>(
                         initialValue: selected[e.key],
-                        decoration: InputDecoration(labelText: e.key),
+                        decoration: InputDecoration(
+                          labelText: fieldLabel(e.key),
+                        ),
                         items: e.value
                             .map(
                               (v) => DropdownMenuItem(
                                 value: v,
-                                child: Text(v.isEmpty ? 'Personal / none' : v),
+                                child: Text(
+                                  v.isEmpty
+                                      ? 'Personal / none'
+                                      : choiceLabels[e.key]?[v] ??
+                                            fieldLabel(v),
+                                ),
                               ),
                             )
                             .toList(),
@@ -96,7 +122,7 @@ Future<Json?> formDialog(
                   for (final f in flags)
                     SwitchListTile(
                       contentPadding: EdgeInsets.zero,
-                      title: Text(f),
+                      title: Text(fieldLabel(f)),
                       value: toggles[f]!,
                       onChanged: (v) => update(() => toggles[f] = v),
                     ),

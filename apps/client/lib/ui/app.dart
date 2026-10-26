@@ -125,6 +125,12 @@ class _HomeState extends State<Home> {
       {'name': 'Name', 'publisher': 'Publisher', 'description': 'Description'},
       optional: {'description'},
       flags: ['isPublic', 'requiresApproval', 'isAnimated'],
+      choiceLabels: {
+        'teamId': {
+          for (final team in s.teams)
+            team['id'] as String: team['name'] as String,
+        },
+      },
       choices: {
         if (s.teams.isNotEmpty)
           'teamId': ['', ...s.teams.map((t) => t['id'] as String)],
