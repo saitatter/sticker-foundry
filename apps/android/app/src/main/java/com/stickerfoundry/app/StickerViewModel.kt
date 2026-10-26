@@ -63,6 +63,7 @@ class StickerViewModel(
     val workspaceLoading = MutableStateFlow(false)
     val activeJobs = MutableStateFlow<List<JobDto>>(emptyList())
     private val jobPackIds = mutableMapOf<String, String>()
+    fun isJobForPack(jobId: String, packId: String): Boolean = jobPackIds[jobId] == packId
     private val jobIsExport = mutableMapOf<String, Boolean>()
     val serverVersion = MutableStateFlow("Not checked")
     val cacheUsage = MutableStateFlow(formatBytes(repository.cacheSizeBytes()))
@@ -691,14 +692,14 @@ class StickerViewModel(
             try {
                 var job = repository.job(jobId)
                 updateJob(job)
-                while (job.status == "QUEUED" || job.status == "RUNNING" || job.status == "PENDING") {
+                while (job.status in listOf("QUEUED", "PROCESSING", "RUNNING", "PENDING")) {
                     delay(700)
                     job = repository.job(jobId)
                     updateJob(job)
                 }
                 when (job.status) {
                     "COMPLETED" -> {
-                        if (isExport) _exportEvents.emit(repository.downloadExport(packId)) else repository.syncPack(packId)
+                        if (isExport) _exportEvents.emit(repository.downloadExport(packId)) else repository.sync()
                         refreshWorkspace()
                         selectedPackId.value?.let { loadPack(it) }
                         setInfo(if (isExport) "Export ready to share" else "Sticker upload complete")
@@ -718,6 +719,10 @@ class StickerViewModel(
 
     private fun setInfo(message: String) {
         status.value = AppStatus(message)
+    }
+
+    fun reportImportResult(message: String, isError: Boolean = false) {
+        status.value = AppStatus(message, isError = isError)
     }
 
     private fun setError(error: Throwable, fallback: String) {

@@ -70,12 +70,14 @@ class StickerRepository private constructor(context: Context) {
 
     suspend fun login(email: String, password: String) {
         val response = api().login(LoginRequest(email, password))
+        if (session.accountLabel() != "${response.user.displayName} <${response.user.email}>") clearCache()
         session.saveTokens(response.accessToken, response.refreshToken)
         session.saveAccount(response.user.email, response.user.displayName)
     }
 
     suspend fun register(email: String, displayName: String, password: String, inviteCode: String?) {
         val response = api().register(RegisterRequest(email, displayName, password, inviteCode?.trim()?.ifBlank { null }))
+        clearCache()
         session.saveTokens(response.accessToken, response.refreshToken)
         session.saveAccount(response.user.email, response.user.displayName)
     }
@@ -300,7 +302,7 @@ class StickerRepository private constructor(context: Context) {
     }
 
     suspend fun queueStickerUpload(packId: String, uri: Uri, options: ImageEditOptions): JobDto = withContext(Dispatchers.IO) {
-        val version = db.stickerDao().getPack(packId)?.imageDataVersion ?: error("Sync this pack before uploading")
+        val version = db.stickerDao().getPack(packId)?.imageDataVersion ?: pack(packId).imageDataVersion
         try {
             withAuthRetry { bearer ->
                 api().queueStickerUpload(
@@ -347,6 +349,7 @@ class StickerRepository private constructor(context: Context) {
             runCatching { api().logout(RefreshTokenRequest(token)).close() }
         }
         session.clearToken()
+        clearCache()
     }
 
     suspend fun clearCache() = withContext(Dispatchers.IO) {
@@ -457,7 +460,7 @@ class StickerRepository private constructor(context: Context) {
     }
 
     private suspend fun mutatePackWithConflictSync(packId: String, block: suspend (String, String) -> Unit) {
-        val localVersion = db.stickerDao().getPack(packId)?.imageDataVersion ?: error("Sync this pack before editing")
+        val localVersion = db.stickerDao().getPack(packId)?.imageDataVersion ?: pack(packId).imageDataVersion
         try {
             withAuthRetry { bearer -> block(bearer, localVersion) }
             sync()
@@ -587,8 +590,8 @@ class StickerRepository private constructor(context: Context) {
         if (options.emojis.isNotEmpty()) parts += formPart("emojis", options.emojis.joinToString(","))
         if (options.accessibilityText.isNotBlank()) parts += formPart("accessibilityText", options.accessibilityText.trim())
 
+        parts += formPart("backgroundRemovalMode", options.backgroundRemovalMode.wireValue)
         if (options.backgroundRemovalMode != BackgroundRemovalMode.None) {
-            parts += formPart("backgroundRemovalMode", options.backgroundRemovalMode.wireValue)
             parts += formPart("backgroundRemovalThreshold", options.backgroundRemovalThreshold.toInt().coerceIn(180, 255).toString())
             parts += formPart("backgroundRemovalFeather", options.backgroundRemovalFeather.toInt().coerceIn(0, 48).toString())
             parts += formPart("backgroundRemovalCleanupSpeckles", options.backgroundRemovalCleanupSpeckles.toString())

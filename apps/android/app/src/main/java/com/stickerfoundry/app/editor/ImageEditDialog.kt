@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
@@ -24,6 +25,13 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.RotateLeft
+import androidx.compose.material.icons.outlined.RotateRight
+import androidx.compose.material.icons.outlined.RestartAlt
+import androidx.compose.material.icons.outlined.Undo
+import androidx.compose.material.icons.outlined.Redo
+import com.stickerfoundry.app.ui.ActionIcon
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -40,6 +48,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.DialogProperties
 import com.stickerfoundry.app.data.BackgroundRemovalMode
 import com.stickerfoundry.app.data.BrushMode
 import com.stickerfoundry.app.data.BrushPoint
@@ -72,6 +81,8 @@ fun ImageEditDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
         title = { Text(title) },
         text = {
             ImageEditDialogContent(edit, state, preview, estimatedBytes)
@@ -373,21 +384,15 @@ private fun PresetSection(state: ImageEditDialogState) {
         TextButton(onClick = { state.applyMemePreset() }) {
             Text("Meme")
         }
-        TextButton(onClick = { state.reset() }) {
-            Text("Reset")
-        }
+        ActionIcon(Icons.Outlined.RestartAlt, "Reset edits", { state.reset() })
     }
 }
 
 @Composable
 private fun TransformSection(state: ImageEditDialogState) {
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        TextButton(onClick = { state.rotation = (state.rotation + 270) % 360 }) {
-            Text("Rotate left")
-        }
-        TextButton(onClick = { state.rotation = (state.rotation + 90) % 360 }) {
-            Text("Rotate right")
-        }
+        ActionIcon(Icons.Outlined.RotateLeft, "Rotate left", { state.rotation = (state.rotation + 270) % 360 })
+        ActionIcon(Icons.Outlined.RotateRight, "Rotate right", { state.rotation = (state.rotation + 90) % 360 })
     }
     EditorCheckbox("Square crop", state.cropSquare) { state.updateCropSquare(it) }
     if (state.cropSquare) {
@@ -442,12 +447,8 @@ private fun BrushSection(state: ImageEditDialogState) {
     Text("Brush size", style = MaterialTheme.typography.bodySmall)
     Slider(value = state.brushSize, onValueChange = { state.brushSize = it }, valueRange = 8f..96f)
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        TextButton(enabled = state.brushStrokes.isNotEmpty(), onClick = { state.undoBrush() }) {
-            Text("Undo")
-        }
-        TextButton(enabled = state.undoneBrushStrokes.isNotEmpty(), onClick = { state.redoBrush() }) {
-            Text("Redo")
-        }
+        ActionIcon(Icons.Outlined.Undo, "Undo brush stroke", { state.undoBrush() }, enabled = state.brushStrokes.isNotEmpty())
+        ActionIcon(Icons.Outlined.Redo, "Redo brush stroke", { state.redoBrush() }, enabled = state.undoneBrushStrokes.isNotEmpty())
     }
 }
 

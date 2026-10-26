@@ -69,6 +69,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
@@ -188,6 +189,17 @@ private fun StickerApp(
     var showSettingsWindow by remember { mutableStateOf(false) }
     var settingsCategory by rememberSaveable { mutableStateOf(SettingsCategory.SERVER) }
     var destination by rememberSaveable { mutableStateOf(AppDestination.HOME) }
+    val whatsappImport = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        val validationError = result.data?.getStringExtra("validation_error")
+        when {
+            !validationError.isNullOrBlank() -> {
+                android.util.Log.e("StickerFoundryWhatsApp", validationError)
+                viewModel.reportImportResult(if (BuildConfig.DEBUG) validationError else "WhatsApp could not add this pack. Try syncing it again.", true)
+            }
+            result.resultCode == android.app.Activity.RESULT_OK -> viewModel.reportImportResult("Pack added to WhatsApp")
+            else -> viewModel.reportImportResult("WhatsApp import was not completed")
+        }
+    }
     LaunchedEffect(isLoggedIn) {
         if (!isLoggedIn) {
             destination = AppDestination.HOME
@@ -298,15 +310,15 @@ private fun StickerApp(
                         onSync = { viewModel.syncPack(detail.id) },
                         onExport = { viewModel.exportPack(detail.id) },
                         onSharePublic = { sharePublicPack(context, serverUrl, detail.id) },
-                        jobs = activeJobs,
+                        jobs = activeJobs.filter { viewModel.isJobForPack(it.id, detail.id) },
                         onCancelJob = viewModel::cancelJob,
                         onRetryJob = viewModel::retryJob,
                         onWhatsApp = {
-                            cachedPack?.let { WhatsAppStickerLauncher.addPack(context, it) }
+                            cachedPack?.let { WhatsAppStickerLauncher.addPack(context, it) { intent -> whatsappImport.launch(intent) } }
                                 ?: android.widget.Toast.makeText(context, "Sync this pack before importing it into WhatsApp", android.widget.Toast.LENGTH_LONG).show()
                         },
                         onWhatsAppBusiness = {
-                            cachedPack?.let { WhatsAppStickerLauncher.addPackToBusiness(context, it) }
+                            cachedPack?.let { WhatsAppStickerLauncher.addPackToBusiness(context, it) { intent -> whatsappImport.launch(intent) } }
                                 ?: android.widget.Toast.makeText(context, "Sync this pack before importing it into WhatsApp Business", android.widget.Toast.LENGTH_LONG).show()
                         },
                         onOpenWhatsApp = { WhatsAppStickerLauncher.openWhatsApp(context) },
@@ -368,8 +380,8 @@ private fun StickerApp(
                             account = account,
                             packs = packs,
                             status = status,
-                            onSync = { viewModel.sync() },
                             onOpenPacks = { destination = AppDestination.PACKS },
+                            onOpenPack = { viewModel.openPack(it) },
                         )
                         AppDestination.PACKS -> PacksLibraryScreen(
                             packs = remotePacks,
@@ -422,6 +434,7 @@ private fun StickerApp(
             serverStatus = serverStatus,
             checkingServer = checkingServer,
             account = account,
+            status = status,
             cacheUsage = cacheUsage,
             darkTheme = darkTheme,
             onSaveServerUrl = { viewModel.saveServerUrl(it) },
@@ -556,8 +569,8 @@ private fun HomeScreen(
     account: String,
     packs: List<com.stickerfoundry.app.data.PackEntity>,
     status: AppStatus,
-    onSync: () -> Unit,
     onOpenPacks: () -> Unit,
+    onOpenPack: (String) -> Unit,
 ) {
     val readyPacks = packs.count { it.extractionStatus == com.stickerfoundry.app.data.EXTRACTION_READY }
     val needsAttention = packs.count { it.extractionStatus != com.stickerfoundry.app.data.EXTRACTION_READY }
@@ -567,14 +580,14 @@ private fun HomeScreen(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text("Home", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
-            Text("Welcome back, $account", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(account, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         StatusMessage(status)
-        Card(modifier = Modifier.fillMaxWidth()) {
+        Card(modifier = Modifier.fillMaxWidth().clickable(onClick = onOpenPacks)) {
             Column(
                 modifier = Modifier.padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -597,11 +610,8 @@ private fun HomeScreen(
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
-                    IconButton(onClick = onSync) {
-                        Icon(Icons.Outlined.Sync, contentDescription = "Sync packs")
-                    }
+                    Icon(Icons.Outlined.ChevronRight, contentDescription = "Open packs")
                 }
-                TextButton(onClick = onOpenPacks) { Text("Open packs") }
             }
         }
         Text("At a glance", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
@@ -618,7 +628,7 @@ private fun HomeScreen(
         } else {
             Text("Recent packs", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
             packs.take(3).forEach { pack ->
-                RecentPackRow(pack = pack, onOpen = onOpenPacks)
+                RecentPackRow(pack = pack, onOpen = { onOpenPack(pack.id) })
             }
         }
     }
@@ -633,13 +643,12 @@ private fun CollectionTile(
     onClick: () -> Unit,
 ) {
     Card(modifier = modifier.clickable(onClick = onClick)) {
-        Column(
-            modifier = Modifier.padding(14.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-            Text(value, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
-            Text(label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(value, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+                Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
         }
     }
 }
@@ -845,13 +854,13 @@ private fun SettingsMenuRow(
 ) {
     Card(modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)) {
         Row(
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             Box(
                 modifier = Modifier
-                    .size(42.dp)
+                    .size(32.dp)
                     .clip(RoundedCornerShape(14.dp))
                     .background(MaterialTheme.colorScheme.surfaceVariant),
                 contentAlignment = Alignment.Center,
@@ -860,7 +869,7 @@ private fun SettingsMenuRow(
             }
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                 Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Medium)
-                Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
             Icon(Icons.Outlined.ChevronRight, contentDescription = "Open $title")
         }

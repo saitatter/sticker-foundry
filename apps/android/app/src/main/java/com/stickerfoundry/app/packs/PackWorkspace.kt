@@ -37,6 +37,21 @@ import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.Send
 import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material.icons.outlined.Sync
+import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material.icons.outlined.AddPhotoAlternate
+import androidx.compose.material.icons.outlined.PhotoLibrary
+import androidx.compose.material.icons.outlined.Image
+import androidx.compose.material.icons.outlined.GridView
+import androidx.compose.material.icons.outlined.History
+import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material.icons.outlined.Public
+import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material.icons.outlined.Sort
+import androidx.compose.material.icons.outlined.DriveFileMove
+import androidx.compose.material3.TabRow
+import com.stickerfoundry.app.ui.ActionIcon
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -158,8 +173,11 @@ fun PackWorkspaceScreen(
     var showCloneConfirm by remember { mutableStateOf(false) }
     var selectedSticker by remember { mutableStateOf<StickerDto?>(null) }
     var selectedStickerIds by remember { mutableStateOf(emptySet<String>()) }
-    val visibleTabs = remember(pack.canManage) {
-        PackTab.values().filter { it != PackTab.COLLABORATION || pack.canManage == true }
+    val visibleTabs = remember(pack.canManage, pack.canEdit) {
+        PackTab.values().filter {
+            (it != PackTab.COLLABORATION || pack.canManage == true) &&
+                (it != PackTab.SETTINGS || pack.canEdit == true)
+        }
     }
 
     LaunchedEffect(selectedTab, pack.id) {
@@ -174,8 +192,8 @@ fun PackWorkspaceScreen(
         ) {
             IconButton(onClick = onBack) { Icon(Icons.Outlined.ArrowBack, contentDescription = "Back to packs") }
             Column(modifier = Modifier.weight(1f)) {
-                Text(pack.name, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
-                Text(pack.publisher, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(pack.name, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(pack.publisher, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
             IconButton(onClick = onSync) { Icon(Icons.Outlined.Sync, contentDescription = "Sync pack") }
             PackOverflowMenu(
@@ -184,12 +202,23 @@ fun PackWorkspaceScreen(
                 onDelete = { showDeleteConfirm = true },
             )
         }
-        ScrollableTabRow(selectedTabIndex = visibleTabs.indexOf(selectedTab).coerceAtLeast(0), edgePadding = 0.dp) {
+        TabRow(selectedTabIndex = visibleTabs.indexOf(selectedTab).coerceAtLeast(0)) {
             visibleTabs.forEach { tab ->
                 Tab(
                     selected = selectedTab == tab,
                     onClick = { selectedTab = tab },
-                    text = { Text(if (tab == PackTab.STICKERS) "${tab.title} (${pack.stickerCount})" else tab.title) },
+                    icon = {
+                        Icon(
+                            when (tab) {
+                                PackTab.OVERVIEW -> Icons.Outlined.Info
+                                PackTab.STICKERS -> Icons.Outlined.GridView
+                                PackTab.ACTIVITY -> Icons.Outlined.History
+                                PackTab.COLLABORATION -> Icons.Outlined.Group
+                                PackTab.SETTINGS -> Icons.Outlined.Settings
+                            },
+                            contentDescription = if (tab == PackTab.STICKERS) "Stickers (${pack.stickerCount})" else tab.title,
+                        )
+                    },
                 )
             }
         }
@@ -371,21 +400,22 @@ private fun OverviewTab(
         verticalArrangement = Arrangement.spacedBy(12.dp),
         modifier = Modifier.fillMaxSize(),
     ) {
-        if (jobs.isNotEmpty()) {
+        val visibleJobs = jobs.filter { it.status != "COMPLETED" }
+        if (visibleJobs.isNotEmpty()) {
             item {
                 Card(modifier = Modifier.fillMaxWidth()) {
                     Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text("Processing", style = MaterialTheme.typography.titleMedium)
-                        jobs.takeLast(5).forEach { job ->
+                        visibleJobs.takeLast(5).forEach { job ->
                             Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(job.status.lowercase().replaceFirstChar { it.uppercase() }, style = MaterialTheme.typography.bodySmall)
                                     Text("${job.progress}%", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 }
-                                if (job.status == "QUEUED" || job.status == "RUNNING" || job.status == "PENDING") {
-                                    TextButton(onClick = { onCancelJob(job.id) }) { Text("Cancel") }
+                                if (job.status in listOf("QUEUED", "PROCESSING", "RUNNING", "PENDING")) {
+                                    ActionIcon(Icons.Outlined.Close, "Cancel job", { onCancelJob(job.id) })
                                 } else if (job.status == "FAILED" || job.status == "CANCELLED") {
-                                    TextButton(onClick = { onRetryJob(job.id) }) { Text("Retry") }
+                                    ActionIcon(Icons.Outlined.Refresh, "Retry job", { onRetryJob(job.id) })
                                 }
                             }
                         }
@@ -402,8 +432,7 @@ private fun OverviewTab(
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
                         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                            Text(pack.name, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
-                            Text(pack.publisher, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text("Pack overview", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                         }
                         Text(
                             if (pack.isPublic) "Public" else "Private",
@@ -415,8 +444,7 @@ private fun OverviewTab(
                                 .padding(horizontal = 10.dp, vertical = 6.dp),
                         )
                     }
-                    Text(pack.description?.ifBlank { "No description yet" } ?: "No description yet", style = MaterialTheme.typography.bodyMedium)
-                    Text("Updated ${formatDate(pack.updatedAt)}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    if (!pack.description.isNullOrBlank()) Text(pack.description, style = MaterialTheme.typography.bodySmall, maxLines = 3, overflow = TextOverflow.Ellipsis)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         SummaryPill("Stickers", "${pack.stickerCount}", Modifier.weight(1f))
                         SummaryPill("Export", if (pack.canExport == true) "Ready" else "Not ready", Modifier.weight(1f))
@@ -427,35 +455,12 @@ private fun OverviewTab(
         }
         item {
             Card(modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text("Workspace actions", style = MaterialTheme.typography.titleMedium)
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                        Button(modifier = Modifier.weight(1f), onClick = onUpload) {
-                            Icon(Icons.Outlined.Download, contentDescription = null)
-                            Spacer(Modifier.width(6.dp))
-                            Text("Upload")
-                        }
-                        OutlinedButton(modifier = Modifier.weight(1f), onClick = onUploadBatch) {
-                            Text("Upload multiple")
-                        }
-                    }
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                        OutlinedButton(modifier = Modifier.weight(1f), onClick = onReplaceTrayIcon) {
-                            Text("Tray icon")
-                        }
-                        OutlinedButton(modifier = Modifier.weight(1f), onClick = onExport, enabled = pack.canExport == true) {
-                            Icon(Icons.Outlined.Share, contentDescription = null)
-                            Spacer(Modifier.width(6.dp))
-                            Text("Export")
-                        }
-                        if (pack.isPublic) {
-                            OutlinedButton(modifier = Modifier.weight(1f), onClick = onSharePublic) {
-                                Icon(Icons.Outlined.Share, contentDescription = null)
-                                Spacer(Modifier.width(6.dp))
-                                Text("Share")
-                            }
-                        }
-                    }
+                Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceEvenly) {
+                    ActionIcon(Icons.Outlined.AddPhotoAlternate, "Upload sticker", onUpload, enabled = pack.canEdit == true)
+                    ActionIcon(Icons.Outlined.PhotoLibrary, "Upload multiple", onUploadBatch, enabled = pack.canEdit == true)
+                    ActionIcon(Icons.Outlined.Image, "Change tray icon", onReplaceTrayIcon, enabled = pack.canEdit == true)
+                    ActionIcon(Icons.Outlined.Download, "Export pack", onExport, enabled = pack.canExport == true)
+                    if (pack.isPublic) ActionIcon(Icons.Outlined.Share, "Share public pack", onSharePublic)
                 }
             }
         }
@@ -481,13 +486,13 @@ private fun OverviewTab(
                             modifier = Modifier.weight(1f),
                             onClick = if (whatsappAdded == true) onOpenWhatsApp else onWhatsApp,
                         ) {
-                            Text(if (whatsappAdded == true) "Open WhatsApp" else "WhatsApp")
+                            Text(if (whatsappAdded == true) "Open WhatsApp" else "WhatsApp", maxLines = 1, overflow = TextOverflow.Ellipsis)
                         }
                         OutlinedButton(
                             modifier = Modifier.weight(1f),
                             onClick = if (whatsappBusinessAdded == true) onOpenWhatsAppBusiness else onWhatsAppBusiness,
                         ) {
-                            Text(if (whatsappBusinessAdded == true) "Open Business" else "Business")
+                            Text(if (whatsappBusinessAdded == true) "Open Business" else "Business", maxLines = 1, overflow = TextOverflow.Ellipsis)
                         }
                     }
                 }
@@ -502,10 +507,10 @@ private fun SummaryPill(label: String, value: String, modifier: Modifier = Modif
         modifier = modifier
             .clip(RoundedCornerShape(14.dp))
             .background(MaterialTheme.colorScheme.surfaceVariant)
-            .padding(10.dp),
+            .padding(horizontal = 8.dp, vertical = 6.dp),
         verticalArrangement = Arrangement.spacedBy(2.dp),
     ) {
-        Text(value, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+        Text(value, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
         Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
@@ -539,8 +544,8 @@ private fun StickersTab(
                     Text("Select stickers to edit, move, review, or delete.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    TextButton(onClick = onUploadBatch, enabled = pack.canEdit == true) { Text("Multiple") }
-                    IconButton(onClick = onUpload, enabled = pack.canEdit == true) { Icon(Icons.Outlined.Download, contentDescription = "Upload stickers") }
+                    ActionIcon(Icons.Outlined.PhotoLibrary, "Upload multiple", onUploadBatch, enabled = pack.canEdit == true)
+                    ActionIcon(Icons.Outlined.AddPhotoAlternate, "Upload stickers", onUpload, enabled = pack.canEdit == true)
                 }
             }
         }
@@ -549,9 +554,10 @@ private fun StickersTab(
                 Card {
                     Row(modifier = Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         Text("${selectedStickerIds.size} selected", modifier = Modifier.weight(1f), fontWeight = FontWeight.Medium)
-                        TextButton(onClick = { onDeleteSticker(selectedStickerIds.first()); onSelectedStickerIdsChange(emptySet()) }, enabled = selectedStickerIds.size == 1) { Text("Delete") }
-                        TextButton(onClick = { transferMode = "copy"; showTransfer = true }) { Text("Copy") }
-                        TextButton(onClick = { transferMode = "move"; showTransfer = true }) { Text("Move") }
+                        ActionIcon(Icons.Outlined.Delete, "Delete selected sticker", { onDeleteSticker(selectedStickerIds.first()); onSelectedStickerIdsChange(emptySet()) }, enabled = selectedStickerIds.size == 1)
+                        ActionIcon(Icons.Outlined.ContentCopy, "Copy stickers", { transferMode = "copy"; showTransfer = true })
+                        ActionIcon(Icons.Outlined.DriveFileMove, "Move stickers", { transferMode = "move"; showTransfer = true })
+                        ActionIcon(Icons.Outlined.Close, "Clear selection", { onSelectedStickerIdsChange(emptySet()) })
                     }
                 }
             }
@@ -648,9 +654,13 @@ private fun StickerMobileRow(
                 Text(sticker.accessibilityText?.ifBlank { sticker.fileName } ?: sticker.fileName, style = MaterialTheme.typography.bodySmall, maxLines = 2)
                 Text(sticker.reviewStatus, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
             }
-            Column {
-                IconButton(onClick = onMoveUp, enabled = canEdit && canMoveUp) { Icon(Icons.Outlined.ArrowUpward, contentDescription = "Move up") }
-                IconButton(onClick = onMoveDown, enabled = canEdit && canMoveDown) { Icon(Icons.Outlined.ArrowDownward, contentDescription = "Move down") }
+            Box {
+                var expanded by remember { mutableStateOf(false) }
+                ActionIcon(Icons.Outlined.MoreVert, "Sticker actions", { expanded = true }, enabled = canEdit)
+                DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                    DropdownMenuItem(text = { Text("Move up") }, leadingIcon = { Icon(Icons.Outlined.ArrowUpward, null) }, enabled = canMoveUp, onClick = { expanded = false; onMoveUp() })
+                    DropdownMenuItem(text = { Text("Move down") }, leadingIcon = { Icon(Icons.Outlined.ArrowDownward, null) }, enabled = canMoveDown, onClick = { expanded = false; onMoveDown() })
+                }
             }
         }
     }
@@ -1086,14 +1096,13 @@ fun PacksLibraryScreen(
                 Text("Manage every pack on your server.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             IconButton(onClick = onSync) { Icon(Icons.Outlined.Refresh, contentDescription = "Refresh packs") }
-            Button(onClick = { showCreate = true }) { Text("New") }
+            ActionIcon(Icons.Outlined.Add, "New pack", { showCreate = true })
         }
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-            Column {
+            Column(modifier = Modifier.weight(1f)) {
                 Text("Public discovery", style = MaterialTheme.typography.titleSmall)
-                Text("Browse packs shared by this server.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            TextButton(onClick = { showPublic = !showPublic; if (!showPublic) onLoadPublicPacks() }) { Text(if (showPublic) "Hide public" else "Browse public") }
+            ActionIcon(Icons.Outlined.Public, if (showPublic) "Hide public packs" else "Browse public packs", { showPublic = !showPublic; if (showPublic) onLoadPublicPacks() })
         }
         if (showPublic) {
             Card(modifier = Modifier.fillMaxWidth()) {

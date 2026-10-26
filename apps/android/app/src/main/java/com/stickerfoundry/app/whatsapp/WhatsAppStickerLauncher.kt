@@ -17,12 +17,12 @@ object WhatsAppStickerLauncher {
     private const val WHATSAPP_WHITELIST_AUTHORITY = "com.whatsapp.provider.sticker_whitelist_check"
     private const val WHATSAPP_BUSINESS_WHITELIST_AUTHORITY = "com.whatsapp.w4b.provider.sticker_whitelist_check"
 
-    fun addPack(context: Context, pack: PackEntity) {
-        addPack(context, pack, WHATSAPP_PACKAGE, "WhatsApp")
+    fun addPack(context: Context, pack: PackEntity, launch: ((Intent) -> Unit)? = null) {
+        addPack(context, pack, WHATSAPP_PACKAGE, "WhatsApp", launch)
     }
 
-    fun addPackToBusiness(context: Context, pack: PackEntity) {
-        addPack(context, pack, WHATSAPP_BUSINESS_PACKAGE, "WhatsApp Business")
+    fun addPackToBusiness(context: Context, pack: PackEntity, launch: ((Intent) -> Unit)? = null) {
+        addPack(context, pack, WHATSAPP_BUSINESS_PACKAGE, "WhatsApp Business", launch)
     }
 
     fun openWhatsApp(context: Context, business: Boolean = false) {
@@ -56,7 +56,7 @@ object WhatsAppStickerLauncher {
         }
     }
 
-    private fun addPack(context: Context, pack: PackEntity, packageName: String, appName: String) {
+    private fun addPack(context: Context, pack: PackEntity, packageName: String, appName: String, launch: ((Intent) -> Unit)?) {
         if (pack.extractionStatus != EXTRACTION_READY) {
             showUnavailable(context, "Sync this pack before importing it into $appName")
             return
@@ -75,7 +75,7 @@ object WhatsAppStickerLauncher {
 
         try {
             if (context !is Activity) intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            context.startActivity(intent)
+            if (launch != null) launch(intent) else context.startActivity(intent)
         } catch (_: ActivityNotFoundException) {
             showUnavailable(context, "$appName could not open the sticker import screen")
         } catch (_: SecurityException) {

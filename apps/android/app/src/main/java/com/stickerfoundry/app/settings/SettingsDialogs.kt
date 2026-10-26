@@ -4,6 +4,7 @@ import com.stickerfoundry.app.data.*
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -26,6 +27,19 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material.icons.outlined.ArrowDropDown
+import androidx.compose.material.icons.outlined.ChevronRight
+import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.Download
+import androidx.compose.material.icons.outlined.Refresh
+import androidx.compose.material.icons.outlined.Save
+import androidx.compose.material.icons.outlined.CheckCircle
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.window.DialogProperties
+import com.stickerfoundry.app.ui.ActionIcon
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -55,6 +69,7 @@ fun SettingsWindow(
     initialCategory: SettingsCategory = SettingsCategory.SERVER,
     serverUrl: String,
     serverStatus: AppStatus,
+    status: AppStatus,
     checkingServer: Boolean,
     account: String,
     cacheUsage: String,
@@ -98,6 +113,7 @@ fun SettingsWindow(
     LaunchedEffect(selectedCategory) {
         when (selectedCategory) {
             SettingsCategory.SECURITY -> onLoadSessions()
+            SettingsCategory.PROCESSING -> if (isAdmin) onLoadAdminSettings()
             SettingsCategory.ADMIN -> {
                 onLoadAdminSettings()
                 onLoadAdminAuditLog()
@@ -107,48 +123,36 @@ fun SettingsWindow(
         }
     }
 
-    Dialog(onDismissRequest = onDismiss) {
+    var categoriesExpanded by remember { mutableStateOf(false) }
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Surface(
             modifier = Modifier
                 .fillMaxWidth()
-                .fillMaxHeight(0.9f),
+                .padding(horizontal = 12.dp, vertical = 16.dp)
+                .fillMaxHeight(0.94f),
             shape = MaterialTheme.shapes.large,
             tonalElevation = 6.dp,
         ) {
-            Column(modifier = Modifier.padding(16.dp)) {
+            Column(modifier = Modifier.padding(12.dp)) {
                 Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("Settings", style = MaterialTheme.typography.headlineSmall)
-                        Text(
-                            "Manage your Sticker Foundry mobile workspace.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
+                    Text("Settings", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
+                    Box {
+                        TextButton(onClick = { categoriesExpanded = true }) {
+                            Text(selectedCategory.title)
+                            Icon(Icons.Outlined.ArrowDropDown, contentDescription = "Choose settings section")
+                        }
+                        DropdownMenu(expanded = categoriesExpanded, onDismissRequest = { categoriesExpanded = false }) {
+                            visibleCategories.forEach { category ->
+                                DropdownMenuItem(text = { Text(category.title) }, onClick = { selectedCategory = category; categoriesExpanded = false })
+                            }
+                        }
                     }
                     IconButton(onClick = onDismiss) {
                         Icon(Icons.Outlined.Close, contentDescription = "Close settings")
                     }
                 }
-                Spacer(modifier = Modifier.padding(4.dp))
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                ) {
-                    visibleCategories.forEach { category ->
-                        if (category == selectedCategory) {
-                            Button(onClick = { selectedCategory = category }) {
-                                Text(category.title)
-                            }
-                        } else {
-                            TextButton(onClick = { selectedCategory = category }) {
-                                Text(category.title)
-                            }
-                        }
-                    }
-                }
                 HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                StatusMessage(status)
                 Column(
                     modifier = Modifier
                         .weight(1f)
@@ -243,7 +247,7 @@ private fun SecuritySettingsCard(
                             Text("Started ${session.createdAt.take(19).replace('T', ' ')}", style = MaterialTheme.typography.bodySmall)
                             Text("Expires ${session.expiresAt.take(19).replace('T', ' ')}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
-                        TextButton(onClick = { onRevokeSession(session.id) }) { Text("Revoke") }
+                        ActionIcon(Icons.Outlined.Close, "Revoke session", { onRevokeSession(session.id) })
                     }
                 }
             }
@@ -272,8 +276,8 @@ private fun TeamsSettingsCard(
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-                Column { Text("Teams", style = MaterialTheme.typography.titleMedium); Text("Shared ownership and collaboration.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-                Button(onClick = { showCreate = !showCreate }) { Text("New team") }
+                Column(modifier = Modifier.weight(1f)) { Text("Teams", style = MaterialTheme.typography.titleMedium); Text("Shared ownership and collaboration.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                ActionIcon(Icons.Outlined.Add, "New team", { showCreate = !showCreate })
             }
             if (teams.isEmpty()) Text("You are not part of a team yet.", style = MaterialTheme.typography.bodySmall)
             Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -286,7 +290,7 @@ private fun TeamsSettingsCard(
                         Text(team.name, style = MaterialTheme.typography.titleSmall)
                         Text("${team.memberCount} members · ${team.packCount} packs · ${team.role ?: "member"}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
-                    TextButton(onClick = { selectedTeamId = team.id; onLoadMembers(team.id) }) { Text(if (selectedTeamId == team.id) "Selected" else "Manage") }
+                    ActionIcon(Icons.Outlined.ChevronRight, "Manage ${team.name}", { selectedTeamId = team.id; onLoadMembers(team.id) })
                 }
                 if (selectedTeamId == team.id) {
                     HorizontalDivider()
@@ -297,8 +301,8 @@ private fun TeamsSettingsCard(
                                 Text(member.user.displayName, style = MaterialTheme.typography.bodySmall)
                                 Text(member.user.email, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
-                            TextButton(onClick = { onUpdateMember(team.id, member.id, if (member.role == "EDITOR") "VIEWER" else "EDITOR") }) { Text(member.role) }
-                            TextButton(onClick = { onRemoveMember(team.id, member.id) }) { Text("Remove") }
+                            TextButton(enabled = member.role != "OWNER", onClick = { onUpdateMember(team.id, member.id, if (member.role == "EDITOR") "VIEWER" else "EDITOR") }) { Text(member.role) }
+                            ActionIcon(Icons.Outlined.Delete, "Remove team member", { onRemoveMember(team.id, member.id) }, enabled = member.role != "OWNER")
                         }
                     }
                     OutlinedTextField(memberEmail, { memberEmail = it }, label = { Text("Member email") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
@@ -330,7 +334,7 @@ private fun ProcessingSettingsCard(settings: AdminSettingsDto?) {
             val background = settings?.backgroundRemoval
             Text(
                 when {
-                    background == null -> "Loading processing capabilities…"
+                    background == null -> "Processing capabilities are available to server administrators."
                     background.aiCommandConfigured -> "rembg is configured and will be used as the primary AI processor. Threshold fallback remains available."
                     else -> "rembg is not configured on the server. Threshold fallback will be used."
                 },
@@ -356,8 +360,9 @@ private fun AuditSettingsCard(
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-                Column { Text("Audit log", style = MaterialTheme.typography.titleMedium); Text("Security events for this account or instance.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-                Row { TextButton(onClick = onLoad) { Text("Refresh") }; TextButton(onClick = onExport) { Text("Export") } }
+                Column(modifier = Modifier.weight(1f)) { Text("Audit log", style = MaterialTheme.typography.titleMedium); Text("Security events for this account or instance.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                ActionIcon(Icons.Outlined.Refresh, "Refresh audit log", onLoad)
+                ActionIcon(Icons.Outlined.Download, "Export audit log", onExport)
             }
             Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 listOf(10, 25, 100, 0).forEach { size ->
@@ -492,15 +497,8 @@ fun ServerSettingsPanel(
                 singleLine = true,
             )
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = { onSaveServerUrl(editedServerUrl) }) {
-                    Text("Save URL")
-                }
-                TextButton(
-                    enabled = !checkingServer,
-                    onClick = { onCheckServerUrl(editedServerUrl) },
-                ) {
-                    Text(if (checkingServer) "Checking..." else "Test server")
-                }
+                ActionIcon(Icons.Outlined.Save, "Save URL", { onSaveServerUrl(editedServerUrl) })
+                ActionIcon(Icons.Outlined.CheckCircle, if (checkingServer) "Checking server" else "Test server", { onCheckServerUrl(editedServerUrl) }, enabled = !checkingServer)
             }
             if (serverStatus.message.isNotBlank()) {
                 Text(
