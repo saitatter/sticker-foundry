@@ -2,6 +2,8 @@
 
 The active client is `apps/client`: a shared Dart UI for Android, Windows and web, with macOS, Linux and iOS targets. NestJS, PostgreSQL, Redis and the media/queue workers remain the server. The React and Compose clients are archived under `legacy` and excluded from workspaces, deployment and CI.
 
+For the current remaining work and repository cleanup, see [Migration audit](MIGRATION_AUDIT.md). The table below inventories the implemented client workflows; it does not assert complete parity with the archived clients.
+
 ## Workflows moved
 
 | Area | Flutter client |
@@ -19,7 +21,7 @@ All platform screens use Material 3. Phones use bottom navigation, desktop uses 
 
 ## Run and build
 
-Use Flutter **3.47.7**, JDK **17**, and Node **22**. Windows builds need Visual Studio C++ tools; Android builds need the Android SDK. Linux builds need GTK, clang, CMake, Ninja, pkg-config and libsecret development packages plus a running keyring for secure token storage. Apple builds require macOS/Xcode and platform signing for device distribution.
+Use Flutter **3.47.7**, JDK **17**, and Node **22.14+** (22.x) or **24.10+**. Windows builds need Visual Studio C++ tools; Android builds need the Android SDK. Linux builds need GTK, clang, CMake, Ninja, pkg-config and libsecret development packages plus a running keyring for secure token storage. Apple builds require macOS/Xcode and platform signing for device distribution.
 
 ```sh
 npm install

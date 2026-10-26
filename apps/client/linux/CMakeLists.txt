@@ -90,6 +90,10 @@ install(CODE "
 
 set(INSTALL_BUNDLE_DATA_DIR "${CMAKE_INSTALL_PREFIX}/data")
 set(INSTALL_BUNDLE_LIB_DIR "${CMAKE_INSTALL_PREFIX}/lib")
+install(FILES "runner/resources/com.stickerfoundry.app.desktop"
+  DESTINATION "${INSTALL_BUNDLE_DATA_DIR}/applications" COMPONENT Runtime)
+install(FILES "runner/resources/com.stickerfoundry.app.png"
+  DESTINATION "${INSTALL_BUNDLE_DATA_DIR}/icons/hicolor/256x256/apps" COMPONENT Runtime)
 
 install(TARGETS ${BINARY_NAME} RUNTIME DESTINATION "${CMAKE_INSTALL_PREFIX}"
   COMPONENT Runtime)

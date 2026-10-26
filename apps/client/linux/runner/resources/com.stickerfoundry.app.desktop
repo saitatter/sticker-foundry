@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Sticker Foundry
+Comment=Create and share sticker packs
+Exec=sticker_foundry
+Icon=com.stickerfoundry.app
+Categories=Graphics;
+Terminal=false

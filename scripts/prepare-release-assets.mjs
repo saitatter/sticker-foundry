@@ -10,6 +10,8 @@ const distDir = join(repoRoot, 'dist');
 const packageRoot = join(distDir, 'sticker-foundry-server');
 const serverArchive = join(distDir, 'sticker-foundry-server-package.tar.gz');
 const androidApk = join(distDir, 'sticker-foundry-android.apk');
+const apkMode = process.argv.find((arg) => arg.startsWith('--apk-mode='))?.split('=')[1] ?? 'debug';
+if (!['debug', 'release'].includes(apkMode)) throw new Error('--apk-mode must be debug or release');
 
 await mkdir(distDir, { recursive: true });
 await rm(packageRoot, { recursive: true, force: true });
@@ -23,17 +25,10 @@ console.log(`Prepared ${relative(androidApk)}`);
 console.log(`Prepared ${relative(serverArchive)}`);
 
 async function copyAndroidApk() {
-  const candidates = [
-    'apps/client/build/app/outputs/flutter-apk/app-release.apk',
-    'apps/client/build/app/outputs/flutter-apk/app-debug.apk',
-  ];
-
-  const source = candidates.map((candidate) => join(repoRoot, candidate)).find((candidate) => existsSync(candidate));
-  if (!source) {
-    throw new Error(`Missing Android APK. Expected one of: ${candidates.join(', ')}`);
-  }
-
+  const source = join(repoRoot, `apps/client/build/app/outputs/flutter-apk/app-${apkMode}.apk`);
+  if (!existsSync(source)) throw new Error(`Missing ${apkMode} APK: ${source}. Build that variant first.`);
   await copyFile(source, androidApk);
+  console.log(`Android artifact: ${apkMode}`);
 }
 
 async function copyServerPackage() {
@@ -53,6 +48,8 @@ async function copyServerPackage() {
     'LICENSE',
     'docs',
     'scripts/verify-backup.mjs',
+    'scripts/validate-compose.mjs',
+    'scripts/serve-client.mjs',
     'apps/backend/Dockerfile',
     'apps/backend/Dockerfile.ai',
     'apps/backend/nest-cli.json',
@@ -67,6 +64,7 @@ async function copyServerPackage() {
     'apps/client/pubspec.lock',
     'apps/client/web',
     'apps/client/lib',
+    'apps/client/assets',
     'packages/shared-types/package.json',
     'packages/shared-types/tsconfig.json',
     'packages/shared-types/src',

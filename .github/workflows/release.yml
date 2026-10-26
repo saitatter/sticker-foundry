@@ -65,6 +65,9 @@ jobs:
       - name: Lint web
         run: npm run lint:web
 
+      - name: Test Flutter client and brand assets
+        run: npm run test:client && npm run brand:check && npm run repo:check
+
       - name: Install Playwright browsers
         run: npx playwright install --with-deps
 

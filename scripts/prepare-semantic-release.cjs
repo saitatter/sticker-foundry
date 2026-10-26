@@ -18,7 +18,11 @@ const hasSigning =
 run(process.execPath, [path.join(repoRoot, 'scripts/set-version.cjs'), version], { cwd: repoRoot });
 run(flutter, ['build', 'web', '--release', '--no-web-resources-cdn'], { cwd: androidRoot });
 run(flutter, ['build', 'apk', hasSigning ? '--release' : '--debug'], { cwd: androidRoot });
-run(process.execPath, [path.join(repoRoot, 'scripts/prepare-release-assets.mjs')], { cwd: repoRoot });
+run(
+  process.execPath,
+  [path.join(repoRoot, 'scripts/prepare-release-assets.mjs'), `--apk-mode=${hasSigning ? 'release' : 'debug'}`],
+  { cwd: repoRoot },
+);
 
 function run(command, args, options) {
   const result = spawnSync(command, args, {

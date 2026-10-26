@@ -1,6 +1,8 @@
 # Real WhatsApp Validation
 
-Use this checklist on a physical Android device after installing the debug or signed APK.
+Flutter debug validation on 2026-10-26 covered an update over the Compose app, session migration, sync, static WhatsApp import confirmation and animated pack preview/provider on Motorola Edge 70 / Android 16. No chat messages were sent. Signed release upgrades and WhatsApp Business remain unverified. See [migration QA](FLUTTER_MIGRATION.md) and the [migration audit](MIGRATION_AUDIT.md).
+
+Use the checklist below for the remaining acceptance tests.
 
 ## Device Setup
 

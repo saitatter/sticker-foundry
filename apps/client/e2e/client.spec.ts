@@ -18,6 +18,7 @@ async function accessible(page: Page) {
   await page.goto('/');
   await page.locator('flt-semantics-placeholder').evaluate((element: HTMLElement) => element.click());
   await expect(page.getByRole('button', { name: 'Sign in', exact: true })).toBeVisible();
+  await expect(page.getByRole('img', { name: 'Sticker Foundry logo', exact: true })).toBeVisible();
 }
 async function fill(page: Page, label: string, value: string) {
   const field = page.getByRole('textbox', { name: label, exact: true });

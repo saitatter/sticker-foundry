@@ -9,6 +9,7 @@ COPY apps/client/pubspec.yaml apps/client/pubspec.lock ./
 RUN flutter pub get
 COPY apps/client/lib lib
 COPY apps/client/web web
+COPY apps/client/assets assets
 RUN flutter build web --release --no-web-resources-cdn
 
 FROM nginx:1.27-alpine

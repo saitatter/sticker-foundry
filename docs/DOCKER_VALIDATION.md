@@ -1,6 +1,6 @@
 # Docker Validation
 
-Docker is not available in the current local workspace, so use this checklist on a host with Docker installed.
+Local Docker testing was performed during the Android/Flutter migration. See [migration QA](FLUTTER_MIGRATION.md) for the exact evidence and [remaining release gates](MIGRATION_AUDIT.md) for unverified environments. The checklist below remains the clean-host acceptance procedure.
 
 Validate all Compose combinations without starting containers:
 

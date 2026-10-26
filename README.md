@@ -14,6 +14,8 @@
   <a href="https://github.com/saitatter/sticker-foundry/issues"><img src="https://img.shields.io/github/issues/saitatter/sticker-foundry" alt="Open issues"></a>
 </p>
 
+The active client is Flutter for mobile, desktop and web; the server is NestJS. See the [migration audit and remaining work](docs/MIGRATION_AUDIT.md) before preparing a release. Published images may differ from this checkout; build from source to test the current client.
+
 Sticker Foundry is a self-hosted home for your sticker collection. Drop in images, clean them up, arrange them into packs, work with other people, and send the finished packs to WhatsApp.
 
 ## What you can do
@@ -22,14 +24,14 @@ Sticker Foundry is a self-hosted home for your sticker collection. Drop in image
 
 - Upload one image or a whole batch at once.
 - Crop, resize, add text, and polish images with erase and restore brushes.
-- Remove backgrounds with local AI using `rembg`, with a reliable automatic fallback when needed.
+- Remove backgrounds with threshold processing or optional local AI (`rembg`); AI requires the AI server image or a configured command.
 - Prepare animated stickers with trimming, frame-rate, and quality controls.
 - Compare the original and edited image before saving.
 
 ### Keep every pack organized
 
 - Browse packs in an album-style library with covers, search, and quick switching.
-- Reorder stickers with drag and drop, keyboard controls, or multi-select actions.
+- Reorder stickers with Move earlier / Move later; select multiple stickers to copy, move or delete them.
 - Add emojis and accessibility text so every sticker is easy to find and use.
 - Review sticker status, inspect recent changes, and download ready-to-share exports.
 - Use light or dark theme; your choice is remembered across visits.
@@ -55,7 +57,7 @@ Sticker Foundry is a self-hosted home for your sticker collection. Drop in image
 
 ## Start in a few minutes
 
-The easiest local setup uses Docker Desktop. After Docker is installed:
+The easiest local setup uses Docker Desktop. The server release archive contains Docker build inputs; use a full Git checkout for Flutter development and repository checks. After Docker is installed:
 
 1. Download this repository and open a terminal in its folder.
 2. Create your local settings file:
@@ -88,11 +90,11 @@ The easiest local setup uses Docker Desktop. After Docker is installed:
 
 Open [http://localhost:8080](http://localhost:8080).
 
-| What | Address |
-| --- | --- |
-| Sticker Foundry | [http://localhost:8080](http://localhost:8080) |
-| API health | [http://localhost:3000/api/health](http://localhost:3000/api/health) |
-| API reference | [http://localhost:3000/api/docs](http://localhost:3000/api/docs) |
+| What            | Address                                                              |
+| --------------- | -------------------------------------------------------------------- |
+| Sticker Foundry | [http://localhost:8080](http://localhost:8080)                       |
+| API health      | [http://localhost:3000/api/health](http://localhost:3000/api/health) |
+| API reference   | [http://localhost:3000/api/docs](http://localhost:3000/api/docs)     |
 
 The demo account is:
 
@@ -114,15 +116,23 @@ Change or remove the demo account before sharing the installation with other peo
 
 ## One Flutter client for mobile, desktop and web
 
-The Android app keeps a local copy of your packs and can hand them to WhatsApp or WhatsApp Business. Point it at the server address reachable from your phone, sign in, sync, and choose a pack to import.
+All active screens and the canvas editor are in `apps/client/lib`. Android adds a small Kotlin adapter for WhatsApp; the previous React and Compose clients are kept in `legacy` for migration comparisons.
 
-If you are building the Android app from this repository, use JDK 17 and run:
+Use Flutter **3.47.7**. Android builds require **JDK 17** and the Android SDK. Native desktop builds require the platform's compiler tools.
 
 ```bash
 cd apps/client
 flutter pub get
+flutter run -d windows       # on Windows
 flutter build apk --debug
+flutter build web --release --no-web-resources-cdn
 ```
+
+Android, Windows, macOS and Linux use the same client sources. macOS, Linux and iOS still need their platform validation gates; see the audit for current evidence. WhatsApp/Business import is Android-specific. Other platforms download or share ZIP exports.
+
+The native default server URL is `http://127.0.0.1:8080/api/`. Set **Server connection** to a LAN/HTTPS address reachable from your device. For USB testing, `adb reverse tcp:8080 tcp:8080` maps the phone to the PC server. If that PC port is occupied, substitute the actual PC port, for example `adb reverse tcp:8080 tcp:8081`. Web uses `/api/` on its own origin by default.
+
+The existing app logo remains the source at `assets/brand/sticker-foundry-icon.png`. Run `npm run brand:sync` to generate platform sizes and `npm run brand:check` to verify them. Existing Android adaptive icons are preserved unchanged.
 
 ## Host it on a server
 
@@ -157,18 +167,25 @@ docker compose stop
 docker compose down
 ```
 
-For local development, install Flutter 3.47.7, Node.js 22 and JDK 17. The server remains NestJS; all active client screens are in `apps/client/lib`. The previous React and Compose clients are archived in `legacy`. See [Flutter migration and testing](docs/FLUTTER_MIGRATION.md).
-
-Then run:
+For local development, use Node **22.14+** (22.x) or **24.10+**, Flutter 3.47.7 and JDK 17. Copy `.env.example` to `.env` and configure local database/Redis URLs, then start the dependencies:
 
 ```bash
-npm install
-cd apps/client && flutter pub get
+docker compose up -d postgres redis
+npm ci
+cd apps/client
+flutter pub get
 cd ../..
 npm run dev:seeded
 ```
 
+`npm run dev` starts the API, worker and Flutter web development server. For a prebuilt web preview with an API proxy, run `npm run build:web` and `npm run preview:web`; `API_ORIGIN` selects the upstream server and defaults to `http://127.0.0.1:8080`.
+
+Useful checks: `npm run repo:check`, `npm run brand:check`, `npm run lint:client`, `npm run test:client`, `npm run test:web`, `npm run test:backend`, and `npm run compose:validate`. The browser tests serve a built Flutter web app, so run `npm run build:web` first. `lint:web`, `format:web` and `test:web:unit` remain compatibility aliases for the Flutter client commands.
+
 ## Project guides
+
+- [Migration audit and remaining work](docs/MIGRATION_AUDIT.md)
+- [Flutter migration and physical QA](docs/FLUTTER_MIGRATION.md)
 
 - [Production checklist](docs/PRODUCTION_CHECKLIST.md)
 - [Reverse proxy examples](docs/REVERSE_PROXY.md)

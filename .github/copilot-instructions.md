@@ -16,6 +16,8 @@
 - Shared types: `packages/shared-types`.
 - Docker: `docker-compose.yml` (source), with `docker-compose.dev.yml` and `docker-compose.ai.yml` as optional overrides.
 
+The canonical logo is `assets/brand/sticker-foundry-icon.png`. Preserve it and the existing Android launcher icons. Use `npm run brand:sync` for derived platform assets. Track remaining parity/release gates in `docs/MIGRATION_AUDIT.md`.
+
 ## Git and Releases
 
 - Use conventional commits. Examples:
@@ -29,7 +31,7 @@
 
 ## TypeScript and Style
 
-- Backend targets Node 22+ with NestJS conventions.
+- Backend/tooling use Node 22.14+ (22.x) or 24.10+ with NestJS conventions.
 - Client uses Dart and Flutter Material 3. Run `dart format` and `flutter analyze`.
 - Prettier config lives in `.prettierrc.json` (120 width, single quotes, trailing commas).
 - ESLint configs live per-app: `apps/backend/eslint.config.mjs`.
@@ -52,7 +54,9 @@
 ## Testing
 
 - Backend: `npm run test:backend` (unit), `npm run test:e2e:backend` (e2e).
-- Web: `npm run test:web` (Playwright smoke flows).
+- Client: `npm run lint:client`, `npm run test:client`, `npm run brand:check`.
+- Web: build first, then `npm run test:web` (Playwright smoke flows).
+- Repository: `npm run repo:check`; keep environment templates, wrapper JARs and lockfiles tracked.
 - Android: `./gradlew :app:lintDebug` in `apps/client/android`.
 - Add regression tests for bug fixes and new API endpoints.
 

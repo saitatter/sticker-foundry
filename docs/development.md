@@ -1,6 +1,6 @@
 # Development workflow
 
-Use Flutter 3.47.7, JDK 17 and Node 22. See [Flutter migration](FLUTTER_MIGRATION.md) for platform builds and physical-device testing.
+Use Flutter 3.47.7, JDK 17 and Node 22.14+ (22.x) or 24.10+. See [Flutter migration](FLUTTER_MIGRATION.md) for platform builds and physical-device testing.
 
 ## Install and run
 

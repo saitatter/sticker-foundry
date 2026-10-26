@@ -467,10 +467,13 @@ class _AuthScreenState extends State<AuthScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Icon(
-                    Icons.auto_awesome,
-                    size: 52,
-                    color: Theme.of(context).colorScheme.primary,
+                  Center(
+                    child: Image.asset(
+                      'assets/brand/sticker-foundry-icon.png',
+                      width: 88,
+                      height: 88,
+                      semanticLabel: 'Sticker Foundry logo',
+                    ),
                   ),
                   const SizedBox(height: 16),
                   Text(

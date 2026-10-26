@@ -1,4 +1,4 @@
-FROM node:20-alpine
+FROM node:22-alpine
 
 ARG OCI_SOURCE="https://github.com/saitatter/sticker-foundry"
 ARG OCI_REVISION=""
@@ -19,7 +19,7 @@ COPY packages/shared-types/package.json packages/shared-types/package.json
 COPY apps/backend apps/backend
 COPY packages/shared-types packages/shared-types
 
-RUN npm install \
+RUN npm ci \
   && npm --workspace apps/backend run prisma:generate \
   && npm --workspace apps/backend run build \
   && npm prune --omit=dev

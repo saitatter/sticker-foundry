@@ -1,6 +1,8 @@
 # Host Sticker Foundry on a server
 
-This setup uses the published GHCR images, keeps PostgreSQL, Redis, and the API private, and exposes only the web container.
+The Flutter migration is not published as a release by the branch workflow. Build from the checked-out source with `docker compose up -d --build` to test it; existing release tags retain the corresponding released client. See [migration audit](MIGRATION_AUDIT.md).
+
+This published-image setup uses GHCR images, keeps PostgreSQL, Redis, and the API private, and exposes only the web container.
 
 ## 1. Prepare the server
 

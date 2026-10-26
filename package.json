@@ -24,8 +24,8 @@
     "test:web:unit": "npm run test:client",
     "compose:validate": "node scripts/validate-compose.mjs",
     "lint:backend": "npm --workspace apps/backend run lint",
-    "lint:web": "cd apps/client && flutter analyze",
-    "format:web": "cd apps/client && dart format lib test",
+    "lint:web": "npm run lint:client",
+    "format:web": "npm run format:client",
     "verify:backup": "node scripts/verify-backup.mjs",
     "package:release": "node scripts/prepare-release-assets.mjs",
     "build:shared-types": "npm --workspace packages/shared-types run build",
@@ -35,13 +35,18 @@
     "dev:desktop": "cd apps/client && flutter run -d windows",
     "build:android": "cd apps/client && flutter build apk --debug",
     "build:desktop": "cd apps/client && flutter build windows --release",
-    "test:client": "cd apps/client && flutter test"
+    "test:client": "cd apps/client && flutter test",
+    "lint:client": "cd apps/client && flutter analyze",
+    "format:client": "cd apps/client && dart format lib test tool",
+    "brand:sync": "cd apps/client && dart run tool/sync_brand.dart",
+    "brand:check": "cd apps/client && dart run tool/sync_brand.dart --check",
+    "repo:check": "node scripts/check-repo-hygiene.mjs",
+    "preview:web": "node scripts/serve-client.mjs"
   },
   "engines": {
-    "node": ">=20"
+    "node": "^22.14.0 || >=24.10.0"
   },
   "devDependencies": {
-    "@axe-core/playwright": "^4.13.0",
     "@playwright/test": "^1.59.1",
     "@semantic-release/changelog": "^6.0.3",
     "@semantic-release/commit-analyzer": "^13.0.1",
@@ -52,6 +57,7 @@
     "concurrently": "^9.2.1",
     "conventional-changelog-conventionalcommits": "^9.3.1",
     "openapi-typescript": "^7.13.0",
+    "prettier": "^3.9.10",
     "semantic-release": "^25.0.3"
   }
 }
