@@ -34,11 +34,11 @@ export class StickerImageService {
     return options.animated ? this.processAnimatedWebp(input, options) : this.processStaticWebp(input);
   }
 
-  async processTrayIcon(input: Buffer): Promise<ProcessedImage> {
+  async processTrayIcon(input: Buffer, fromAnimatedSticker = false): Promise<ProcessedImage> {
     const metadata = await this.metadataFor(input);
     this.assertSupportedImageContent(metadata);
     this.assertInputBounds(metadata);
-    if ((metadata.pages ?? 1) > 1) {
+    if ((metadata.pages ?? 1) > 1 && !fromAnimatedSticker) {
       throw new BadRequestException('Tray icons must be static images');
     }
     return this.processWebp(input, WHATSAPP_LIMITS.trayIconPixels, WHATSAPP_LIMITS.maxTrayIconBytes, false);

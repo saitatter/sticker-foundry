@@ -75,6 +75,7 @@ function createService() {
   };
 
   const storage = {
+    writeJobInput: jest.fn().mockResolvedValue('jobs/upload/input.webp'),
     writeImage: jest.fn(),
     replaceImage: jest.fn(),
     writeBuffer: jest.fn(),
@@ -124,12 +125,37 @@ function createService() {
     collaboration,
     stickerMediaRead,
   );
-  return { service, prisma, imageService, backgroundRemoval, audit, storage };
+  return { service, prisma, imageService, backgroundRemoval, audit, storage, jobs };
 }
 
 describe(PacksService, () => {
   beforeEach(() => {
     jest.clearAllMocks();
+  });
+
+  it.each([
+    [false, 3, 0, true],
+    [true, 3, 2, false],
+    [true, 4, 3, true],
+    [false, 31, 31, false],
+  ])('reports export eligibility consistently in list and detail (approval=%s, total=%i, approved=%i)', async (requiresApproval, total, approved, expected) => {
+    const { service, prisma } = createService();
+    const stickers = Array.from({ length: total }, (_, i) => ({ id: `s-${i}`, reviewStatus: i < approved ? StickerReviewStatus.APPROVED : StickerReviewStatus.PENDING }));
+    const pack = { id: 'pack-1', ownerId: 'owner-1', requiresApproval, _count: { stickers: total }, stickers, members: [], team: null };
+    prisma.pack.findUnique.mockResolvedValue(pack);
+    prisma.pack.findMany.mockResolvedValue([{ ...pack, stickers: stickers.filter(s => s.reviewStatus === StickerReviewStatus.APPROVED) }]);
+    expect(await service.get('owner-1', 'pack-1')).toEqual(expect.objectContaining({ canExport: expected }));
+    expect(await service.list('owner-1')).toEqual([expect.objectContaining({ canExport: expected })]);
+  });
+
+  it('queues the pack identifier needed by the media worker to persist an uploaded sticker', async () => {
+    const { service, prisma, jobs } = createService();
+    prisma.pack.findUnique.mockResolvedValue({ id: 'pack-1', ownerId: 'owner-1', isAnimated: false, _count: { stickers: 0 }, members: [], team: null });
+    await service.queueStickerUpload('owner-1', 'pack-1', { buffer: Buffer.from('image'), mimetype: 'image/webp' } as Express.Multer.File, {});
+    expect(jobs.enqueue).toHaveBeenCalledWith(expect.objectContaining({
+      packId: 'pack-1',
+      data: expect.objectContaining({ kind: 'sticker-upload', packId: 'pack-1', fileName: 'generated-sticker-id.webp' }),
+    }));
   });
 
   it('stores uploaded stickers at the next pack position and creates a tray icon for the first sticker', async () => {

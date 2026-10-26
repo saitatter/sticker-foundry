@@ -73,7 +73,9 @@ export class PacksStickerService {
     await this.storage.writeImage(packId, fileName, processed);
 
     if (pack._count.stickers === 0) {
-      const tray = await this.mediaQueue.enqueue(() => this.imageService.processTrayIcon(preparedInput));
+      const tray = await this.mediaQueue.enqueue(() => pack.isAnimated
+        ? this.imageService.processTrayIcon(preparedInput, true)
+        : this.imageService.processTrayIcon(preparedInput));
       await this.storage.writeImage(packId, 'tray_icon.webp', tray);
     }
 
@@ -181,6 +183,7 @@ export class PacksStickerService {
         packId,
         data: {
           kind: 'sticker-upload',
+          packId,
           inputKey,
           outputKey: this.storage.storageKeyFor(packId, fileName),
           mimeType: 'image/webp',

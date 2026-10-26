@@ -95,6 +95,7 @@ export class PacksService {
       teamName: pack.team?.name,
       stickerCount: _count.stickers,
       exportStickerCount: pack.requiresApproval ? stickers.length : _count.stickers,
+      canExport: this.canExportStickerCount(pack.requiresApproval ? stickers.length : _count.stickers),
       ...this.access.accessSummary(userId, pack),
     }));
   }
@@ -117,13 +118,15 @@ export class PacksService {
     }
 
     const { _count, ...rest } = pack;
+    const exportStickerCount = pack.requiresApproval
+      ? pack.stickers.filter((sticker) => sticker.reviewStatus === StickerReviewStatus.APPROVED).length
+      : _count.stickers;
     return {
       ...rest,
       teamName: pack.team?.name,
       stickerCount: _count.stickers,
-      exportStickerCount: pack.requiresApproval
-        ? pack.stickers.filter((sticker) => sticker.reviewStatus === StickerReviewStatus.APPROVED).length
-        : _count.stickers,
+      exportStickerCount,
+      canExport: this.canExportStickerCount(exportStickerCount),
       ...this.access.accessSummary(userId, pack),
     };
   }
@@ -499,6 +502,10 @@ export class PacksService {
 
   async assertCanExport(userId: string, packId: string) {
     await this.get(userId, packId);
+  }
+
+  private canExportStickerCount(count: number) {
+    return count >= WHATSAPP_LIMITS.minStickersPerPack && count <= WHATSAPP_LIMITS.maxStickersPerPack;
   }
 
   async assertPackVersion(userId: string, packId: string, ifMatch: string | undefined) {

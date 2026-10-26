@@ -55,6 +55,19 @@ describe(StickerImageService, () => {
     );
   });
 
+  it('generates a static tray icon from an animated sticker while rejecting animated tray uploads', async () => {
+    const frames = await Promise.all([
+      frameBuffer({ r: 255, g: 0, b: 0, alpha: 1 }),
+      frameBuffer({ r: 0, g: 0, b: 255, alpha: 1 }),
+    ]);
+    const animated = await sharp(frames, { join: { animated: true } }).webp({ delay: [100, 100] }).toBuffer();
+    await expect(service.processTrayIcon(animated)).rejects.toBeInstanceOf(BadRequestException);
+    const tray = await service.processTrayIcon(animated, true);
+    const metadata = await sharp(tray.bytes).metadata();
+    expect(metadata).toEqual(expect.objectContaining({ format: 'webp', width: 96, height: 96 }));
+    expect(metadata.pages ?? 1).toBe(1);
+  });
+
   it('trims and resamples animated stickers before enforcing WhatsApp duration', async () => {
     const frames = await Promise.all([
       frameBuffer({ r: 255, g: 0, b: 0, alpha: 1 }),

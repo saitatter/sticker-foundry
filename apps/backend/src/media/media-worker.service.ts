@@ -206,7 +206,9 @@ export class MediaWorkerService implements OnModuleInit, OnModuleDestroy {
     const trayKey = this.packStorage.storageKeyFor(payload.packId, 'tray_icon.webp');
     if (await this.storage.exists(trayKey)) return false;
 
-    const tray = await this.imageService.processTrayIcon(prepared);
+    const tray = payload.animated
+      ? await this.imageService.processTrayIcon(prepared, true)
+      : await this.imageService.processTrayIcon(prepared);
     await this.storage.upload({
       key: trayKey,
       body: tray.bytes,
