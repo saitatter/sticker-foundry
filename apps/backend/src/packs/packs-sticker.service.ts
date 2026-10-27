@@ -865,6 +865,7 @@ export class PacksStickerService {
       animatedTrimEnd: dto.animatedTrimEnd,
       animatedFrameRate: dto.animatedFrameRate,
       animatedQuality: dto.animatedQuality,
+      staticQuality: dto.staticQuality,
     };
   }
 

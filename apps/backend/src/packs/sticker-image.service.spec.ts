@@ -1,9 +1,27 @@
 import { BadRequestException } from '@nestjs/common';
 import sharp = require('sharp');
+import { plainToInstance } from 'class-transformer';
+import { validate } from 'class-validator';
 import { StickerImageService } from '../media/sticker-image.service';
+import { UploadStickerDto } from './dto/upload-sticker.dto';
 
 describe(StickerImageService, () => {
   const service = new StickerImageService();
+
+  it('honors static optimizer quality and validates multipart quality bounds', async () => {
+    const pixels = Buffer.alloc(128 * 128 * 3);
+    for (let i = 0; i < pixels.length; i++) pixels[i] = (i * 71 + Math.floor(i / 391) * 23) % 256;
+    const source = await sharp(pixels, { raw: { width: 128, height: 128, channels: 3 } }).png().toBuffer();
+    const normal = await service.processSticker(source, { staticQuality: 95 });
+    const compact = await service.processSticker(source, { staticQuality: 35 });
+    expect(compact.sizeBytes).toBeLessThan(normal.sizeBytes);
+    expect(await validate(plainToInstance(UploadStickerDto, { staticQuality: '65' }))).toHaveLength(0);
+    for (const staticQuality of ['0', '96', 'invalid']) {
+      expect(await validate(plainToInstance(UploadStickerDto, { staticQuality }))).toEqual(
+        expect.arrayContaining([expect.objectContaining({ property: 'staticQuality' })]),
+      );
+    }
+  });
 
   it('rejects uploads that are not valid image content', async () => {
     await expect(service.processSticker(Buffer.from('not-an-image'))).rejects.toBeInstanceOf(BadRequestException);

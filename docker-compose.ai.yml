@@ -5,6 +5,7 @@ services:
       dockerfile: apps/backend/Dockerfile.ai
     environment:
       BACKGROUND_REMOVAL_COMMAND: ${BACKGROUND_REMOVAL_COMMAND:-rembg i {input} {output}}
+      BACKGROUND_REMOVAL_TIMEOUT_MS: ${BACKGROUND_REMOVAL_TIMEOUT_MS:-120000}
 
   worker:
     build:
@@ -12,3 +13,4 @@ services:
       dockerfile: apps/backend/Dockerfile.ai
     environment:
       BACKGROUND_REMOVAL_COMMAND: ${BACKGROUND_REMOVAL_COMMAND:-rembg i {input} {output}}
+      BACKGROUND_REMOVAL_TIMEOUT_MS: ${BACKGROUND_REMOVAL_TIMEOUT_MS:-120000}

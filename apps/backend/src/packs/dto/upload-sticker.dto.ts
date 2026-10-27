@@ -3,6 +3,13 @@ import { IsArray, IsBoolean, IsIn, IsNumber, IsOptional, IsString, Max, MaxLengt
 
 export class UploadStickerDto {
   @IsOptional()
+  @Transform(({ value }) => numberFromMultipart(value))
+  @IsNumber()
+  @Min(35)
+  @Max(95)
+  staticQuality?: number;
+
+  @IsOptional()
   @Transform(({ value }) => {
     if (Array.isArray(value)) return value;
     if (typeof value === 'string' && value.trim().startsWith('[')) {

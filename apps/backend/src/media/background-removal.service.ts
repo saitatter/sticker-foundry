@@ -89,10 +89,25 @@ export class BackgroundRemovalService {
   private runCommand(command: string, args: string[], cwd: string) {
     return new Promise<void>((resolve, reject) => {
       const child = spawn(command, args, { cwd, windowsHide: true });
+      const configured = Number(this.config?.get<string>('BACKGROUND_REMOVAL_TIMEOUT_MS', '120000'));
+      const timeout = Number.isFinite(configured) ? clamp(configured, 100, 600_000) : 120_000;
+      let timedOut = false;
+      const timer = setTimeout(() => {
+        timedOut = true;
+        child.kill('SIGKILL');
+      }, timeout);
       const stderr: Buffer[] = [];
       child.stderr.on('data', (chunk: Buffer) => stderr.push(chunk));
-      child.on('error', reject);
+      child.on('error', (error) => {
+        clearTimeout(timer);
+        reject(error);
+      });
       child.on('close', (code) => {
+        clearTimeout(timer);
+        if (timedOut) {
+          reject(new Error(`AI provider exceeded ${timeout}ms`));
+          return;
+        }
         if (code === 0) {
           resolve();
           return;

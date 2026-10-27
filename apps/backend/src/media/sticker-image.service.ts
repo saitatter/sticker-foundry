@@ -17,6 +17,7 @@ export type ProcessedImage = {
 };
 
 export type StickerProcessingOptions = {
+  staticQuality?: number;
   animated?: boolean;
   animatedTrimStart?: number;
   animatedTrimEnd?: number;
@@ -31,7 +32,7 @@ export class StickerImageService {
   constructor(@Optional() private readonly config?: ConfigService) {}
 
   async processSticker(input: Buffer, options: StickerProcessingOptions = {}): Promise<ProcessedImage> {
-    return options.animated ? this.processAnimatedWebp(input, options) : this.processStaticWebp(input);
+    return options.animated ? this.processAnimatedWebp(input, options) : this.processStaticWebp(input, options.staticQuality);
   }
 
   async processTrayIcon(input: Buffer, fromAnimatedSticker = false): Promise<ProcessedImage> {
@@ -56,14 +57,14 @@ export class StickerImageService {
     }
   }
 
-  private async processStaticWebp(input: Buffer): Promise<ProcessedImage> {
+  private async processStaticWebp(input: Buffer, quality?: number): Promise<ProcessedImage> {
     const metadata = await this.metadataFor(input);
     this.assertSupportedImageContent(metadata);
     this.assertInputBounds(metadata);
     if ((metadata.pages ?? 1) > 1) {
       throw new BadRequestException('Animated uploads require an animated pack');
     }
-    return this.processWebp(input, WHATSAPP_LIMITS.stickerPixels, WHATSAPP_LIMITS.maxStaticStickerBytes, false);
+    return this.processWebp(input, WHATSAPP_LIMITS.stickerPixels, WHATSAPP_LIMITS.maxStaticStickerBytes, false, quality);
   }
 
   private async processAnimatedWebp(input: Buffer, options: StickerProcessingOptions): Promise<ProcessedImage> {
@@ -274,7 +275,9 @@ export class StickerImageService {
 
     const preferred = clampMs(Math.round(preferredQuality), 35, 95);
     const lowered = Array.from({ length: 7 }, (_, index) => Math.max(25, preferred - index * 10));
-    return [...new Set([...lowered, ...defaults])].sort((left, right) => right - left);
+    return [...new Set([...lowered, ...defaults.filter((quality) => quality <= preferred)])].sort(
+      (left, right) => right - left,
+    );
   }
 
   private assertAnimatedStickerMetadata(metadata: ImageMetadata) {

@@ -2,6 +2,21 @@ import sharp = require('sharp');
 import { BackgroundRemovalService } from '../media/background-removal.service';
 
 describe(BackgroundRemovalService, () => {
+  it('terminates a stalled AI provider and falls back to threshold processing', async () => {
+    const config = {
+      get: jest.fn((key: string, fallback: string) => {
+        if (key === 'BACKGROUND_REMOVAL_COMMAND') return `"${process.execPath}" -e "setTimeout(()=>{},30000)"`;
+        if (key === 'BACKGROUND_REMOVAL_TIMEOUT_MS') return '150';
+        return fallback;
+      }),
+    };
+    const input = await sharp({ create: { width: 4, height: 4, channels: 4, background: '#ffffff' } }).png().toBuffer();
+    const service = new BackgroundRemovalService(config as never);
+    const output = await service.remove(input, { mode: 'ai', feather: 0 });
+    const { data } = await sharp(output).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+    expect(data[3]).toBe(0);
+  });
+
   it('removes simple light backgrounds while preserving subject pixels', async () => {
     const service = new BackgroundRemovalService();
     const input = await sharp({
