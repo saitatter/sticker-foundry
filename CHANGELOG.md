@@ -10,6 +10,7 @@
 ### 🧰 CI & Build
 
 - Build release notes from the curated Unreleased changelog, with the version selected from conventional commits.
+- Validate Python, Flutter and container acceptance with pinned tooling versions.
 
 ### Docs
 
