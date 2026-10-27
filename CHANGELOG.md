@@ -10,6 +10,7 @@
 
 ### 🧰 CI & Build
 
+- Update PostgreSQL access to the tested SQLAlchemy 2.1 release.
 - Keep Android validation and release builds on the maintained Java setup action.
 - Build release notes from the curated Unreleased changelog, with the version selected from conventional commits.
 - Validate Python, Flutter and container acceptance with pinned tooling versions, testing the served Docker web build directly and waiting for edits to finish before checking subsequent shortcuts.
