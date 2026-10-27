@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "covers": ["auth.login"],
+  "preconditions": "App is signed out and points at an isolated test server. Selectors will be confirmed on the physical device.",
+  "steps": [
+    {"action": "launch"},
+    {"action": "assert", "selector": {"label": "Sign in"}},
+    {"action": "input", "selector": {"label": "Email"}, "env": "QA_EMAIL"},
+    {"action": "input", "selector": {"label": "Password"}, "env": "QA_PASSWORD"},
+    {"action": "tap", "selector": {"label": "Sign in"}},
+    {"action": "assert", "selector": {"label": "Your library"}}
+  ]
+}

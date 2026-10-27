@@ -1,6 +1,6 @@
 # Sticker Foundry client
 
-Shared Flutter UI for Android, Windows and web, with macOS/Linux/iOS targets awaiting platform acceptance. See [migration audit](../../docs/MIGRATION_AUDIT.md) for parity gaps and [physical QA](../../docs/FLUTTER_MIGRATION.md) for tested workflows.
+Shared Flutter UI for Android, iOS, Windows, macOS, Linux and web. See [development](../../docs/development.md), [test recording](../../docs/testing.md) and [WhatsApp validation](../../docs/WHATSAPP_VALIDATION.md) for the current workflows.
 
 ```sh
 flutter pub get
@@ -17,4 +17,4 @@ Native builds default to `http://127.0.0.1:8080/api/`. Change **Server connectio
 
 The existing logo is the canonical repository asset `assets/brand/sticker-foundry-icon.png`. `dart run tool/sync_brand.dart` rebuilds platform sizes and copies the exact original into Flutter assets. Android launcher/adaptive icons retain their previous artwork. Do not hand-edit generated icon sizes or replace the canonical image as part of a routine Flutter upgrade.
 
-Android retains `com.stickerfoundry.app` and its WhatsApp provider authority. Release APKs require the existing signing variables. From the repository root, `npm run package:release -- --apk-mode=release` selects that variant explicitly; the default is debug and does not fall back to a stale release file.
+Android retains `com.stickerfoundry.app` and its WhatsApp provider authority. Build a debug APK with `flutter build apk --debug`; for release builds configure the variables in [Android signing](../../docs/ANDROID_SIGNING.md), then run `flutter build apk --release`. Publish versions through the Release workflow.

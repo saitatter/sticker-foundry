@@ -10,7 +10,6 @@ OMIT = {
     "__pycache__",
     ".pytest_cache",
     ".ruff_cache",
-    "node_modules",
     "build",
     ".dart_tool",
     "dist",
@@ -50,15 +49,9 @@ def package(target: Path):
         for entry in entries:
             if not entry.exists():
                 raise FileNotFoundError(entry.relative_to(ROOT))
-            for path in (
-                [entry, *sorted(entry.rglob("*"))] if entry.is_dir() else [entry]
-            ):
+            for path in [entry, *sorted(entry.rglob("*"))] if entry.is_dir() else [entry]:
                 relative = path.relative_to(ROOT)
-                if (
-                    path.is_symlink()
-                    or path.is_dir()
-                    or any(part in OMIT for part in relative.parts)
-                ):
+                if path.is_symlink() or path.is_dir() or any(part in OMIT for part in relative.parts):
                     continue
                 if path.name.startswith(".env") and path.name not in {
                     ".env.example",

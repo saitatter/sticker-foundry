@@ -26,6 +26,11 @@
 - Update the living document for a topic; do not add dated audit, plan, or QA
   reports. Delete superseded documentation.
 - Keep scratch files, logs, and captures out of Git.
+- Browser tests live in `apps/client/e2e` and use pytest/Playwright. Android
+  recordings use `tool/phone_qa.py`. Commit reusable selectors and environment
+  references; keep credentials, screenshots, videos and reports in ignored
+  `test-results/`. Confirm sample phone selectors on the actual device before
+  treating a scenario as verified.
 - Flutter owns the active UI. Python owns the API, persistence, and workers.
   Kotlin is limited to the Android WhatsApp provider and platform bridge.
 - Preserve the original logo at `assets/brand/sticker-foundry-icon.png`; derive

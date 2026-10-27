@@ -12,15 +12,14 @@ docker compose up -d --build
 
 Open http://localhost:8080. The first registered account becomes administrator. Start with an empty database; initialization refuses an unrelated schema without changing it. The next major release requires a fresh installation.
 
-FastAPI, PostgreSQL, Redis and separate Celery workers handle media, exports and email. Optional AI removal uses `docker compose -f docker-compose.yml -f docker-compose.ai.yml up -d --build`. Threshold removal needs no model. Node.js is used only for development tools.
+FastAPI, PostgreSQL, Redis and separate Celery workers handle media, exports and email. Optional AI removal uses `docker compose -f docker-compose.yml -f docker-compose.ai.yml up -d --build`. Threshold removal needs no model. Project tools and browser tests use Python and Dart; no separate Node/npm installation is required.
 
 ## Develop and verify
 
-Use Python 3.13 with uv, Flutter 3.47.7 and Node.js 22 for browser tools:
+Use Python 3.13 with uv and Flutter 3.47.7:
 
 ```sh
 uv sync --project apps/backend --locked
-npm ci
 cd apps/client
 flutter pub get
 cd ../..
@@ -39,6 +38,7 @@ Android builds require JDK 17 and the Android SDK. The JDK compiles the app and 
 - [Reverse proxy](docs/REVERSE_PROXY.md)
 - [Production checklist](docs/PRODUCTION_CHECKLIST.md)
 - [WhatsApp validation](docs/WHATSAPP_VALIDATION.md)
+- [Test recording and Android automation](docs/testing.md)
 - [Android signing](docs/ANDROID_SIGNING.md)
 - [Versioning and changelogs](docs/versioning-policy.md)
 - [Changelog](CHANGELOG.md)

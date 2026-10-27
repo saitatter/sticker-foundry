@@ -1,6 +1,6 @@
 # Development
 
-Install Flutter 3.47.7, Python 3.13, uv, Docker Compose and Node.js 22. Run `npm ci`, `uv sync --project apps/backend --locked`, and `flutter pub get` in `apps/client`.
+Install Flutter 3.47.7, Python 3.13, uv and Docker Compose. Run `uv sync --project apps/backend --locked`, and `flutter pub get` in `apps/client`. Browser tests and Android automation are Python development dependencies; Playwright bundles its own internal driver, so Node/npm do not need to be installed separately.
 
 ## API and workers
 
@@ -12,7 +12,7 @@ OpenAPI: `/api/docs` and `/api/openapi.json`. Register through the UI; no accoun
 
 ## Client and device
 
-From `apps/client`, run `flutter run -d chrome`, `flutter run -d windows` or another target. Set the API URL on the login screen. For browser tools build `flutter build web --release --no-web-resources-cdn`, then run `npm run preview:web` from the root.
+From `apps/client`, run `flutter run -d chrome`, `flutter run -d windows` or another target. Set the API URL on the login screen. For a browser preview build `flutter build web --release --no-web-resources-cdn`, then run `uv run --project apps/backend python tool/preview_web.py` from the root. Set `--api-origin` to the local API origin when needed.
 
 For Android install JDK 17 and the Android SDK, enable USB debugging, accept authorization and check `adb devices`. Use `adb reverse tcp:8080 tcp:8080` when Docker web uses host port 8080, and set the device API to `http://127.0.0.1:8080/api`. Build with `flutter build apk --debug`, then `adb install -r build/app/outputs/flutter-apk/app-debug.apk`. Follow WhatsApp validation for native imports.
 
@@ -23,3 +23,5 @@ Run `dart run tool/ci_check.dart` before pushing. Add `--integration` for isolat
 Focused checks: `uv run --project apps/backend pytest apps/backend/tests -m 'not integration'` and `uv run --project apps/backend ruff check apps/backend tool`. Run `flutter analyze` and `flutter test` in `apps/client`.
 
 Keep captures in ignored `test-results/`. Use conventional commits with a body and a user-facing Unreleased entry. See the versioning policy.
+
+See [test recording](testing.md) for Python browser commands, interactive Android recordings, replay suites and device coverage.

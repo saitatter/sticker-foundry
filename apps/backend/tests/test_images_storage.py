@@ -4,14 +4,13 @@ from pathlib import Path
 
 import pytest
 from fastapi import HTTPException
-from PIL import Image
-
 from foundry.config import get_settings
 from foundry.db import transaction
 from foundry.images import background_cutout, process_image
 from foundry.media import stage_file
 from foundry.schemas import MediaOptions
 from foundry.storage import get_storage
+from PIL import Image
 
 from .test_packs import image_bytes
 

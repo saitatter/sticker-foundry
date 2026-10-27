@@ -42,6 +42,7 @@ Future<void> main(List<String> args) async {
     'check',
     'apps/backend/foundry',
     'apps/backend/tests',
+    'apps/client/e2e',
     'tool',
   ]);
   await run(uv, [
@@ -53,6 +54,7 @@ Future<void> main(List<String> args) async {
     '--check',
     'apps/backend/foundry',
     'apps/backend/tests',
+    'apps/client/e2e',
     'tool',
   ]);
   await run(uv, [
@@ -61,6 +63,7 @@ Future<void> main(List<String> args) async {
     'apps/backend',
     'pytest',
     'apps/backend/tests',
+    'tool/tests',
     '-m',
     'not integration',
     '-q',
@@ -81,10 +84,22 @@ Future<void> main(List<String> args) async {
     'tool/sync_brand.dart',
     '--check',
   ], cwd: '$root/apps/client');
-  await run('node', ['scripts/check-repo-hygiene.mjs']);
-  await run('node', ['scripts/validate-compose.mjs']);
+  await run(uv, [
+    'run',
+    '--project',
+    'apps/backend',
+    'python',
+    'tool/check_repo.py',
+  ]);
+  await run(uv, [
+    'run',
+    '--project',
+    'apps/backend',
+    'python',
+    'tool/check_compose.py',
+  ]);
   if (!args.contains('--integration')) return;
-  await run('npx', ['playwright', 'install']);
+  await run(uv, ['run', '--project', 'apps/backend', 'playwright', 'install']);
 
   final project = 'sticker-foundry-check-$pid';
   final apiPort = await freePort();
@@ -130,7 +145,28 @@ Future<void> main(List<String> args) async {
       'integration',
       '-q',
     ], env: environment);
-    await run('npx', ['playwright', 'test'], env: environment);
+    await run(uv, [
+      'run',
+      '--project',
+      'apps/backend',
+      'pytest',
+      'apps/client/e2e',
+      '--browser',
+      'chromium',
+      '--browser',
+      'firefox',
+      '--browser',
+      'webkit',
+      '--tracing',
+      'retain-on-failure',
+      '--video',
+      'retain-on-failure',
+      '--screenshot',
+      'only-on-failure',
+      '--output',
+      'test-results/playwright',
+      '-q',
+    ], env: environment);
   } finally {
     await run('docker', [
       'compose',

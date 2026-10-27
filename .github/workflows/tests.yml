@@ -15,10 +15,6 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
-        with:
-          node-version: '22'
-          cache: npm
       - uses: astral-sh/setup-uv@v10.3.2
         with:
           version: '0.13.6'
@@ -28,15 +24,12 @@ jobs:
         with:
           flutter-version: '3.47.7'
           cache: true
-      - run: npm ci
       - run: flutter pub get
         working-directory: apps/client
-      - run: npx playwright install --with-deps
+      - run: uv run --project apps/backend playwright install --with-deps
       - run: dart run tool/ci_check.dart --integration
       - name: Audit dependencies
-        run: |
-          uv run --project apps/backend pip-audit --skip-editable
-          npm audit
+        run: uv run --project apps/backend pip-audit --skip-editable
       - name: Collect acceptance traces
         if: failure()
         uses: actions/upload-artifact@v7
