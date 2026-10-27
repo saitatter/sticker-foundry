@@ -1,57 +1,11 @@
-# Real WhatsApp Validation
+# WhatsApp validation
 
-Flutter debug validation on 2026-10-26 covered an update over the Compose app, session migration, sync, static WhatsApp import confirmation and animated pack preview/provider on Motorola Edge 70 / Android 16. No chat messages were sent. Signed release upgrades and WhatsApp Business remain unverified. See [migration QA](FLUTTER_MIGRATION.md) and the [migration audit](MIGRATION_AUDIT.md).
+Use a physical Android device with USB debugging enabled and a current WhatsApp installation. Install the current APK and log in to an isolated test server. Forward its port with `adb reverse` when using localhost. Sync one static and one animated pack with at least three exportable stickers each.
 
-Use the checklist below for the remaining acceptance tests.
+For each pack, open its workspace, choose WhatsApp, confirm the import prompt, and verify the pack appears in the sticker picker. Animated previews must play. Repeat with WhatsApp Business if that target is installed. Sending a message requires the user's explicit instruction and a designated test conversation.
 
-## Device Setup
+Check provider paths `metadata`, `stickers/<pack_id>` and `stickers_asset/<pack_id>/<file_name>` for permission, column and MIME errors. Keep the application ID `com.stickerfoundry.app` and authority `com.stickerfoundry.app.stickercontentprovider` stable.
 
-- Install current WhatsApp from Google Play.
-- Install current WhatsApp Business from Google Play.
-- Install the Sticker Foundry APK.
-- Point Android settings to a reachable HTTPS or LAN backend.
-- Log in and sync a static pack with at least 3 exportable stickers.
-- Sync an animated pack with at least 3 exportable animated stickers.
+Verify edits update downloaded packs, offline imports work, account switches hide private downloads, and revoked access removes cached packs after reconnecting. Check signed release installation separately from debug builds, using the same signing key for updates.
 
-## Static Pack Import
-
-- Open the static pack in Sticker Foundry Android.
-- Tap `WhatsApp`.
-- Confirm WhatsApp's import prompt.
-- Confirm the pack appears in WhatsApp's sticker picker.
-- Send at least one sticker in a chat.
-- Repeat with `Business`.
-
-## Animated Pack Import
-
-- Open the animated pack in Sticker Foundry Android.
-- Tap `WhatsApp`.
-- Confirm WhatsApp's import prompt.
-- Confirm animation previews play in WhatsApp's sticker picker.
-- Send at least one animated sticker in a chat.
-- Repeat with `Business`.
-
-## Provider Compatibility
-
-Record whether WhatsApp queries these provider paths successfully:
-
-- `metadata`
-- `stickers/<pack_id>`
-- `stickers_asset/<pack_id>/<file_name>`
-
-Record any missing columns, MIME type mismatches, URI permission failures, or package-specific behavior between WhatsApp and WhatsApp Business.
-
-## Test Report Template
-
-```text
-Device:
-Android version:
-Sticker Foundry APK version:
-WhatsApp version:
-WhatsApp Business version:
-Backend URL:
-Static pack result:
-Animated pack result:
-Provider issues:
-Notes:
-```
+Store temporary screenshots and logs under ignored `test-results/`; keep verification results with the relevant change instead of creating dated reports.

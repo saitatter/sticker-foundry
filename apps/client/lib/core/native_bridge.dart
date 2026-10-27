@@ -2,10 +2,6 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
 class NativeBridge {
-  static Future<void> clearLegacySession() async {
-    if (android) await channel.invokeMethod('clearLegacySession');
-  }
-
   static Future<void> removePack(String id) async {
     if (android) await channel.invokeMethod('removePack', {'id': id});
   }
@@ -13,11 +9,6 @@ class NativeBridge {
   static const channel = MethodChannel('com.stickerfoundry.app/native');
   static bool get android =>
       !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
-  static Future<Map<String, dynamic>?> legacySession() async => android
-      ? Map<String, dynamic>.from(
-          await channel.invokeMethod('legacySession') ?? {},
-        )
-      : null;
   static Future<void> installPack(
     Map<String, dynamic> pack,
     Uint8List zip,

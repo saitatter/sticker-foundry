@@ -1,204 +1,46 @@
-<p align="center">
-  <img src="assets/brand/sticker-foundry-icon.png" alt="Sticker Foundry" width="128" height="128">
-</p>
+# Sticker Foundry
 
-<h1 align="center">Sticker Foundry</h1>
+Self-hosted sticker management with Flutter for Android, iOS, Windows, macOS, Linux and web, and a Python API. Edit stickers directly on the image, collaborate on packs and keep offline downloads. Android integrates with WhatsApp through its native sticker provider.
 
-<p align="center">
-  Create, organize, and share beautiful WhatsApp sticker packs from one private workspace.
-</p>
+## Run the server
 
-<p align="center">
-  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="MIT license"></a>
-  <a href="https://github.com/saitatter/sticker-foundry/releases"><img src="https://img.shields.io/github/v/release/saitatter/sticker-foundry" alt="Latest release"></a>
-  <a href="https://github.com/saitatter/sticker-foundry/issues"><img src="https://img.shields.io/github/issues/saitatter/sticker-foundry" alt="Open issues"></a>
-</p>
+Install Docker Compose, copy `.env.example` to `.env`, set unique PostgreSQL and JWT secrets, then run:
 
-The active client is Flutter for mobile, desktop and web; the server is NestJS. See the [migration audit and remaining work](docs/MIGRATION_AUDIT.md) before preparing a release. Published images may differ from this checkout; build from source to test the current client.
-
-Sticker Foundry is a self-hosted home for your sticker collection. Drop in images, clean them up, arrange them into packs, work with other people, and send the finished packs to WhatsApp.
-
-## What you can do
-
-### Make stickers quickly
-
-- Upload one image or a whole batch at once.
-- Crop, resize, add text, and polish images with erase and restore brushes.
-- Remove backgrounds with threshold processing or optional local AI (`rembg`); AI requires the AI server image or a configured command.
-- Prepare animated stickers with trimming, frame-rate, and quality controls.
-- Compare the original and edited image before saving.
-
-### Keep every pack organized
-
-- Browse packs in an album-style library with covers, search, and quick switching.
-- Reorder stickers with Move earlier / Move later; select multiple stickers to copy, move or delete them.
-- Add emojis and accessibility text so every sticker is easy to find and use.
-- Review sticker status, inspect recent changes, and download ready-to-share exports.
-- Use light or dark theme; your choice is remembered across visits.
-
-### Work together safely
-
-- Invite collaborators as editors or viewers for each pack.
-- Add comments and review stickers without losing the surrounding context.
-- See pack activity with before-and-after details.
-- Keep an instance-wide security audit history for important administrative changes.
-
-### Use packs where you need them
-
-- Export packs in WhatsApp-ready formats.
-- Publish selected packs for sharing when you want to.
-- Sync packs in the Android companion app and import them into WhatsApp or WhatsApp Business.
-
-### Keep control of your collection
-
-- Run Sticker Foundry on your own computer or server.
-- Keep uploaded images and AI processing inside your installation by default.
-- Configure registration, storage limits, audit retention, and the instance name from the admin page.
-
-## Start in a few minutes
-
-The easiest local setup uses Docker Desktop. The server release archive contains Docker build inputs; use a full Git checkout for Flutter development and repository checks. After Docker is installed:
-
-1. Download this repository and open a terminal in its folder.
-2. Create your local settings file:
-
-   ```bash
-   # macOS / Linux
-   cp .env.example .env
-   ```
-
-   On Windows PowerShell, use `Copy-Item .env.example .env` instead.
-
-3. Start Sticker Foundry:
-
-   ```bash
-   docker compose up -d --build
-   ```
-
-   To use the published container packages instead of building locally, use the
-   release override:
-
-   ```bash
-   docker compose -f docker-compose.yml -f docker-compose.ghcr.yml up -d
-   ```
-
-4. Add the demo account and sample pack:
-
-   ```bash
-   docker compose exec backend npm run prisma:seed
-   ```
-
-Open [http://localhost:8080](http://localhost:8080).
-
-| What            | Address                                                              |
-| --------------- | -------------------------------------------------------------------- |
-| Sticker Foundry | [http://localhost:8080](http://localhost:8080)                       |
-| API health      | [http://localhost:3000/api/health](http://localhost:3000/api/health) |
-| API reference   | [http://localhost:3000/api/docs](http://localhost:3000/api/docs)     |
-
-The demo account is:
-
-```text
-Email:    demo@stickerfoundry.local
-Password: stickerfoundry123
+```sh
+docker compose up -d --build
 ```
 
-Change or remove the demo account before sharing the installation with other people.
+Open http://localhost:8080. The first registered account becomes administrator. Start with an empty database; initialization refuses an unrelated schema without changing it. The next major release requires a fresh installation.
 
-## A good first tour
+FastAPI, PostgreSQL, Redis and separate Celery workers handle media, exports and email. Optional AI removal uses `docker compose -f docker-compose.yml -f docker-compose.ai.yml up -d --build`. Threshold removal needs no model. Node.js is used only for development tools.
 
-1. Open the demo pack from the library.
-2. Upload an image and try background removal in the editor.
-3. Add a short accessibility description and a few emojis.
-4. Move stickers into the order you want people to see.
-5. Open Activity to inspect the change history.
-6. Export the pack or sync it from the Android app.
+## Develop and verify
 
-## One Flutter client for mobile, desktop and web
+Use Python 3.13 with uv, Flutter 3.47.7 and Node.js 22 for browser tools:
 
-All active screens and the canvas editor are in `apps/client/lib`. Android adds a small Kotlin adapter for WhatsApp; the previous React and Compose clients are kept in `legacy` for migration comparisons.
-
-Use Flutter **3.47.7**. Android builds require **JDK 17** and the Android SDK. Native desktop builds require the platform's compiler tools.
-
-```bash
-cd apps/client
-flutter pub get
-flutter run -d windows       # on Windows
-flutter build apk --debug
-flutter build web --release --no-web-resources-cdn
-```
-
-Android, Windows, macOS and Linux use the same client sources. macOS, Linux and iOS still need their platform validation gates; see the audit for current evidence. WhatsApp/Business import is Android-specific. Other platforms download or share ZIP exports.
-
-The native default server URL is `http://127.0.0.1:8080/api/`. Set **Server connection** to a LAN/HTTPS address reachable from your device. For USB testing, `adb reverse tcp:8080 tcp:8080` maps the phone to the PC server. If that PC port is occupied, substitute the actual PC port, for example `adb reverse tcp:8080 tcp:8081`. Web uses `/api/` on its own origin by default.
-
-The existing app logo remains the source at `assets/brand/sticker-foundry-icon.png`. Run `npm run brand:sync` to generate platform sizes and `npm run brand:check` to verify them. Existing Android adaptive icons are preserved unchanged.
-
-## Host it on a server
-
-For a server installation using the published Docker images, use the [server deployment guide](docs/DEPLOY_SERVER.md). It includes the production Compose file, environment template, updates, backups, and HTTPS guidance.
-
-## Sharing the installation
-
-Sticker Foundry is ready for a private home network out of the box. Before exposing it to the internet:
-
-- use HTTPS;
-- replace the default database password and JWT secret in `.env`;
-- use invite-only registration if the instance is shared;
-- make regular backups of the database and uploaded files.
-
-See the [production checklist](docs/PRODUCTION_CHECKLIST.md) and [reverse proxy examples](docs/REVERSE_PROXY.md) for the full setup.
-
-Published backend and web images are available from the [GitHub Container Registry](https://github.com/saitatter/sticker-foundry/pkgs/container/sticker-foundry-backend). Pin both images with `STICKER_FOUNDRY_IMAGE_TAG` when you want a fixed release instead of `latest`.
-
-## Useful commands
-
-```bash
-# See whether all services are running
-docker compose ps
-
-# Follow server messages while testing
-docker compose logs -f backend
-
-# Stop the local installation without deleting its data
-docker compose stop
-
-# Stop the installation and remove its containers
-docker compose down
-```
-
-For local development, use Node **22.14+** (22.x) or **24.10+**, Flutter 3.47.7 and JDK 17. Copy `.env.example` to `.env` and configure local database/Redis URLs, then start the dependencies:
-
-```bash
-docker compose up -d postgres redis
+```sh
+uv sync --project apps/backend --locked
 npm ci
 cd apps/client
 flutter pub get
 cd ../..
-npm run dev:seeded
+dart run tool/ci_check.dart
 ```
 
-`npm run dev` starts the API, worker and Flutter web development server. For a prebuilt web preview with an API proxy, run `npm run build:web` and `npm run preview:web`; `API_ORIGIN` selects the upstream server and defaults to `http://127.0.0.1:8080`.
+Add `--integration` to build an isolated Docker stack, test actual PostgreSQL/Redis/workers, and run Chromium, Firefox and WebKit acceptance. It removes only its own test volumes.
 
-Useful checks: `npm run repo:check`, `npm run brand:check`, `npm run lint:client`, `npm run test:client`, `npm run test:web`, `npm run test:backend`, and `npm run compose:validate`. The browser tests serve a built Flutter web app, so run `npm run build:web` first. `lint:web`, `format:web` and `test:web:unit` remain compatibility aliases for the Flutter client commands.
+Android builds require JDK 17 and the Android SDK. The JDK compiles the app and WhatsApp bridge; it is not a backend dependency.
 
-## Project guides
+## Documentation
 
-- [Migration audit and remaining work](docs/MIGRATION_AUDIT.md)
-- [Flutter migration and physical QA](docs/FLUTTER_MIGRATION.md)
-
+- [Architecture](docs/architecture.md)
+- [Development and device testing](docs/development.md)
+- [Server deployment](docs/DEPLOY_SERVER.md)
+- [Reverse proxy](docs/REVERSE_PROXY.md)
 - [Production checklist](docs/PRODUCTION_CHECKLIST.md)
-- [Reverse proxy examples](docs/REVERSE_PROXY.md)
-- [Android signing](docs/ANDROID_SIGNING.md)
 - [WhatsApp validation](docs/WHATSAPP_VALIDATION.md)
-- [Docker validation](docs/DOCKER_VALIDATION.md)
-- [Release notes guide](docs/RELEASE_NOTES.md)
-- [Feature backlog](docs/FEATURES_TO_ADD.md)
+- [Android signing](docs/ANDROID_SIGNING.md)
+- [Versioning and changelogs](docs/versioning-policy.md)
+- [Changelog](CHANGELOG.md)
 
-## License
-
-Sticker Foundry is released under the [MIT License](LICENSE).
-
-## Support
-
-[![Support me on Ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/saitatter)
+Original logo: `assets/brand/sticker-foundry-icon.png`. Check icons with `dart run tool/sync_brand.dart --check` from `apps/client`; omit `--check` to regenerate them.

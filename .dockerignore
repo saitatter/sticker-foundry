@@ -1,7 +1,6 @@
 .git
 .idea
 .vscode
-legacy
 test-results
 playwright-report
 coverage
@@ -27,3 +26,7 @@ uploads
 **/*.aab
 **/*.ipa
 **/*.log
+**/.venv
+**/__pycache__
+**/.pytest_cache
+**/.ruff_cache

@@ -1,1 +1,0 @@
-ALTER TABLE "MediaJob" ADD COLUMN "result" JSONB;

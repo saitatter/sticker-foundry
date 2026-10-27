@@ -1,1 +1,0 @@
-ALTER TABLE "Pack" ADD COLUMN "isAnimated" BOOLEAN NOT NULL DEFAULT false;

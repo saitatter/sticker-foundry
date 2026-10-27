@@ -1,16 +1,19 @@
+x-ai: &ai
+  image: sticker-foundry-backend-ai:local
+  build:
+    context: .
+    dockerfile: apps/backend/Dockerfile
+    args:
+      WITH_AI: "true"
+  environment:
+    BACKGROUND_REMOVAL_COMMAND: ${BACKGROUND_REMOVAL_COMMAND:-rembg i {input} {output}}
+
 services:
   backend:
-    build:
-      context: .
-      dockerfile: apps/backend/Dockerfile.ai
-    environment:
-      BACKGROUND_REMOVAL_COMMAND: ${BACKGROUND_REMOVAL_COMMAND:-rembg i {input} {output}}
-      BACKGROUND_REMOVAL_TIMEOUT_MS: ${BACKGROUND_REMOVAL_TIMEOUT_MS:-120000}
-
+    <<: *ai
   worker:
-    build:
-      context: .
-      dockerfile: apps/backend/Dockerfile.ai
-    environment:
-      BACKGROUND_REMOVAL_COMMAND: ${BACKGROUND_REMOVAL_COMMAND:-rembg i {input} {output}}
-      BACKGROUND_REMOVAL_TIMEOUT_MS: ${BACKGROUND_REMOVAL_TIMEOUT_MS:-120000}
+    <<: *ai
+  export-worker:
+    <<: *ai
+  email-worker:
+    <<: *ai

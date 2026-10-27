@@ -1,9 +1,11 @@
 name: Docker Packages
 
 on:
-  push:
-    tags:
-      - 'v*.*.*'
+  workflow_call:
+    inputs:
+      version:
+        required: true
+        type: string
   workflow_dispatch:
     inputs:
       version:
@@ -17,14 +19,20 @@ permissions:
 
 jobs:
   publish:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     strategy:
       matrix:
         include:
           - name: backend
+            title: Sticker Foundry Backend
+            description: Python API and Celery workers
+            file: apps/backend/Dockerfile
+            ai: 'false'
+          - name: backend-ai
             title: Sticker Foundry Backend AI
-            description: Sticker Foundry API and worker image with CPU background removal
-            file: apps/backend/Dockerfile.ai
+            description: Python API and workers with CPU background removal
+            file: apps/backend/Dockerfile
+            ai: 'true'
           - name: web
             title: Sticker Foundry Web
             description: Sticker Foundry web application image
@@ -53,6 +61,15 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
 
+      - name: Check out the requested release
+        id: source
+        env:
+          RELEASE_TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          git fetch origin tag "$RELEASE_TAG"
+          git checkout "$RELEASE_TAG"
+          echo "revision=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v4
         with:
@@ -69,12 +86,13 @@ jobs:
             org.opencontainers.image.title=${{ matrix.title }}
             org.opencontainers.image.description=${{ matrix.description }}
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ steps.source.outputs.revision }}
           tags: |
             type=raw,value=latest,enable=${{ github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
             type=raw,value=${{ steps.version.outputs.tag }}
             type=raw,value=${{ steps.version.outputs.version }}
             type=raw,value=${{ steps.version.outputs.minor }}
-            type=sha,prefix=sha-
+            type=raw,value=sha-${{ steps.source.outputs.revision }}
 
       - name: Build and publish image
         uses: docker/build-push-action@v7
@@ -85,6 +103,7 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
+            WITH_AI=${{ matrix.ai || 'false' }}
             OCI_SOURCE=${{ github.server_url }}/${{ github.repository }}
-            OCI_REVISION=${{ github.sha }}
+            OCI_REVISION=${{ steps.source.outputs.revision }}
             OCI_VERSION=${{ steps.version.outputs.version }}

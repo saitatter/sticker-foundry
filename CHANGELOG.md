@@ -1,5 +1,20 @@
 # Changelog
 
+## Unreleased
+
+### ✨ Features
+
+- Use one Flutter application on Android, desktop and the web, with an image editor, animated previews, batch editing and offline downloads.
+- **Breaking:** Run the server and workers in Python, with a new database baseline and no support for previous server or client installations.
+
+### 🧰 CI & Build
+
+- Build release notes from the curated Unreleased changelog, with the version selected from conventional commits.
+
+### Docs
+
+- Document the current Flutter/Python stack and adopt shared contribution and changelog rules in AGENTS.md.
+
 ## [1.3.0](https://github.com/saitatter/sticker-foundry/compare/v1.2.0...v1.3.0) (2026-09-21)
 
 ### ✨ Features

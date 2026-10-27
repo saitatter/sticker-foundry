@@ -52,7 +52,7 @@ test.beforeEach(async ({ page }) => {
       });
       return;
     }
-    if (path.endsWith('/cover')) {
+    if (method === 'GET' && path.endsWith('/tray-icon')) {
       await route.fulfill({ status: 404, json: { message: 'No icon yet' } });
       return;
     }

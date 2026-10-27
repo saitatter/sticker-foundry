@@ -1,41 +1,13 @@
-# Sticker Foundry architecture
+# Architecture
 
-## Runtime topology
+Flutter owns all screens and image editing. Android has a Kotlin platform bridge and WhatsApp content provider. The original logo is shared across targets.
 
-The API and queue worker are two processes built from the same NestJS backend image. PostgreSQL stores application state, Redis backs BullMQ, and the storage module selects disk or S3 for binary assets.
+FastAPI exposes `/api` with bearer access tokens and rotating, hashed refresh sessions. The first registered user becomes administrator. PostgreSQL stores accounts, teams, packs, stickers, reviews, comments, invitations, audit records and durable jobs. SQLAlchemy defines a fresh baseline initialized by `python -m foundry.db_init`. Unrelated schemas are refused. Development tooling must never change production data or backups.
 
-```text
-Flutter (Android / desktop / web)
-        │ REST + HttpOnly refresh cookie
-        ▼
-NestJS API ─────── PostgreSQL
-    │
-    └── BullMQ ─── Redis ─── NestJS worker
-                       │
-                       └── disk/S3 storage
-```
+Pillow, NumPy and SciPy validate and process images. Stickers are 512 x 512 WebP, limited to 100 KB static or 500 KB animated; tray icons are 96 x 96 WebP up to 50 KB. Resource limits apply before decoding or background removal. Optional rembg has a timeout and threshold fallback.
 
-## Client data flow
+Redis supplies rate limits, Celery delivery and worker heartbeats. Media, export and email have separate workers. Job execution tokens and leases prevent cancelled or recovered attempts from committing stale results. Recovery republishes interrupted jobs. `/api/health` checks the database; `/api/health/ready` also requires Redis and all three queues. `/api/metrics` and `/api/health/metrics` expose operational metrics.
 
-- `apps/client/lib/ui` owns adaptive screens and GoRouter deep routes.
-- `core/store.dart` owns session, library, jobs and account-scoped offline exports.
-- `core/api.dart` owns multipart/JSON requests, token rotation with a shared refresh future, one replay after 401, and structured errors.
-- Native tokens use secure platform storage; web access tokens remain in memory and refresh tokens use HttpOnly cookies.
-- Android's small Kotlin adapter preserves the WhatsApp ContentProvider identity and SQLite schema. All application screens and image editing are Dart.
-- ZIP downloads are cached on disk for native platforms and in IndexedDB on web. Account/server changes clear both Flutter and provider caches.
+Disk or S3 holds immutable media objects. Commits publish new references; rollback removes staged files and successful commits retire replaced files. Logical export filenames remain stable. Pack versions and content hashes invalidate downloads and cached ZIPs. Every server operation checks permissions, including public approval filtering.
 
-## Media and jobs
-
-Queued sticker uploads first write an input object, then create a BullMQ media job. The worker validates/decodes the image, writes the processed output, updates the Prisma record, and cleans up temporary input. Job detail queries poll only while the job is non-terminal.
-
-Pack covers are served from `/api/packs/:id/cover` and `/api/public/packs/:id/cover`. The URL is versioned with the pack image-data version and is safe to cache; the library no longer fetches pack details or first stickers as a fallback for every card.
-
-## API contracts
-
-Nest Swagger JSON is the contract source. With the API running, regenerate TypeScript definitions with:
-
-```bash
-npm run api:generate
-```
-
-The Android client keeps the existing endpoint names and response semantics. New cover endpoints are additive.
+Offline downloads are scoped by server and account, published atomically and pruned on sign-out or lost access. Android reads only the current cache. There are no old session imports, API aliases or schema adapters.

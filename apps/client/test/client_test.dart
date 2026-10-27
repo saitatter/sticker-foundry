@@ -95,6 +95,7 @@ void main() {
       store.cached['private'] = {
         'id': 'private',
         '_assets': ['sticker.webp'],
+        '_assetRoot': 'private',
       };
       await store.cache.write('private/sticker.webp', Uint8List.fromList([1]));
       store.api = FoundryApi(

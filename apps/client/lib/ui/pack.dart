@@ -625,7 +625,9 @@ class _PackScreenState extends State<PackScreen> {
                       ),
                     );
                     await s.refresh();
-                    if (context.mounted) context.go('/packs/${p['id']}');
+                    if (context.mounted) {
+                      context.go('/app/packs/${p['id']}/stickers');
+                    }
                   });
                 case 'delete':
                   if (await confirm(

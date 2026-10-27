@@ -1,97 +1,45 @@
 name: Tests
-
 on:
+  workflow_call:
   workflow_dispatch:
   push:
-    branches:
-      - main
+    branches: [main, feat/python-backend]
   pull_request:
-
 permissions:
   contents: read
-
 jobs:
-  backend:
+  check:
     runs-on: ubuntu-24.04
-
     steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-
-      - name: Set up Node
-        uses: actions/setup-node@v7
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: '22'
           cache: npm
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Generate Prisma client
-        run: npm run prisma:generate
-
-      - name: Check repository ignore rules
-        run: npm run repo:check
-
-      - name: Build backend
-        run: npm run build:backend
-
-      - name: Lint backend
-        run: npm run lint:backend
-
-      - name: Test backend
-        run: npm run test:backend
-
-      - name: Test backend e2e
-        run: npm run test:e2e:backend
-
-  web:
-    runs-on: ubuntu-24.04
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-
-      - name: Set up Node
-        uses: actions/setup-node@v7
+      - uses: astral-sh/setup-uv@v10
         with:
-          node-version: '22'
-          cache: npm
-
-      - name: Set up Flutter
-        uses: subosito/flutter-action@v2
+          version: '0.13.6'
+          python-version: '3.13'
+          enable-cache: true
+      - uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.47.7'
-          channel: stable
           cache: true
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Build web
-        run: npm run build:web
-
-      - name: Lint web
-        run: npm run lint:web
-
-      - name: Check original brand assets
-        run: npm run brand:check
-
-      - name: Install Playwright browsers
-        run: npx playwright install --with-deps
-
-      - name: Test web smoke flows
-        run: npm run test:web
-
-      - name: Test web units
-        run: npm run test:web:unit
-
-      - name: Validate Compose configurations
-        run: npm run compose:validate
-
-      - name: Build shared types
-        run: npm --workspace packages/shared-types run build
-
+      - run: npm ci
+      - run: flutter pub get
+        working-directory: apps/client
+      - run: npx playwright install --with-deps
+      - run: dart run tool/ci_check.dart --integration
+      - name: Audit dependencies
+        run: |
+          uv run --project apps/backend pip-audit --skip-editable
+          npm audit
+      - name: Collect acceptance traces
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: acceptance-traces
+          path: test-results/playwright
   android:
     runs-on: ubuntu-24.04
 
@@ -133,52 +81,6 @@ jobs:
           name: sticker-foundry-android-${{ github.sha }}
           path: apps/client/build/app/outputs/flutter-apk/app-debug.apk
           retention-days: 7
-
-  docker:
-    runs-on: ubuntu-24.04
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-
-      - name: Boot Compose stack
-        run: docker compose up -d --build
-
-      - name: Wait for backend readiness
-        shell: bash
-        run: |
-          for attempt in {1..60}; do
-            if curl --fail --silent http://localhost:3000/api/health/ready >/dev/null; then
-              exit 0
-            fi
-            sleep 2
-          done
-          docker compose ps
-          docker compose logs backend worker
-          exit 1
-
-      - name: Verify web and service status
-        run: |
-          curl --fail --silent http://localhost:8080/ >/dev/null
-          docker compose ps
-
-      - name: Set up Node for live API acceptance
-        uses: actions/setup-node@v7
-        with:
-          node-version: '22'
-          cache: npm
-
-      - name: Install acceptance dependencies
-        run: npm ci
-
-      - name: Verify live accounts, permissions, media workers and exports
-        run: npm run test:live
-        env:
-          LIVE_QA_API: http://localhost:3000/api/
-
-      - name: Tear down Compose stack
-        if: always()
-        run: docker compose down -v
 
   desktop:
     strategy:

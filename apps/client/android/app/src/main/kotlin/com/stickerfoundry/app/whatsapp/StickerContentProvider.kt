@@ -49,7 +49,7 @@ class StickerContentProvider : ContentProvider() {
 
         val packId = segments[1]
         val fileName = segments[2]
-        val dao = LocalDatabase.providerGet(requireNotNull(context)).stickerDao()
+        val dao = LocalDatabase.providerGet(requireNotNull(context))
         val pack = dao.getPackBlocking(packId) ?: return null
         val file = File(pack.localPath, fileName).canonicalFile
         val packDir = File(pack.localPath).canonicalFile
@@ -102,9 +102,9 @@ class StickerContentProvider : ContentProvider() {
         )
 
         val packs = if (packId == null) {
-            db.stickerDao().getAllPacksBlocking()
+            db.getAllPacksBlocking()
         } else {
-            listOfNotNull(db.stickerDao().getPackBlocking(packId))
+            listOfNotNull(db.getPackBlocking(packId))
         }
 
         packs.forEach { pack ->
@@ -139,7 +139,7 @@ class StickerContentProvider : ContentProvider() {
                 STICKER_FILE_ACCESSIBILITY_TEXT_IN_QUERY,
             ),
         )
-        db.stickerDao().getStickersBlocking(packId).forEach { sticker ->
+        db.getStickersBlocking(packId).forEach { sticker ->
             cursor.addRow(arrayOf(sticker.fileName, sticker.emojisCsv, sticker.accessibilityText))
         }
         cursor.setNotificationUri(requireNotNull(context).contentResolver, uri)

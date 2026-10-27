@@ -10,7 +10,7 @@ The source Compose stack exposes the web server on `8080` and the backend API on
 stickers.example.com {
   encode zstd gzip
 
-  handle_path /api/* {
+  handle /api/* {
     reverse_proxy 127.0.0.1:3000
   }
 

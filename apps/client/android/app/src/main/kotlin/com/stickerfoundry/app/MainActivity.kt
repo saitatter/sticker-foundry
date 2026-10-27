@@ -3,19 +3,14 @@ package com.stickerfoundry.app
 import android.app.Activity
 import android.content.Intent
 import android.net.Uri
-import android.util.Base64
 import com.stickerfoundry.app.data.LocalDatabase
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 import org.json.JSONObject
 import java.io.File
-import java.security.KeyStore
 import java.util.concurrent.Executors
 import java.util.zip.ZipInputStream
-import javax.crypto.Cipher
-import javax.crypto.SecretKey
-import javax.crypto.spec.GCMParameterSpec
 
 class MainActivity : FlutterActivity() {
     private val executor = Executors.newSingleThreadExecutor()
@@ -40,8 +35,6 @@ class MainActivity : FlutterActivity() {
             } else executor.execute {
                 try {
                     val value: Any? = when (call.method) {
-                        "legacySession" -> legacySession()
-                        "clearLegacySession" -> { getSharedPreferences("session", MODE_PRIVATE).edit().remove("secure_accessToken").remove("secure_refreshToken").remove("accountLabel").apply(); null }
                         "installPack" -> { install(JSONObject(args["pack"] as Map<*, *>), args["zip"] as ByteArray); null }
                         "clearCache" -> { LocalDatabase.providerGet(this).clear(); File(filesDir, "packs").deleteRecursively(); contentResolver.notifyChange(Uri.parse("content://$authority/metadata"), null); null }
                         "removePack" -> { val id = args["id"] as String; require(id.matches(Regex("[A-Za-z0-9_-]{1,128}"))); LocalDatabase.providerGet(this).remove(id); File(File(filesDir, "packs"), id).deleteRecursively(); contentResolver.notifyChange(Uri.parse("content://$authority/metadata"), null); null }
@@ -66,17 +59,6 @@ class MainActivity : FlutterActivity() {
             if (error != null) pending?.error("WHATSAPP_VALIDATION", error, null)
             else pending?.success(if (resultCode == Activity.RESULT_OK) "Pack added to WhatsApp" else "WhatsApp import cancelled")
         }
-    }
-    private fun legacySession(): Map<String, Any?> {
-        val prefs = getSharedPreferences("session", MODE_PRIVATE)
-        fun read(key: String): String? { return try {
-            val parts = (prefs.getString("secure_$key", null) ?: return null).split(':', limit = 2)
-            val secret = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }.getKey("com.stickerfoundry.app.session", null) as SecretKey
-            val cipher = Cipher.getInstance("AES/GCM/NoPadding").apply { init(Cipher.DECRYPT_MODE, secret, GCMParameterSpec(128, Base64.decode(parts[0], Base64.NO_WRAP))) }
-            cipher.doFinal(Base64.decode(parts[1], Base64.NO_WRAP)).toString(Charsets.UTF_8)
-        } catch (_: Exception) { null } }
-        val data = mapOf("serverUrl" to (prefs.getString("serverUrl", null) ?: "http://127.0.0.1:8080/api/"), "accessToken" to read("accessToken"), "refreshToken" to read("refreshToken"))
-        return data
     }
     private fun install(meta: JSONObject, bytes: ByteArray) {
         val id = meta.getString("id"); require(id.matches(Regex("[A-Za-z0-9_-]{1,128}"))) { "Invalid pack identifier" }

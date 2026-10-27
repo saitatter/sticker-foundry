@@ -76,6 +76,7 @@ void main() {
         'id': 'p',
         '_assets': ['s.webp'],
         '_syncHash': 'old',
+        '_assetRoot': 'p',
       };
       await cache.write('p/s.webp', Uint8List.fromList([1]));
       await cache.write('index.json', Uint8List.fromList([9]));
@@ -128,7 +129,7 @@ void main() {
   });
 
   testWidgets(
-    'protected aliases preserve destination through login; reset remains public',
+    'protected destinations resume after login; reset remains public',
     (tester) async {
       final store = TestStore()
         ..initialized = true
@@ -143,14 +144,17 @@ void main() {
             ),
           ),
         );
-      final router = createFoundryRouter(store, initialLocation: '/packs/p');
+      final router = createFoundryRouter(
+        store,
+        initialLocation: '/app/packs/p/stickers',
+      );
       addTearDown(router.dispose);
       await tester.pumpWidget(MaterialApp.router(routerConfig: router));
       await tester.pumpAndSettle();
       expect(router.routeInformationProvider.value.uri.path, '/login');
       expect(
         router.routeInformationProvider.value.uri.queryParameters['next'],
-        '/packs/p',
+        '/app/packs/p/stickers',
       );
       store.user = {'id': 'u'};
       store.changed();

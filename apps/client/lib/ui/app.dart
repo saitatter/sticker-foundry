@@ -17,10 +17,7 @@ GoRouter createFoundryRouter(FoundryStore store, {String? initialLocation}) {
       if (!store.initialized) return null;
       final path = state.uri.path;
       if (path == '/') return store.user == null ? '/login' : '/app/packs';
-      final protected =
-          path.startsWith('/app') ||
-          path.startsWith('/packs') ||
-          path == '/settings';
+      final protected = path == '/app' || path.startsWith('/app/');
       if (protected && store.user == null) {
         return Uri(
           path: '/login',
@@ -33,7 +30,6 @@ GoRouter createFoundryRouter(FoundryStore store, {String? initialLocation}) {
                 !next.hasScheme &&
                 next.host.isEmpty &&
                 (next.path.startsWith('/app/') ||
-                    next.path.startsWith('/packs/') ||
                     next.path.startsWith('/share/'))
             ? next.toString()
             : '/app/packs';
@@ -49,17 +45,11 @@ GoRouter createFoundryRouter(FoundryStore store, {String? initialLocation}) {
         path: '/login',
         builder: (_, _) => Home(store: store),
       ),
-      GoRoute(path: '/app', redirect: (_, _) => '/app/packs'),
       GoRoute(
         path: '/app/packs',
         builder: (_, state) =>
             Home(store: store, parameters: state.uri.queryParameters),
         routes: [
-          GoRoute(
-            path: ':id',
-            redirect: (_, state) =>
-                '/app/packs/${state.pathParameters['id']}/stickers',
-          ),
           GoRoute(
             path: ':id/:tab',
             builder: (_, state) => PackScreen(
@@ -78,11 +68,6 @@ GoRouter createFoundryRouter(FoundryStore store, {String? initialLocation}) {
           parameters: state.uri.queryParameters,
         ),
       ),
-      GoRoute(path: '/settings', redirect: (_, _) => '/app/settings/account'),
-      GoRoute(
-        path: '/app/settings',
-        redirect: (_, _) => '/app/settings/account',
-      ),
       GoRoute(
         path: '/app/settings/:section',
         builder: (_, state) => Home(
@@ -98,11 +83,6 @@ GoRouter createFoundryRouter(FoundryStore store, {String? initialLocation}) {
           initialTab: 2,
           teamId: state.pathParameters['id'],
         ),
-      ),
-      GoRoute(
-        path: '/packs/:id',
-        redirect: (_, state) =>
-            '/app/packs/${state.pathParameters['id']}/stickers',
       ),
       GoRoute(
         path: '/share/:id',
@@ -339,7 +319,7 @@ class _HomeState extends State<Home> {
         await s.api.request('packs', method: 'POST', data: data),
       );
       await s.refresh();
-      if (mounted) context.go('/packs/${p['id']}');
+      if (mounted) context.go('/app/packs/${p['id']}/stickers');
     });
   }
 
@@ -505,7 +485,9 @@ class _HomeState extends State<Home> {
                           return Card(
                             child: InkWell(
                               onTap: () => context.go(
-                                '/${tab == 1 ? 'share' : 'packs'}/${p['id']}',
+                                tab == 1
+                                    ? '/share/${p['id']}'
+                                    : '/app/packs/${p['id']}/stickers',
                               ),
                               child: Padding(
                                 padding: const EdgeInsets.all(16),

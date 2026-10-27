@@ -44,11 +44,11 @@ apps/client/build/app/outputs/flutter-apk/
 
 ## GitHub Actions Secrets
 
-When package identity is finalized, store these as repository secrets:
+Store these as repository secrets:
 
 - `ANDROID_KEYSTORE_BASE64`
 - `ANDROID_KEYSTORE_PASSWORD`
 - `ANDROID_KEY_ALIAS`
 - `ANDROID_KEY_PASSWORD`
 
-Then add a release workflow step that decodes the keystore, sets `ANDROID_KEYSTORE_PATH`, and runs `flutter build apk --release`.
+The Release workflow decodes the keystore, sets `ANDROID_KEYSTORE_PATH`, and builds the signed release APK. When no keystore is configured it publishes an explicitly named debug APK. A debug APK cannot replace an installation signed with a release key.

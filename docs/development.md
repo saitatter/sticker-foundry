@@ -1,49 +1,25 @@
-# Development workflow
+# Development
 
-Use Flutter 3.47.7, JDK 17 and Node 22.14+ (22.x) or 24.10+. See [Flutter migration](FLUTTER_MIGRATION.md) for platform builds and physical-device testing.
+Install Flutter 3.47.7, Python 3.13, uv, Docker Compose and Node.js 22. Run `npm ci`, `uv sync --project apps/backend --locked`, and `flutter pub get` in `apps/client`.
 
-## Install and run
+## API and workers
 
-```bash
-npm ci
-cd apps/client && flutter pub get
-cd ../..
-npm run prisma:generate
-npm run dev
-```
+Copy `.env.example` to `.env` with isolated development credentials. Run `docker compose up -d postgres redis`. Initialize an empty development database with `uv run --project apps/backend python -m foundry.db_init`. Start the API with `uv run --project apps/backend uvicorn foundry.main:app --app-dir apps/backend --port 3000 --reload`.
 
-The development stack expects PostgreSQL and Redis. The base Compose file starts both plus the API, worker, and web services:
+In separate terminals run `uv run --directory apps/backend python -m foundry.worker --queue media` and equivalents for `export` and `email`. Alternatively run `docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build` for a full stack with API reload.
 
-```bash
-docker compose up -d --build
-```
+OpenAPI: `/api/docs` and `/api/openapi.json`. Register through the UI; no account is seeded.
 
-If Docker Desktop is unavailable, run the web unit and mocked browser tests locally; queue-backed tests need Redis and PostgreSQL.
+## Client and device
 
-## Quality gates
+From `apps/client`, run `flutter run -d chrome`, `flutter run -d windows` or another target. Set the API URL on the login screen. For browser tools build `flutter build web --release --no-web-resources-cdn`, then run `npm run preview:web` from the root.
 
-```bash
-npm run build:shared-types
-npm run build:backend
-npm run build:web
-npm run lint:backend
-npm run lint:web
-npm run test:backend
-npm run test:e2e:backend
-npm run test:web:unit
-npm run test:web -- --project=chromium
-```
+For Android install JDK 17 and the Android SDK, enable USB debugging, accept authorization and check `adb devices`. Use `adb reverse tcp:8080 tcp:8080` when Docker web uses host port 8080, and set the device API to `http://127.0.0.1:8080/api`. Build with `flutter build apk --debug`, then `adb install -r build/app/outputs/flutter-apk/app-debug.apk`. Follow WhatsApp validation for native imports.
 
-Playwright is configured for Chromium, Firefox, and WebKit. The full browser matrix is:
+## Checks
 
-```bash
-npm run test:web
-```
+Run `dart run tool/ci_check.dart` before pushing. Add `--integration` for isolated Docker, PostgreSQL/Redis/Celery and browser acceptance. It removes only its unique test project. Never point tests or initialization at a real installation.
 
-## API generation
+Focused checks: `uv run --project apps/backend pytest apps/backend/tests -m 'not integration'` and `uv run --project apps/backend ruff check apps/backend tool`. Run `flutter analyze` and `flutter test` in `apps/client`.
 
-Start the backend, then run `npm run api:generate`. The generated file is written to `packages/shared-types/openapi.d.ts`; CI can compare it with the committed contract output.
-
-## Security configuration
-
-Production must set an explicit comma-separated `CORS_ORIGIN` allowlist. Refresh-cookie settings are controlled by `AUTH_REFRESH_COOKIE_*`; use `AUTH_REFRESH_COOKIE_SECURE=true` behind HTTPS. Do not put access or refresh tokens in browser storage.
+Keep captures in ignored `test-results/`. Use conventional commits with a body and a user-facing Unreleased entry. See the versioning policy.

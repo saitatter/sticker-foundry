@@ -52,20 +52,6 @@ class FoundryStore extends ChangeNotifier {
       if (!kIsWeb) {
         final stored = await secure.read(key: 'session');
         if (stored != null) session = object(jsonDecode(stored));
-        if (session == null && !(prefs.getBool('legacyImported') ?? false)) {
-          final legacy = await NativeBridge.legacySession();
-          if (legacy?['accessToken'] != null ||
-              legacy?['refreshToken'] != null) {
-            api.baseUrl = normalizeServer(legacy!['serverUrl']);
-            api.accessToken = legacy['accessToken'];
-            api.refreshToken = legacy['refreshToken'];
-            user = object(await api.request('auth/me'));
-            await clearCache();
-            await persist();
-            await NativeBridge.clearLegacySession();
-          }
-          await prefs.setBool('legacyImported', true);
-        }
       } else {
         final saved = prefs.getString('profile');
         if (saved != null) session = object(jsonDecode(saved));
@@ -258,7 +244,7 @@ class FoundryStore extends ChangeNotifier {
     await NativeBridge.removePack(id);
     if (old != null) {
       for (final name in (old['_assets'] as List? ?? [])) {
-        await cache.remove('${old['_assetRoot'] ?? id}/$name');
+        await cache.remove('${old['_assetRoot']}/$name');
       }
     }
     images.clear();
@@ -341,7 +327,7 @@ class FoundryStore extends ChangeNotifier {
         }
         if (old != null) {
           for (final name in (old['_assets'] as List? ?? [])) {
-            await cache.remove('${old['_assetRoot'] ?? key}/$name');
+            await cache.remove('${old['_assetRoot']}/$name');
           }
         }
       } finally {
@@ -379,7 +365,7 @@ class FoundryStore extends ChangeNotifier {
     if (images.containsKey(imageKey)) return images[imageKey];
     if (cached[pack['id']]?['imageDataVersion'] == pack['imageDataVersion']) {
       final bytes = await cache.read(
-        '${cached[pack['id']]?['_assetRoot'] ?? pack['id']}/${sticker['fileName']}',
+        '${cached[pack['id']]?['_assetRoot']}/${sticker['fileName']}',
       );
       if (bytes != null) {
         images[imageKey] = bytes;
@@ -388,7 +374,7 @@ class FoundryStore extends ChangeNotifier {
     }
     if (offline) {
       return cache.read(
-        '${cached[pack['id']]?['_assetRoot'] ?? pack['id']}/${sticker['fileName']}',
+        '${cached[pack['id']]?['_assetRoot']}/${sticker['fileName']}',
       );
     }
     final bytes = await api.request(
@@ -411,14 +397,14 @@ class FoundryStore extends ChangeNotifier {
     if (!public &&
         cached[pack['id']]?['imageDataVersion'] == pack['imageDataVersion']) {
       final bytes = await cache.read(
-        '${cached[pack['id']]?['_assetRoot'] ?? pack['id']}/tray_icon.webp',
+        '${cached[pack['id']]?['_assetRoot']}/tray_icon.webp',
       );
       if (bytes != null) return images[key] = bytes;
     }
     if (offline) return null;
     try {
       final bytes = await api.request(
-        '${public ? 'public/' : ''}packs/${pack['id']}/cover',
+        '${public ? 'public/' : ''}packs/${pack['id']}/tray-icon',
         auth: !public,
         raw: true,
       ) as Uint8List;

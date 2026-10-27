@@ -11,6 +11,9 @@ test-results/
 
 /data/
 /uploads/
+apps/backend/data/
+.coverage
+htmlcov/
 
 .DS_Store
 Thumbs.db
@@ -19,10 +22,7 @@ Thumbs.db
 .vscode/
 *.iml
 
-apps/backend/prisma/migrations/dev.db*
 
-legacy/android/build/
-legacy/android/app/build/
 
 # Local tooling and native signing/build outputs (keep source and lockfiles).
 __pycache__/
@@ -40,3 +40,6 @@ key.properties
 *.aab
 *.ipa
 *.dSYM/
+.venv/
+.ruff_cache/
+*.egg-info/
