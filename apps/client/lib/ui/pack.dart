@@ -1063,7 +1063,7 @@ class _PackScreenState extends State<PackScreen> {
           ),
           title: Text('${pack!['name']}'),
           subtitle: Text(
-            '${pack!['publisher']} ? ${fieldLabel('${pack!['role'] ?? (manage
+            '${pack!['publisher']} · ${fieldLabel('${pack!['role'] ?? (manage
                     ? 'OWNER'
                     : edit
                     ? 'EDITOR'
@@ -1120,7 +1120,7 @@ class _PackScreenState extends State<PackScreen> {
                 subtitle: Text(
                   entries.isEmpty
                       ? 'No activity yet'
-                      : '${entries.first['action']} ? ${entries.first['createdAt']}',
+                      : '${entries.first['action']} · ${entries.first['createdAt']}',
                 ),
                 onTap: () => context.go('/app/packs/${widget.id}/activity'),
               );

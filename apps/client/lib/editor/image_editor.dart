@@ -1101,7 +1101,7 @@ class _ImageEditorState extends State<ImageEditor>
           ],
         ),
         Text(
-          '${frames.length} frames ? ${duration.toStringAsFixed(2)} seconds',
+          '${frames.length} frames · ${duration.toStringAsFixed(2)} seconds',
         ),
         Text(
           'Trim ${trim.start.toStringAsFixed(1)}–${trim.end.toStringAsFixed(1)} seconds',
