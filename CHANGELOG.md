@@ -11,7 +11,7 @@
 ### 🧰 CI & Build
 
 - Build release notes from the curated Unreleased changelog, with the version selected from conventional commits.
-- Validate Python, Flutter and container acceptance with pinned tooling versions, testing the served Docker web build directly without rebuilding it on the host.
+- Validate Python, Flutter and container acceptance with pinned tooling versions, testing the served Docker web build directly and waiting for edits to finish before checking subsequent shortcuts.
 
 ### Docs
 

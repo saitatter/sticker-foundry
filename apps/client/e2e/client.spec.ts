@@ -190,6 +190,7 @@ test('keyboard and range selection persist bulk review status', async ({ page })
   });
   await page.keyboard.press('n');
   await expect.poll(() => updates).toEqual(['NEEDS_WORK', 'NEEDS_WORK', 'NEEDS_WORK']);
+  await expect(page.getByRole('group', { name: /^Selected stickers updated / })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Add stickers', exact: true })).toBeEnabled();
   await page.keyboard.press('Escape');
   await expect(page.getByRole('checkbox', { checked: true })).toHaveCount(0);
