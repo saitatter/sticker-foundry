@@ -7,6 +7,12 @@ import 'package:share_plus/share_plus.dart';
 import '../core/api.dart';
 import '../core/store.dart';
 
+bool isTextEditingFocused() {
+  final context = FocusManager.instance.primaryFocus?.context;
+  return context?.widget is EditableText ||
+      context?.findAncestorStateOfType<EditableTextState>() != null;
+}
+
 String fieldLabel(String key) =>
     const {
       'teamId': 'Team',

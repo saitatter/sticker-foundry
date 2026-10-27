@@ -1,7 +1,8 @@
-import 'dart:convert';
-import 'dart:typed_data';
-
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+
+import 'settings_panels.dart';
+export 'settings_panels.dart' show TeamScreen;
 
 import '../core/api.dart';
 import '../core/store.dart';
@@ -9,7 +10,12 @@ import 'common.dart';
 
 class SettingsScreen extends StatelessWidget {
   final FoundryStore store;
-  const SettingsScreen({super.key, required this.store});
+  final String section;
+  const SettingsScreen({
+    super.key,
+    required this.store,
+    this.section = 'account',
+  });
   Future<void> form(
     BuildContext context,
     String title,
@@ -31,10 +37,10 @@ class SettingsScreen extends StatelessWidget {
       secrets: secrets,
     );
     if (d != null) {
-      await store.run(
-        () => store.api.request(path, method: method, data: d),
-        success: 'Saved',
-      );
+      await store.run(() async {
+        await store.api.request(path, method: method, data: d);
+        if (path == 'teams') await store.refresh();
+      }, success: 'Saved');
     }
   }
 
@@ -57,6 +63,33 @@ class SettingsScreen extends StatelessWidget {
       ListenableBuilder(listenable: store, builder: (_, _) => content(context));
   Widget content(BuildContext context) {
     final s = store;
+    if (section != 'account') {
+      final panel = switch (section) {
+        'security' => SecurityPanel(store: s),
+        'instance' || 'admin' => InstancePanel(store: s),
+        'processing' => InstancePanel(store: s, processing: true),
+        'audit' => AuditPanel(store: s),
+        'teams' => teams(context),
+        _ => const Center(child: Text('Settings section not found')),
+      };
+      return Column(
+        children: [
+          ListTile(
+            leading: action(
+              Icons.arrow_back,
+              'Account settings',
+              () => context.go('/app/settings/account'),
+            ),
+            title: Text(
+              section == 'admin'
+                  ? 'Instance administration'
+                  : '${section[0].toUpperCase()}${section.substring(1)}',
+            ),
+          ),
+          Expanded(child: panel),
+        ],
+      );
+    }
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
@@ -118,46 +151,13 @@ class SettingsScreen extends StatelessWidget {
         ListTile(
           leading: const Icon(Icons.devices),
           title: const Text('Active sessions'),
-          onTap: () => page(
-            context,
-            'Sessions',
-            RemoteList(
-              store: s,
-              path: 'auth/sessions',
-              actions: [
-                TextButton(
-                  onPressed: () => s.run(() async {
-                    await s.api.request('auth/sessions', method: 'DELETE');
-                    await s.signOut();
-                  }),
-                  child: const Text('Revoke all sessions'),
-                ),
-              ],
-              item: (row, reload) => ListTile(
-                title: Text('${row['userAgent'] ?? 'Device'}'),
-                subtitle: Text(
-                  '${row['ipAddress'] ?? ''}\n${row['createdAt']}',
-                ),
-                trailing: action(
-                  Icons.logout,
-                  'Revoke session',
-                  () => s.run(() async {
-                    await s.api.request(
-                      'auth/sessions/${row['id']}',
-                      method: 'DELETE',
-                    );
-                    reload();
-                  }),
-                ),
-              ),
-            ),
-          ),
+          onTap: () => context.go('/app/settings/security'),
         ),
         ListTile(
           leading: const Icon(Icons.group_work_outlined),
           title: const Text('Teams'),
           subtitle: Text('${s.teams.length} teams'),
-          onTap: () => page(context, 'Teams', teams(context)),
+          onTap: () => context.go('/app/settings/teams'),
         ),
         ListTile(
           leading: const Icon(Icons.mail_outline),
@@ -182,54 +182,17 @@ class SettingsScreen extends StatelessWidget {
           ListTile(
             leading: const Icon(Icons.admin_panel_settings_outlined),
             title: const Text('Instance administration'),
-            onTap: () => admin(context),
+            onTap: () => context.go('/app/settings/instance'),
+          ),
+          ListTile(
+            leading: const Icon(Icons.memory),
+            title: const Text('Processing status'),
+            onTap: () => context.go('/app/settings/processing'),
           ),
           ListTile(
             leading: const Icon(Icons.policy_outlined),
             title: const Text('Audit log'),
-            onTap: () => page(
-              context,
-              'Audit log',
-              RemoteList(
-                store: s,
-                path: 'admin/audit-log?limit=100',
-                actions: [
-                  TextButton(
-                    onPressed: () => s.run(() async {
-                      final bytes = await s.api.request(
-                        'admin/audit-log/export',
-                        raw: true,
-                      ) as Uint8List;
-                      await download(bytes, 'audit-log.csv');
-                    }),
-                    child: const Text('Export'),
-                  ),
-                  TextButton(
-                    onPressed: () async {
-                      if (await confirm(
-                        context,
-                        'Apply audit retention cleanup?',
-                      )) {
-                        await s.run(
-                          () => s.api.request(
-                            'admin/audit-log/cleanup',
-                            method: 'POST',
-                          ),
-                          success: 'Audit cleanup complete',
-                        );
-                      }
-                    },
-                    child: const Text('Apply retention'),
-                  ),
-                ],
-                item: (row, _) => ListTile(
-                  title: Text('${row['action']}'),
-                  subtitle: SelectableText(
-                    '${row['createdAt']} · ${row['actorEmail'] ?? row['userId'] ?? ''}\n${jsonEncode(row['metadata'] ?? row['details'] ?? {})}',
-                  ),
-                ),
-              ),
-            ),
+            onTap: () => context.go('/app/settings/audit'),
           ),
         ],
         const Divider(),
@@ -263,84 +226,7 @@ class SettingsScreen extends StatelessWidget {
       subtitle: Text(
         '${team['memberCount']} members · ${team['packCount']} packs',
       ),
-      onTap: () => page(
-        context,
-        '${team['name']}',
-        RemoteList(
-          store: store,
-          path: 'teams/${team['id']}/members',
-          actions: [
-            if (team['canManage'] == true)
-              TextButton.icon(
-                icon: const Icon(Icons.person_add),
-                label: const Text('Add member'),
-                onPressed: () => form(
-                  context,
-                  'Add team member',
-                  'teams/${team['id']}/members',
-                  {'email': 'Email'},
-                  choices: {
-                    'role': ['EDITOR', 'VIEWER'],
-                  },
-                ),
-              ),
-          ],
-          item: (row, refresh) => ListTile(
-            title: Text('${object(row['user'])['displayName']}'),
-            subtitle: Text('${object(row['user'])['email']} · ${row['role']}'),
-            trailing: team['canManage'] == true && row['role'] != 'OWNER'
-                ? PopupMenuButton<String>(
-                    onSelected: (v) => store.run(() async {
-                      await store.api.request(
-                        'teams/${team['id']}/members/${row['id']}',
-                        method: v == 'REMOVE' ? 'DELETE' : 'PATCH',
-                        data: v == 'REMOVE' ? null : {'role': v},
-                      );
-                      refresh();
-                    }),
-                    itemBuilder: (_) => ['EDITOR', 'VIEWER', 'REMOVE']
-                        .map((v) => PopupMenuItem(value: v, child: Text(v)))
-                        .toList(),
-                  )
-                : null,
-          ),
-        ),
-      ),
+      onTap: () => context.go('/app/teams/${team['id']}'),
     ),
   );
-  Future<void> admin(BuildContext context) async {
-    await store.run(() async {
-      final value = object(await store.api.request('admin/settings'));
-      if (!context.mounted) return;
-      final d = await formDialog(
-        context,
-        'Instance settings',
-        {
-          'instanceName': 'Instance name',
-          'instanceDescription': 'Description',
-          'registrationInviteCode': 'Registration invite code',
-          'storageQuotaBytes': 'Storage quota in bytes (empty = unlimited)',
-          'auditRetentionDays': 'Audit retention days (empty = unlimited)',
-        },
-        values: value,
-        optional: {
-          'instanceDescription',
-          'registrationInviteCode',
-          'storageQuotaBytes',
-          'auditRetentionDays',
-        },
-        choices: {
-          'registrationMode': ['open', 'invite-only', 'disabled'],
-        },
-      );
-      if (d == null) return;
-      for (final k in ['storageQuotaBytes', 'auditRetentionDays']) {
-        d[k] = (d[k] as String).isEmpty ? null : int.parse(d[k]);
-      }
-      await store.api.request('admin/settings', method: 'PATCH', data: d);
-      store.instanceName = d['instanceName'];
-      store.notice =
-          'Instance settings saved. Background removal: ${value['backgroundRemoval']}';
-    });
-  }
 }

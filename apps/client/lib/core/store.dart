@@ -196,9 +196,14 @@ class FoundryStore extends ChangeNotifier {
   }
 
   Future<void> refresh() async {
-    packs = objects(await api.request('packs'));
+    final owner = scope;
+    final freshPacks = objects(await api.request('packs'));
+    if (scope != owner) return;
+    final freshTeams = objects(await api.request('teams'));
+    if (scope != owner) return;
+    packs = freshPacks;
+    teams = freshTeams;
     offline = false;
-    teams = objects(await api.request('teams'));
     notifyListeners();
   }
 
@@ -207,7 +212,8 @@ class FoundryStore extends ChangeNotifier {
       final value = object(await api.request('packs/$id'));
       offline = false;
       return value;
-    } on ApiError {
+    } on ApiError catch (e) {
+      if (e.status == 403 || e.status == 404) await removeCachedPack(id);
       rethrow;
     } catch (_) {
       if (cached.containsKey(id)) {
@@ -218,7 +224,18 @@ class FoundryStore extends ChangeNotifier {
     }
   }
 
+  Future<void> _cacheQueue = Future<void>.value();
+  int _cacheGeneration = 0;
+
   Future<void> clearCache() async {
+    _cacheGeneration++;
+    final pending = _cacheQueue;
+    final clear = pending.then((_) => _clearCache());
+    _cacheQueue = clear.catchError((Object _) {});
+    await clear;
+  }
+
+  Future<void> _clearCache() async {
     covers.clear();
     cached.clear();
     images.clear();
@@ -236,53 +253,124 @@ class FoundryStore extends ChangeNotifier {
     ),
   );
 
-  Future<void> sync({String? id}) async {
+  Future<void> removeCachedPack(String id) async {
+    final old = cached.remove(id);
+    await NativeBridge.removePack(id);
+    if (old != null) {
+      for (final name in (old['_assets'] as List? ?? [])) {
+        await cache.remove('${old['_assetRoot'] ?? id}/$name');
+      }
+    }
+    images.clear();
+    covers.clear();
+    await _index();
+  }
+
+  Future<void> sync({String? id}) {
+    final owner = scope, generation = _cacheGeneration;
+    final result = _cacheQueue.then((_) async {
+      if (owner != scope || generation != _cacheGeneration) return;
+      await _sync(id: id, owner: owner, generation: generation);
+    });
+    _cacheQueue = result.catchError((Object _) {});
+    return result;
+  }
+
+  Future<void> _sync({
+    String? id,
+    required String owner,
+    required int generation,
+  }) async {
+    bool current() => owner == scope && generation == _cacheGeneration;
     final remote = objects(object(await api.request('sync/packs'))['packs']);
+    if (!current()) return;
     final allowed = remote
         .where((p) => p['canExport'] == true)
         .map((p) => p['id'])
         .toSet();
     for (final stale
         in cached.keys.where((key) => !allowed.contains(key)).toList()) {
-      final old = cached.remove(stale)!;
-      await NativeBridge.removePack(stale);
-      for (final name in (old['_assets'] as List? ?? [])) {
-        await cache.remove('$stale/$name');
-      }
+      if (!current()) return;
+      await removeCachedPack(stale);
     }
     for (final item in remote.where(
       (p) => p['canExport'] == true && (id == null || p['id'] == id),
     )) {
+      if (!current()) return;
       final key = item['id'] as String;
-      if (cached[key]?['_syncHash'] == item['syncHash']) {
-        continue;
-      }
+      if (cached[key]?['_syncHash'] == item['syncHash']) continue;
       final zip =
           await api.request('packs/$key/export', raw: true) as Uint8List;
       final archive = ZipDecoder().decodeBytes(zip);
       final detail = object(await api.request('packs/$key'));
+      if (!current()) return;
+      final old = cached[key];
+      // Publish the index only after the complete revision and native import succeed.
+      final root = '$key/revision-${DateTime.now().microsecondsSinceEpoch}';
       final assetNames = <String>[];
-      for (final file in archive.files.where((f) => f.isFile)) {
-        if (file.name.startsWith('/') ||
-            file.name.contains('..') ||
-            file.name.contains('\\')) {
-          throw const FormatException('Unsafe export archive');
+      try {
+        for (final file in archive.files.where((f) => f.isFile)) {
+          if (file.name.startsWith('/') ||
+              file.name.contains('..') ||
+              file.name.contains('\\')) {
+            throw const FormatException('Unsafe export archive');
+          }
+          if (!current()) return;
+          assetNames.add(file.name);
+          await cache.write(
+            '$root/${file.name}',
+            Uint8List.fromList(file.content),
+          );
         }
-        await cache.write(
-          '$key/${file.name}',
-          Uint8List.fromList(file.content),
-        );
-        assetNames.add(file.name);
+        detail['_assets'] = assetNames;
+        detail['_assetRoot'] = root;
+        detail['_syncHash'] = item['syncHash'];
+        if (!current()) return;
+        await NativeBridge.installPack({...detail, ...item}, zip);
+        if (!current()) return;
+        cached[key] = detail;
+        try {
+          await _index();
+        } catch (_) {
+          if (old == null) {
+            cached.remove(key);
+          } else {
+            cached[key] = old;
+          }
+          rethrow;
+        }
+        if (old != null) {
+          for (final name in (old['_assets'] as List? ?? [])) {
+            await cache.remove('${old['_assetRoot'] ?? key}/$name');
+          }
+        }
+      } finally {
+        if (cached[key]?['_assetRoot'] != root) {
+          for (final name in assetNames) {
+            await cache.remove('$root/$name');
+          }
+        }
       }
-      detail['_assets'] = assetNames;
-      detail['_syncHash'] = item['syncHash'];
-      cached[key] = detail;
-      await NativeBridge.installPack({...detail, ...item}, zip);
     }
-    await _index();
+    if (!current()) return;
     images.clear();
+    covers.clear();
     await refresh();
     notifyListeners();
+  }
+
+  Future<void> afterPackMutation(String id) async {
+    images.clear();
+    covers.clear();
+    await refresh();
+    // A failed background download must not make a successful edit look unsaved.
+    if (NativeBridge.android || cached.containsKey(id)) {
+      try {
+        await sync(id: id);
+      } catch (e) {
+        notice = 'Saved online. Refresh the offline download: $e';
+      }
+    }
   }
 
   Future<Uint8List?> sticker(Json pack, Json sticker) async {
@@ -290,13 +378,19 @@ class FoundryStore extends ChangeNotifier {
     final imageKey = '$key/${pack['imageDataVersion']}/${sticker['sha256']}';
     if (images.containsKey(imageKey)) return images[imageKey];
     if (cached[pack['id']]?['imageDataVersion'] == pack['imageDataVersion']) {
-      final bytes = await cache.read(key);
+      final bytes = await cache.read(
+        '${cached[pack['id']]?['_assetRoot'] ?? pack['id']}/${sticker['fileName']}',
+      );
       if (bytes != null) {
         images[imageKey] = bytes;
         return bytes;
       }
     }
-    if (offline) return cache.read(key);
+    if (offline) {
+      return cache.read(
+        '${cached[pack['id']]?['_assetRoot'] ?? pack['id']}/${sticker['fileName']}',
+      );
+    }
     final bytes = await api.request(
       'packs/${pack['id']}/stickers/${sticker['id']}/file',
       raw: true,
@@ -316,7 +410,9 @@ class FoundryStore extends ChangeNotifier {
     if (images.containsKey(key)) return images[key];
     if (!public &&
         cached[pack['id']]?['imageDataVersion'] == pack['imageDataVersion']) {
-      final bytes = await cache.read('${pack['id']}/tray_icon.webp');
+      final bytes = await cache.read(
+        '${cached[pack['id']]?['_assetRoot'] ?? pack['id']}/tray_icon.webp',
+      );
       if (bytes != null) return images[key] = bytes;
     }
     if (offline) return null;
@@ -333,6 +429,7 @@ class FoundryStore extends ChangeNotifier {
   }
 
   Future<Json> track(Json job, String packId) async {
+    final owner = scope;
     var current = {...job, 'packId': packId};
     void update() {
       jobs = [...jobs.where((j) => j['id'] != current['id']), current];
@@ -346,11 +443,11 @@ class FoundryStore extends ChangeNotifier {
       'RUNNING',
       'PENDING',
     ].contains(current['status'])) {
-      await Future<void>.delayed(const Duration(milliseconds: 600));
-      current = {
-        ...object(await api.request('jobs/${job['id']}')),
-        'packId': packId,
-      };
+      await Future<void>.delayed(const Duration(milliseconds: 1000));
+      if (scope != owner || user == null) throw StateError('Session changed');
+      final response = await api.request('jobs/${job['id']}');
+      if (scope != owner || user == null) throw StateError('Session changed');
+      current = {...object(response), 'packId': packId};
       update();
     }
     if (current['status'] != 'COMPLETED') {
@@ -381,11 +478,12 @@ class FoundryStore extends ChangeNotifier {
       fields: options,
       version: '${detail['imageDataVersion']}',
     );
-    if (!tray && replace == null) await track(object(result), packId);
+    if (!tray && replace == null) {
+      await track({...object(result), 'label': filename}, packId);
+    }
     images.clear();
     await refresh();
-    final updated = await pack(packId);
-    if (updated['canExport'] == true) await sync(id: packId);
+    await afterPackMutation(packId);
   }
 
   Future<Uint8List> export(String id) async {

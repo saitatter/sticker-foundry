@@ -204,10 +204,20 @@ void main() {
       expect(tester.takeException(), isNull);
       await tester.runAsync(() async {
         await tester.tap(find.byTooltip('Use image'));
-        await Future<void>.delayed(const Duration(milliseconds: 600));
+        for (var i = 0; i < 50 && result == null; i++) {
+          await Future<void>.delayed(const Duration(milliseconds: 100));
+          await tester.pump();
+        }
       });
       await tester.pumpAndSettle();
-      expect(result, isNotNull);
+      expect(
+        result,
+        isNotNull,
+        reason: tester
+            .widgetList<Text>(find.byType(Text))
+            .map((t) => t.data)
+            .join(' | '),
+      );
       expect(result!.name, 'edited-sticker.png');
       final output = img.decodePng(result!.bytes)!;
       expect(output.width, 512);

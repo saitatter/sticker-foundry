@@ -1,11 +1,14 @@
 import 'dart:math' as math;
-import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
-import 'package:image/image.dart' as image;
+import 'package:flutter/services.dart';
 
-import '../core/api.dart';
+import 'editor_document.dart';
+import 'editor_painter.dart';
+import 'editor_renderer.dart';
+import '../ui/common.dart' show isTextEditingFocused;
+export 'editor_document.dart';
 
 enum EditorTool {
   move,
@@ -14,59 +17,9 @@ enum EditorTool {
   erase,
   restore,
   adjust,
+  effects,
   background,
   animation,
-}
-
-class InkStroke {
-  final List<Offset> points;
-  final double width;
-  final bool restore;
-  InkStroke(this.points, this.width, this.restore);
-}
-
-class TextLayer {
-  String text;
-  Offset position;
-  double size;
-  TextLayer(this.text, this.position, this.size);
-  TextLayer copy() => TextLayer(text, position, size);
-}
-
-class EditDocument {
-  int rotation = 0;
-  Rect crop = const Rect.fromLTWH(0, 0, 1, 1);
-  double brightness = 0, contrast = 1, saturation = 1;
-  bool grayscale = false;
-  List<InkStroke> strokes = [];
-  List<TextLayer> texts = [];
-  EditDocument copy() => EditDocument()
-    ..rotation = rotation
-    ..crop = crop
-    ..brightness = brightness
-    ..contrast = contrast
-    ..saturation = saturation
-    ..grayscale = grayscale
-    ..strokes = strokes
-        .map((s) => InkStroke([...s.points], s.width, s.restore))
-        .toList()
-    ..texts = texts.map((t) => t.copy()).toList();
-  bool get transformed =>
-      rotation != 0 ||
-      crop != const Rect.fromLTWH(0, 0, 1, 1) ||
-      brightness != 0 ||
-      contrast != 1 ||
-      saturation != 1 ||
-      grayscale ||
-      strokes.isNotEmpty ||
-      texts.isNotEmpty;
-}
-
-class EditedMedia {
-  final Uint8List bytes;
-  final String name;
-  final Json options;
-  EditedMedia(this.bytes, this.name, this.options);
 }
 
 Future<EditedMedia?> editMedia(
@@ -75,30 +28,42 @@ Future<EditedMedia?> editMedia(
   String name, {
   bool animated = false,
   bool tray = false,
+  bool allowBatch = false,
+  EditorRecipe? initial,
 }) => Navigator.of(context).push<EditedMedia>(
   MaterialPageRoute(
     fullscreenDialog: true,
-    builder: (_) =>
-        ImageEditor(bytes: bytes, name: name, animated: animated, tray: tray),
+    builder: (_) => ImageEditor(
+      bytes: bytes,
+      name: name,
+      animated: animated,
+      tray: tray,
+      allowBatch: allowBatch,
+      initial: initial,
+    ),
   ),
 );
 
 class ImageEditor extends StatefulWidget {
   final Uint8List bytes;
   final String name;
-  final bool animated, tray;
+  final bool animated, tray, allowBatch;
+  final EditorRecipe? initial;
   const ImageEditor({
     super.key,
     required this.bytes,
     required this.name,
     this.animated = false,
     this.tray = false,
+    this.allowBatch = false,
+    this.initial,
   });
   @override
   State<ImageEditor> createState() => _ImageEditorState();
 }
 
-class _ImageEditorState extends State<ImageEditor> {
+class _ImageEditorState extends State<ImageEditor>
+    with SingleTickerProviderStateMixin {
   ui.Image? preview;
   EditDocument doc = EditDocument();
   final List<EditDocument> undo = [], redo = [];
@@ -112,8 +77,26 @@ class _ImageEditorState extends State<ImageEditor> {
   Rect startCrop = const Rect.fromLTWH(0, 0, 1, 1);
   int selectedText = -1, cropCorner = -1;
   String background = 'none';
-  double threshold = 238, feather = 14, speckle = 24, fps = 15, quality = 80;
-  bool cleanup = true, exporting = false, compare = false;
+  double fps = 15, quality = 82;
+  double get threshold => doc.threshold;
+  set threshold(double v) => doc.threshold = v;
+  double get feather => doc.feather;
+  set feather(double v) => doc.feather = v;
+  double get speckle => doc.speckle;
+  set speckle(double v) => doc.speckle = v;
+  bool get cleanup => doc.cleanup;
+  set cleanup(bool v) => doc.cleanup = v;
+  bool exporting = false,
+      compare = false,
+      optimize = false,
+      compressAnimation = true,
+      applyAll = false,
+      playing = false;
+  final frames = <ui.Image>[];
+  AnimationTiming timing = AnimationTiming([]);
+  late final timeline = AnimationController(vsync: this)..addListener(tick);
+  int frameIndex = 0, previewEpoch = 0;
+  String? preparedKey;
   RangeValues trim = const RangeValues(0, 1);
   double duration = 1;
   String? failure;
@@ -121,37 +104,149 @@ class _ImageEditorState extends State<ImageEditor> {
   @override
   void initState() {
     super.initState();
+    final initial = widget.initial;
+    if (initial != null) {
+      doc = initial.document.copy();
+      background = initial.background;
+      fps = initial.fps;
+      quality = initial.quality;
+      optimize = initial.optimize;
+      compressAnimation = initial.animatedCompress;
+      emoji.text = initial.emojis;
+      alt.text = initial.accessibilityText;
+    }
     _load();
   }
 
   Future<void> _load() async {
+    final loaded = <ui.Image>[];
+    ui.Codec? codec;
     try {
-      final codec = await ui.instantiateImageCodec(
+      codec = await editorCodec(
         widget.bytes,
-        targetWidth: 1024,
+        maxSide: widget.animated ? 256 : 1024,
       );
-      final frame = await codec.getNextFrame();
-      double seconds = frame.duration.inMilliseconds * codec.frameCount / 1000;
-      codec.dispose();
-      if (!mounted) {
-        frame.image.dispose();
-        return;
+      if (codec.frameCount > 1000) {
+        throw const FormatException(
+          'This animation has too many frames to edit on this device.',
+        );
       }
-      setState(() {
-        preview = frame.image;
-        duration = math.max(.1, seconds);
-        trim = RangeValues(0, math.min(10, duration));
-      });
-    } catch (_) {
-      if (mounted) {
-        setState(() => failure = 'This file could not be decoded as an image.');
+      if (widget.animated && codec.frameCount < 2) {
+        throw const FormatException(
+          'Choose an animated GIF or WebP for this pack.',
+        );
+      }
+      final count = widget.animated && !widget.tray ? codec.frameCount : 1;
+      final delays = <int>[];
+      for (var i = 0; i < count; i++) {
+        final frame = await codec.getNextFrame();
+        loaded.add(frame.image);
+        delays.add(frame.duration.inMilliseconds);
+        if (!mounted) throw StateError('Editor closed');
+      }
+      timing = AnimationTiming(delays);
+      duration = widget.animated ? timing.seconds : 1;
+      frames.addAll(loaded);
+      loaded.clear();
+      final start = (widget.initial?.trimStart ?? 0.0)
+          .clamp(0.0, math.max(0.0, duration - .1))
+          .toDouble();
+      trim = RangeValues(
+        start,
+        (widget.initial?.trimEnd ?? 10).clamp(start + .01, duration),
+      );
+      timeline.duration = Duration(
+        milliseconds: math.max(1, (duration * 1000).round()),
+      );
+      timeline.value = trim.start / duration;
+      frameIndex = widget.animated ? timing.frameAt(trim.start) : 0;
+      await updatePreview();
+    } catch (e) {
+      if (mounted) setState(() => failure = 'Could not open image: $e');
+    } finally {
+      codec?.dispose();
+      for (final frame in loaded) {
+        frame.dispose();
       }
     }
   }
 
+  Future<void> updatePreview() async {
+    if (frames.isEmpty || !mounted) return;
+    final key = '$frameIndex/${doc.pixelSignature}';
+    if (key == preparedKey) return;
+    preparedKey = key;
+    final epoch = ++previewEpoch;
+    try {
+      final value = await prepareEditorFrame(frames[frameIndex], doc.copy());
+      if (!mounted || epoch != previewEpoch) {
+        value.dispose();
+        return;
+      }
+      final old = preview;
+      setState(() => preview = value);
+      old?.dispose();
+    } catch (e) {
+      if (mounted && epoch == previewEpoch) {
+        preparedKey = null;
+        setState(() => failure = 'Preview failed: $e');
+      }
+    }
+  }
+
+  void tick() {
+    if (!mounted || frames.isEmpty || !widget.animated) return;
+    final next = timing.frameAt(timeline.value * duration);
+    if (next != frameIndex) {
+      frameIndex = next;
+      updatePreview();
+    }
+    setState(() {});
+  }
+
+  void play() {
+    setState(() => playing = !playing);
+    if (playing) {
+      timeline.repeat(
+        min: trim.start / duration,
+        max: trim.end / duration,
+        period: Duration(
+          milliseconds: ((trim.end - trim.start) * 1000).round(),
+        ),
+      );
+    } else {
+      timeline.stop();
+    }
+  }
+
+  void seek(double seconds) {
+    timeline.stop();
+    playing = false;
+    timeline.value = (seconds / duration).clamp(0, 1);
+    tick();
+  }
+
+  EditorRecipe get recipe => EditorRecipe(
+    document: doc.copy(),
+    background: background,
+    emojis: emoji.text,
+    accessibilityText: alt.text,
+    trimStart: trim.start,
+    trimEnd: trim.end,
+    fps: fps,
+    quality: quality,
+    optimize: optimize,
+    animatedCompress: compressAnimation,
+  );
+
   @override
   void dispose() {
+    previewEpoch++;
+    timeline.dispose();
     preview?.dispose();
+    for (final frame in frames) {
+      frame.dispose();
+    }
     emoji.dispose();
     alt.dispose();
     super.dispose();
@@ -166,6 +261,7 @@ class _ImageEditorState extends State<ImageEditor> {
   void change(VoidCallback action) {
     checkpoint();
     setState(action);
+    updatePreview();
   }
 
   void history(bool back) {
@@ -175,6 +271,7 @@ class _ImageEditorState extends State<ImageEditor> {
       to.add(doc.copy());
       doc = from.removeLast();
     });
+    updatePreview();
   }
 
   Offset point(Offset local, Size size) {
@@ -227,98 +324,37 @@ class _ImageEditorState extends State<ImageEditor> {
 
   Future<void> save() async {
     if (preview == null || exporting) return;
+    timeline.stop();
+    playing = false;
     setState(() {
       exporting = true;
       failure = null;
       exportProgress = 0;
     });
     try {
-      Uint8List bytes = widget.bytes;
-      String name = widget.name;
-      if (doc.transformed || widget.tray) {
-        final codec = await ui.instantiateImageCodec(
-          widget.bytes,
-          targetWidth: 1024,
-        );
-        try {
-          final count = widget.animated && !widget.tray ? codec.frameCount : 1;
-          if (count * 512 * 512 > 20000000) {
-            throw StateError(
-              'This animation has too many frames for local edits. Upload without image edits, or trim it first.',
-            );
-          }
-          image.Image? animation;
-          for (var i = 0; i < count; i++) {
-            final frame = await codec.getNextFrame();
-            final recorder = ui.PictureRecorder();
-            final canvas = Canvas(recorder);
-            const size = Size(512, 512);
-            final crop = doc.crop;
-            final scale = 1 / math.max(crop.width, crop.height);
-            canvas.translate(256, 256);
-            canvas.scale(scale);
-            canvas.translate(-crop.center.dx * 512, -crop.center.dy * 512);
-            MediaPainter(frame.image, doc, false, null).paint(canvas, size);
-            final picture = recorder.endRecording();
-            final output = await picture.toImage(512, 512);
-            picture.dispose();
-            frame.image.dispose();
-            if (count == 1) {
-              final data = await output.toByteData(
-                format: ui.ImageByteFormat.png,
-              );
-              bytes = data!.buffer.asUint8List();
-              name = 'edited-sticker.png';
-            } else {
-              final raw = await output.toByteData(
-                format: ui.ImageByteFormat.rawRgba,
-              );
-              final converted = image.Image.fromBytes(
-                width: 512,
-                height: 512,
-                bytes: raw!.buffer,
-                numChannels: 4,
-              )..frameDuration = frame.duration.inMilliseconds;
-              if (animation == null) {
-                animation = converted;
-              } else {
-                animation.addFrame(converted);
-              }
-            }
-            output.dispose();
-            if (mounted) setState(() => exportProgress = (i + 1) / count);
-            await Future<void>.delayed(Duration.zero);
-          }
-          if (animation != null) {
-            bytes = Uint8List.fromList(image.encodeGif(animation));
-            name = 'edited-animation.gif';
-          }
-        } finally {
-          codec.dispose();
-        }
-      }
-      final options = <String, dynamic>{
-        'backgroundRemovalMode': widget.tray ? 'none' : background,
-        'backgroundRemovalThreshold': threshold.round(),
-        'backgroundRemovalFeather': feather.round(),
-        'backgroundRemovalCleanupSpeckles': cleanup,
-        'backgroundRemovalSpeckleSize': speckle.round(),
-        if (emoji.text.trim().isNotEmpty)
-          'emojis': emoji.text
-              .split(',')
-              .map((s) => s.trim())
-              .where((s) => s.isNotEmpty)
-              .take(3)
-              .toList(),
-        if (alt.text.trim().isNotEmpty) 'accessibilityText': alt.text.trim(),
-        if (widget.animated && !widget.tray) ...{
-          'animatedTrimStart': trim.start,
-          'animatedTrimEnd': trim.end,
-          'animatedFrameRate': fps.round(),
-          'animatedQuality': quality.round(),
+      final media = await renderEditedMedia(
+        widget.bytes,
+        widget.name,
+        recipe,
+        animated: widget.animated,
+        tray: widget.tray,
+        progress: (value) {
+          if (mounted) setState(() => exportProgress = value);
         },
-      };
-      if (mounted) Navigator.pop(context, EditedMedia(bytes, name, options));
+        cancelled: () => !mounted,
+      );
+      if (mounted) {
+        Navigator.pop(
+          context,
+          EditedMedia(
+            media.bytes,
+            media.name,
+            media.options,
+            recipe: media.recipe,
+            applyToAll: applyAll,
+          ),
+        );
+      }
     } catch (e) {
       if (mounted) {
         setState(() {
@@ -326,6 +362,102 @@ class _ImageEditorState extends State<ImageEditor> {
           exporting = false;
         });
       }
+    }
+  }
+
+  KeyEventResult keyboard(FocusNode _, KeyEvent event) {
+    if (event is! KeyDownEvent || exporting || isTextEditingFocused()) {
+      return KeyEventResult.ignored;
+    }
+    final modifier =
+            HardwareKeyboard.instance.isControlPressed ||
+            HardwareKeyboard.instance.isMetaPressed,
+        key = event.logicalKey;
+    if (modifier && key == LogicalKeyboardKey.keyZ) {
+      history(!HardwareKeyboard.instance.isShiftPressed);
+      return KeyEventResult.handled;
+    }
+    if (modifier && key == LogicalKeyboardKey.keyY) {
+      history(false);
+      return KeyEventResult.handled;
+    }
+    if (modifier && key == LogicalKeyboardKey.keyS) {
+      save();
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.space && widget.animated) {
+      play();
+      return KeyEventResult.handled;
+    }
+    return KeyEventResult.ignored;
+  }
+
+  Future<void> color(bool stroke) async {
+    if (selectedText < 0 || selectedText >= doc.texts.length) return;
+    final layer = doc.texts[selectedText];
+    var draft =
+        '#${(stroke ? layer.strokeColor : layer.color).toARGB32().toRadixString(16).substring(2)}';
+    final value = await showDialog<Color>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: Text(stroke ? 'Text outline color' : 'Text fill color'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Wrap(
+              children: [
+                for (final color in [
+                  Colors.white,
+                  Colors.black,
+                  Colors.red,
+                  Colors.amber,
+                  Colors.blue,
+                  Colors.green,
+                ])
+                  IconButton(
+                    tooltip:
+                        '#${color.toARGB32().toRadixString(16).substring(2)}',
+                    onPressed: () => Navigator.pop(c, color),
+                    icon: Icon(Icons.circle, color: color),
+                  ),
+              ],
+            ),
+            TextFormField(
+              initialValue: draft,
+              decoration: const InputDecoration(
+                labelText: 'Hex color (#RRGGBB)',
+              ),
+              onChanged: (v) => draft = v,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(c),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () {
+              if (RegExp(r'^#[0-9a-fA-F]{6}$').hasMatch(draft)) {
+                Navigator.pop(
+                  c,
+                  Color(int.parse(draft.substring(1), radix: 16) | 0xff000000),
+                );
+              }
+            },
+            child: const Text('Apply'),
+          ),
+        ],
+      ),
+    );
+    if (value != null && mounted) {
+      change(() {
+        if (stroke) {
+          layer.strokeColor = value;
+        } else {
+          layer.color = value;
+        }
+      });
     }
   }
 
@@ -344,6 +476,7 @@ class _ImageEditorState extends State<ImageEditor> {
     EditorTool.erase => Icons.auto_fix_normal,
     EditorTool.restore => Icons.healing,
     EditorTool.adjust => Icons.tune,
+    EditorTool.effects => Icons.auto_awesome_outlined,
     EditorTool.background => Icons.layers_clear,
     EditorTool.animation => Icons.animation,
   };
@@ -354,6 +487,7 @@ class _ImageEditorState extends State<ImageEditor> {
     EditorTool.erase => 'Erase',
     EditorTool.restore => 'Restore',
     EditorTool.adjust => 'Adjust',
+    EditorTool.effects => 'Effects',
     EditorTool.background => 'Background',
     EditorTool.animation => 'Animation',
   };
@@ -370,255 +504,270 @@ class _ImageEditorState extends State<ImageEditor> {
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    backgroundColor: const Color(0xff151d20),
-    appBar: AppBar(
-      title: Text(widget.tray ? 'Edit pack icon' : 'Edit sticker'),
-      actions: [
-        IconButton(
-          tooltip: 'Undo',
-          onPressed: undo.isEmpty || exporting ? null : () => history(true),
-          icon: const Icon(Icons.undo),
-        ),
-        IconButton(
-          tooltip: 'Redo',
-          onPressed: redo.isEmpty || exporting ? null : () => history(false),
-          icon: const Icon(Icons.redo),
-        ),
-        IconButton(
-          tooltip: 'Compare original',
-          onPressed: () => setState(() => compare = !compare),
-          isSelected: compare,
-          icon: const Icon(Icons.compare),
-        ),
-        if (MediaQuery.sizeOf(context).width < 480)
-          IconButton.filled(
-            tooltip: 'Use image',
-            onPressed: exporting || preview == null ? null : save,
-            icon: const Icon(Icons.check),
-          )
-        else
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8),
-            child: FilledButton.icon(
+  Widget build(BuildContext context) => Focus(
+    autofocus: true,
+    onKeyEvent: keyboard,
+    child: Scaffold(
+      backgroundColor: const Color(0xff151d20),
+      appBar: AppBar(
+        title: Text(widget.tray ? 'Edit pack icon' : 'Edit sticker'),
+        actions: [
+          IconButton(
+            tooltip: 'Undo',
+            onPressed: undo.isEmpty || exporting ? null : () => history(true),
+            icon: const Icon(Icons.undo),
+          ),
+          IconButton(
+            tooltip: 'Redo',
+            onPressed: redo.isEmpty || exporting ? null : () => history(false),
+            icon: const Icon(Icons.redo),
+          ),
+          IconButton(
+            tooltip: 'Compare original',
+            onPressed: () => setState(() => compare = !compare),
+            isSelected: compare,
+            icon: const Icon(Icons.compare),
+          ),
+          if (MediaQuery.sizeOf(context).width < 480)
+            IconButton.filled(
+              tooltip: 'Use image',
               onPressed: exporting || preview == null ? null : save,
               icon: const Icon(Icons.check),
-              label: Text(
-                exporting ? '${(exportProgress * 100).round()}%' : 'Use image',
+            )
+          else
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: FilledButton.icon(
+                onPressed: exporting || preview == null ? null : save,
+                icon: const Icon(Icons.check),
+                label: Text(
+                  exporting
+                      ? '${(exportProgress * 100).round()}%'
+                      : 'Use image',
+                ),
               ),
             ),
-          ),
-      ],
-    ),
-    body: SafeArea(
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final wide = constraints.maxWidth >= 900;
-          final canvas = Expanded(
-            child: LayoutBuilder(
-              builder: (context, bounds) {
-                final size = bounds.biggest;
-                return GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onDoubleTap: () => setState(() {
-                    zoom = 1;
-                    pan = Offset.zero;
-                  }),
-                  onScaleStart: (details) {
-                    baseZoom = zoom;
-                    basePan = pan;
-                    startFocal = details.localFocalPoint;
-                    startPoint = point(startFocal, size);
-                    startCrop = doc.crop;
-                    cropCorner = -1;
-                    if (tool == EditorTool.crop) {
-                      final corners = [
-                        doc.crop.topLeft,
-                        doc.crop.topRight,
-                        doc.crop.bottomRight,
-                        doc.crop.bottomLeft,
-                      ];
-                      for (var i = 0; i < corners.length; i++) {
-                        if ((corners[i] - startPoint).distance < .08) {
-                          cropCorner = i;
-                        }
-                      }
-                      checkpoint();
-                    }
-                    if ([EditorTool.erase, EditorTool.restore].contains(tool)) {
-                      checkpoint();
-                      doc.strokes.add(
-                        InkStroke(
-                          [startPoint],
-                          brush,
-                          tool == EditorTool.restore,
-                        ),
-                      );
-                    }
-                    if (tool == EditorTool.text && doc.texts.isNotEmpty) {
-                      checkpoint();
-                      selectedText = doc.texts.indexWhere(
-                        (t) => (t.position - startPoint).distance < .25,
-                      );
-                      if (selectedText < 0) selectedText = doc.texts.length - 1;
-                    }
-                  },
-                  onScaleUpdate: (details) {
-                    setState(() {
-                      if (details.pointerCount > 1 || tool == EditorTool.move) {
-                        zoom = (baseZoom * details.scale).clamp(1, 6);
-                        pan = basePan + details.localFocalPoint - startFocal;
-                        return;
-                      }
-                      final p = point(details.localFocalPoint, size);
-                      if ([
-                            EditorTool.erase,
-                            EditorTool.restore,
-                          ].contains(tool) &&
-                          doc.strokes.isNotEmpty) {
-                        doc.strokes.last.points.add(
-                          Offset(p.dx.clamp(0, 1), p.dy.clamp(0, 1)),
-                        );
-                      }
-                      if (tool == EditorTool.text && selectedText >= 0) {
-                        doc.texts[selectedText].position = Offset(
-                          p.dx.clamp(0, 1),
-                          p.dy.clamp(0, 1),
-                        );
-                      }
+        ],
+      ),
+      body: SafeArea(
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final wide = constraints.maxWidth >= 900;
+            final canvas = Expanded(
+              child: LayoutBuilder(
+                builder: (context, bounds) {
+                  final size = bounds.biggest;
+                  return GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onDoubleTap: () => setState(() {
+                      zoom = 1;
+                      pan = Offset.zero;
+                    }),
+                    onScaleStart: (details) {
+                      baseZoom = zoom;
+                      basePan = pan;
+                      startFocal = details.localFocalPoint;
+                      if (details.pointerCount > 1) return;
+                      startPoint = point(startFocal, size);
+                      startCrop = doc.crop;
+                      cropCorner = -1;
                       if (tool == EditorTool.crop) {
-                        if (cropCorner < 0) {
-                          final delta = p - startPoint;
-                          final left = (startCrop.left + delta.dx).clamp(
-                                0.0,
-                                1 - startCrop.width,
-                              ),
-                              top = (startCrop.top + delta.dy).clamp(
-                                0.0,
-                                1 - startCrop.height,
-                              );
-                          doc.crop = Rect.fromLTWH(
-                            left,
-                            top,
-                            startCrop.width,
-                            startCrop.height,
-                          );
-                        } else {
-                          final left = [0, 3].contains(cropCorner)
-                              ? p.dx.clamp(0.0, startCrop.right - .1)
-                              : startCrop.left;
-                          final right = [1, 2].contains(cropCorner)
-                              ? p.dx.clamp(startCrop.left + .1, 1.0)
-                              : startCrop.right;
-                          final top = [0, 1].contains(cropCorner)
-                              ? p.dy.clamp(0.0, startCrop.bottom - .1)
-                              : startCrop.top;
-                          final bottom = [2, 3].contains(cropCorner)
-                              ? p.dy.clamp(startCrop.top + .1, 1.0)
-                              : startCrop.bottom;
-                          doc.crop = Rect.fromLTRB(left, top, right, bottom);
+                        final corners = [
+                          doc.crop.topLeft,
+                          doc.crop.topRight,
+                          doc.crop.bottomRight,
+                          doc.crop.bottomLeft,
+                        ];
+                        for (var i = 0; i < corners.length; i++) {
+                          if ((corners[i] - startPoint).distance < .08) {
+                            cropCorner = i;
+                          }
+                        }
+                        checkpoint();
+                      }
+                      if ([
+                        EditorTool.erase,
+                        EditorTool.restore,
+                      ].contains(tool)) {
+                        checkpoint();
+                        doc.strokes.add(
+                          InkStroke(
+                            [startPoint],
+                            brush,
+                            tool == EditorTool.restore,
+                          ),
+                        );
+                      }
+                      if (tool == EditorTool.text && doc.texts.isNotEmpty) {
+                        checkpoint();
+                        selectedText = doc.texts.indexWhere(
+                          (t) => (t.position - startPoint).distance < .25,
+                        );
+                        if (selectedText < 0) {
+                          selectedText = doc.texts.length - 1;
                         }
                       }
-                    });
-                  },
-                  child: ClipRect(
-                    child: CustomPaint(
-                      size: size,
-                      painter: ViewportPainter(
-                        preview,
-                        compare ? EditDocument() : doc,
-                        tool == EditorTool.crop,
-                        pan,
-                        zoom,
-                        selectedText,
-                        tool == EditorTool.text,
-                      ),
-                      child: preview == null
-                          ? Center(
-                              child: failure == null
-                                  ? const CircularProgressIndicator()
-                                  : Text(
-                                      failure!,
-                                      style: const TextStyle(
-                                        color: Colors.white,
+                    },
+                    onScaleUpdate: (details) {
+                      setState(() {
+                        if (details.pointerCount > 1 ||
+                            tool == EditorTool.move) {
+                          zoom = (baseZoom * details.scale).clamp(1, 6);
+                          pan = basePan + details.localFocalPoint - startFocal;
+                          return;
+                        }
+                        final p = point(details.localFocalPoint, size);
+                        if ([
+                              EditorTool.erase,
+                              EditorTool.restore,
+                            ].contains(tool) &&
+                            doc.strokes.isNotEmpty) {
+                          doc.strokes.last.points.add(
+                            Offset(p.dx.clamp(0, 1), p.dy.clamp(0, 1)),
+                          );
+                        }
+                        if (tool == EditorTool.text && selectedText >= 0) {
+                          doc.texts[selectedText].position = Offset(
+                            p.dx.clamp(0, 1),
+                            p.dy.clamp(0, 1),
+                          );
+                        }
+                        if (tool == EditorTool.crop) {
+                          if (cropCorner < 0) {
+                            final delta = p - startPoint;
+                            final left = (startCrop.left + delta.dx).clamp(
+                                  0.0,
+                                  1 - startCrop.width,
+                                ),
+                                top = (startCrop.top + delta.dy).clamp(
+                                  0.0,
+                                  1 - startCrop.height,
+                                );
+                            doc.crop = Rect.fromLTWH(
+                              left,
+                              top,
+                              startCrop.width,
+                              startCrop.height,
+                            );
+                          } else {
+                            final left = [0, 3].contains(cropCorner)
+                                ? p.dx.clamp(0.0, startCrop.right - .1)
+                                : startCrop.left;
+                            final right = [1, 2].contains(cropCorner)
+                                ? p.dx.clamp(startCrop.left + .1, 1.0)
+                                : startCrop.right;
+                            final top = [0, 1].contains(cropCorner)
+                                ? p.dy.clamp(0.0, startCrop.bottom - .1)
+                                : startCrop.top;
+                            final bottom = [2, 3].contains(cropCorner)
+                                ? p.dy.clamp(startCrop.top + .1, 1.0)
+                                : startCrop.bottom;
+                            doc.crop = Rect.fromLTRB(left, top, right, bottom);
+                          }
+                        }
+                      });
+                    },
+                    child: ClipRect(
+                      child: CustomPaint(
+                        size: size,
+                        painter: ViewportPainter(
+                          compare && frames.isNotEmpty
+                              ? frames[frameIndex]
+                              : preview,
+                          compare ? EditDocument() : doc,
+                          tool == EditorTool.crop,
+                          pan,
+                          zoom,
+                          selectedText,
+                          tool == EditorTool.text,
+                        ),
+                        child: preview == null
+                            ? Center(
+                                child: failure == null
+                                    ? const CircularProgressIndicator()
+                                    : Text(
+                                        failure!,
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                        ),
                                       ),
-                                    ),
-                            )
-                          : null,
-                    ),
-                  ),
-                );
-              },
-            ),
-          );
-          final toolbar = SingleChildScrollView(
-            scrollDirection: wide ? Axis.vertical : Axis.horizontal,
-            child: Flex(
-              direction: wide ? Axis.vertical : Axis.horizontal,
-              mainAxisSize: MainAxisSize.min,
-              children: tools
-                  .map(
-                    (t) => Padding(
-                      padding: const EdgeInsets.all(3),
-                      child: IconButton.filledTonal(
-                        tooltip: label(t),
-                        isSelected: tool == t,
-                        style: tool == t
-                            ? IconButton.styleFrom(
-                                backgroundColor: Theme.of(context)
-                                    .colorScheme
-                                    .primaryContainer,
                               )
-                            : IconButton.styleFrom(
-                                backgroundColor: Colors.transparent,
-                              ),
-                        onPressed: exporting ? null : () => select(t),
-                        icon: Icon(icon(t)),
+                            : null,
                       ),
                     ),
-                  )
-                  .toList(),
-            ),
-          );
-          final controls = Container(
-            width: wide ? 300 : null,
-            constraints: BoxConstraints(
-              maxHeight: wide ? double.infinity : 210,
-            ),
-            padding: const EdgeInsets.all(12),
-            color: Theme.of(context).colorScheme.surface,
-            child: SingleChildScrollView(child: panel()),
-          );
-          return Column(
-            children: [
-              if (exporting)
-                LinearProgressIndicator(
-                  value: exportProgress == 0 ? null : exportProgress,
-                ),
-              if (failure != null)
-                MaterialBanner(
-                  content: Text(failure!),
-                  actions: [
-                    TextButton(
-                      onPressed: () => setState(() => failure = null),
-                      child: const Text('Dismiss'),
-                    ),
-                  ],
-                ),
-              Expanded(
-                child: wide
-                    ? Row(children: [toolbar, canvas, controls])
-                    : Column(
-                        children: [
-                          canvas,
-                          controls,
-                          Material(child: toolbar),
-                        ],
-                      ),
+                  );
+                },
               ),
-            ],
-          );
-        },
+            );
+            final toolbar = SingleChildScrollView(
+              scrollDirection: wide ? Axis.vertical : Axis.horizontal,
+              child: Flex(
+                direction: wide ? Axis.vertical : Axis.horizontal,
+                mainAxisSize: MainAxisSize.min,
+                children: tools
+                    .map(
+                      (t) => Padding(
+                        padding: const EdgeInsets.all(3),
+                        child: IconButton.filledTonal(
+                          tooltip: label(t),
+                          isSelected: tool == t,
+                          style: tool == t
+                              ? IconButton.styleFrom(
+                                  backgroundColor: Theme.of(context)
+                                      .colorScheme
+                                      .primaryContainer,
+                                )
+                              : IconButton.styleFrom(
+                                  backgroundColor: Colors.transparent,
+                                ),
+                          onPressed: exporting ? null : () => select(t),
+                          icon: Icon(icon(t)),
+                        ),
+                      ),
+                    )
+                    .toList(),
+              ),
+            );
+            final controls = Container(
+              width: wide ? 300 : null,
+              constraints: BoxConstraints(
+                maxHeight: wide ? double.infinity : 210,
+              ),
+              padding: const EdgeInsets.all(12),
+              color: Theme.of(context).colorScheme.surface,
+              child: SingleChildScrollView(child: panel()),
+            );
+            return Column(
+              children: [
+                if (exporting)
+                  LinearProgressIndicator(
+                    value: exportProgress == 0 ? null : exportProgress,
+                  ),
+                if (failure != null)
+                  MaterialBanner(
+                    content: Text(failure!),
+                    actions: [
+                      TextButton(
+                        onPressed: () => setState(() => failure = null),
+                        child: const Text('Dismiss'),
+                      ),
+                    ],
+                  ),
+                Expanded(
+                  child: wide
+                      ? Row(children: [toolbar, canvas, controls])
+                      : Column(
+                          children: [
+                            canvas,
+                            controls,
+                            Material(child: toolbar),
+                          ],
+                        ),
+                ),
+              ],
+            );
+          },
+        ),
       ),
     ),
   );
@@ -638,7 +787,10 @@ class _ImageEditorState extends State<ImageEditor> {
           min: min,
           max: max,
           onChangeStart: (_) => checkpoint(),
-          onChanged: (v) => setState(() => action(v)),
+          onChanged: (v) {
+            setState(() => action(v));
+            updatePreview();
+          },
         ),
       ),
       SizedBox(width: 36, child: Text(value.toStringAsFixed(1))),
@@ -649,8 +801,57 @@ class _ImageEditorState extends State<ImageEditor> {
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
       Text(label(tool), style: Theme.of(context).textTheme.titleSmall),
-      if (tool == EditorTool.move)
+      if (tool == EditorTool.move) ...[
+        Wrap(
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            PopupMenuButton<String>(
+              tooltip: 'Image presets',
+              onSelected: (name) => change(() {
+                doc.preset(name);
+                if (doc.texts.isNotEmpty) selectedText = doc.texts.length - 1;
+              }),
+              itemBuilder: (_) => ['Meme cutout', 'Soft shadow', 'Bold outline']
+                  .map((name) => PopupMenuItem(value: name, child: Text(name)))
+                  .toList(),
+              child: const Padding(
+                padding: EdgeInsets.all(8),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.auto_awesome_outlined),
+                    SizedBox(width: 6),
+                    Text('Presets'),
+                  ],
+                ),
+              ),
+            ),
+            TextButton(
+              onPressed: () => change(() {
+                doc = EditDocument();
+                selectedText = -1;
+                background = 'none';
+                fps = 15;
+                quality = 82;
+                optimize = false;
+                compressAnimation = true;
+                trim = RangeValues(0, math.min(10, duration));
+                seek(0);
+              }),
+              child: const Text('Reset all'),
+            ),
+          ],
+        ),
         const Text('Pinch to zoom, drag to pan. Double-tap to reset the view.'),
+      ],
+      if (widget.allowBatch)
+        CheckboxListTile(
+          dense: true,
+          contentPadding: EdgeInsets.zero,
+          title: const Text('Apply these edits to all selected images'),
+          value: applyAll,
+          onChanged: (v) => setState(() => applyAll = v!),
+        ),
       if (tool == EditorTool.crop) ...[
         const Text(
           'Drag a corner to crop, or drag inside the frame to move it.',
@@ -680,6 +881,23 @@ class _ImageEditorState extends State<ImageEditor> {
               child: const Text('Reset crop'),
             ),
           ],
+        ),
+      ],
+      if (tool == EditorTool.crop) ...[
+        slider('Image zoom', doc.imageScale, .25, 3, (v) => doc.imageScale = v),
+        slider(
+          'Offset X',
+          doc.imageOffset.dx * 100,
+          -100,
+          100,
+          (v) => doc.imageOffset = Offset(v / 100, doc.imageOffset.dy),
+        ),
+        slider(
+          'Offset Y',
+          doc.imageOffset.dy * 100,
+          -100,
+          100,
+          (v) => doc.imageOffset = Offset(doc.imageOffset.dx, v / 100),
         ),
       ],
       if (tool == EditorTool.text) ...[
@@ -717,6 +935,77 @@ class _ImageEditorState extends State<ImageEditor> {
             (v) => doc.texts[selectedText].size = v / 512,
           ),
       ],
+      if (tool == EditorTool.text &&
+          selectedText >= 0 &&
+          selectedText < doc.texts.length) ...[
+        Wrap(
+          children: [
+            TextButton.icon(
+              onPressed: () => color(false),
+              icon: Icon(Icons.circle, color: doc.texts[selectedText].color),
+              label: const Text('Fill'),
+            ),
+            TextButton.icon(
+              onPressed: () => color(true),
+              icon: Icon(
+                Icons.circle_outlined,
+                color: doc.texts[selectedText].strokeColor,
+              ),
+              label: const Text('Outline'),
+            ),
+          ],
+        ),
+        slider(
+          'Text angle',
+          doc.texts[selectedText].rotation,
+          -180,
+          180,
+          (v) => doc.texts[selectedText].rotation = v,
+        ),
+        slider(
+          'Stroke',
+          doc.texts[selectedText].strokeWidth,
+          0,
+          12,
+          (v) => doc.texts[selectedText].strokeWidth = v,
+        ),
+      ],
+      if (tool == EditorTool.effects) ...[
+        CheckboxListTile(
+          dense: true,
+          title: const Text('Auto-fit subject'),
+          value: doc.autoFit,
+          onChanged: (v) => change(() => doc.autoFit = v!),
+        ),
+        if (doc.autoFit)
+          slider(
+            'Padding',
+            doc.padding * 100,
+            0,
+            30,
+            (v) => doc.padding = v / 100,
+          ),
+        CheckboxListTile(
+          dense: true,
+          title: const Text('White outline'),
+          value: doc.outline,
+          onChanged: (v) => change(() => doc.outline = v!),
+        ),
+        if (doc.outline)
+          slider(
+            'Outline',
+            doc.outlineWidth,
+            1,
+            16,
+            (v) => doc.outlineWidth = v,
+          ),
+        CheckboxListTile(
+          dense: true,
+          title: const Text('Soft shadow'),
+          value: doc.shadow,
+          onChanged: (v) => change(() => doc.shadow = v!),
+        ),
+      ],
       if ([EditorTool.erase, EditorTool.restore].contains(tool)) ...[
         const Text('Paint directly on the image. Use two fingers to zoom.'),
         slider('Brush', brush * 512, 4, 96, (v) => brush = v / 512),
@@ -731,6 +1020,9 @@ class _ImageEditorState extends State<ImageEditor> {
         ),
         slider('Contrast', doc.contrast, .2, 2, (v) => doc.contrast = v),
         slider('Saturation', doc.saturation, 0, 2, (v) => doc.saturation = v),
+        slider('Warmth', doc.warmth, -1, 1, (v) => doc.warmth = v),
+        slider('Tint', doc.tint, -1, 1, (v) => doc.tint = v),
+        slider('Sharpen', doc.sharpen, 0, 1, (v) => doc.sharpen = v),
         CheckboxListTile(
           dense: true,
           title: const Text('Grayscale'),
@@ -743,11 +1035,24 @@ class _ImageEditorState extends State<ImageEditor> {
             doc.contrast = 1;
             doc.saturation = 1;
             doc.grayscale = false;
+            doc.warmth = 0;
+            doc.tint = 0;
+            doc.sharpen = 0;
           }),
           child: const Text('Reset color'),
         ),
       ],
       if (tool == EditorTool.background) ...[
+        CheckboxListTile(
+          dense: true,
+          title: const Text('Remove light background locally'),
+          value: doc.removeLightBackground,
+          onChanged: (v) => change(() => doc.removeLightBackground = v!),
+        ),
+        if (widget.animated)
+          const Text(
+            'Local cleanup applies to every frame; server AI cleanup is for static stickers.',
+          ),
         SegmentedButton<String>(
           segments: const [
             ButtonSegment(value: 'none', label: Text('None')),
@@ -755,24 +1060,49 @@ class _ImageEditorState extends State<ImageEditor> {
             ButtonSegment(value: 'ai', label: Text('AI')),
           ],
           selected: {background},
-          onSelectionChanged: (v) => setState(() => background = v.first),
+          onSelectionChanged: widget.animated
+              ? null
+              : (v) => setState(() => background = v.first),
         ),
         const Text(
           'Background removal is processed by your server when you save.',
         ),
-        if (background != 'none') ...[
+        if (background != 'none' || doc.removeLightBackground) ...[
           slider('Threshold', threshold, 180, 255, (v) => threshold = v),
           slider('Feather', feather, 0, 48, (v) => feather = v),
           CheckboxListTile(
             dense: true,
             title: const Text('Clean speckles'),
             value: cleanup,
-            onChanged: (v) => setState(() => cleanup = v!),
+            onChanged: (v) => change(() => cleanup = v!),
           ),
           slider('Speckles', speckle, 4, 180, (v) => speckle = v),
         ],
       ],
       if (tool == EditorTool.animation) ...[
+        Row(
+          children: [
+            IconButton(
+              tooltip: playing ? 'Pause animation' : 'Play animation',
+              onPressed: frames.length > 1 ? play : null,
+              icon: Icon(playing ? Icons.pause : Icons.play_arrow),
+            ),
+            Expanded(
+              child: Slider(
+                semanticFormatterCallback: (v) =>
+                    '${v.toStringAsFixed(2)} seconds',
+                value: timeline.value * duration,
+                min: 0,
+                max: duration,
+                onChanged: seek,
+              ),
+            ),
+            Text('${(timeline.value * duration).toStringAsFixed(2)}s'),
+          ],
+        ),
+        Text(
+          '${frames.length} frames ? ${duration.toStringAsFixed(2)} seconds',
+        ),
         Text(
           'Trim ${trim.start.toStringAsFixed(1)}–${trim.end.toStringAsFixed(1)} seconds',
         ),
@@ -783,11 +1113,28 @@ class _ImageEditorState extends State<ImageEditor> {
           onChanged: (v) {
             if (v.end - v.start >= .1 && v.end - v.start <= 10) {
               setState(() => trim = v);
+              seek(v.start);
             }
           },
         ),
         slider('FPS', fps, 1, 30, (v) => fps = v),
-        slider('Quality', quality, 35, 95, (v) => quality = v),
+        CheckboxListTile(
+          dense: true,
+          title: const Text('Compress animation'),
+          value: compressAnimation,
+          onChanged: (v) => setState(() => compressAnimation = v!),
+        ),
+        if (compressAnimation)
+          slider('Quality', quality, 35, 95, (v) => quality = v),
+      ],
+      if (!widget.tray && !widget.animated && tool == EditorTool.effects) ...[
+        CheckboxListTile(
+          dense: true,
+          title: const Text('Optimize output size'),
+          value: optimize,
+          onChanged: (v) => setState(() => optimize = v!),
+        ),
+        if (optimize) slider('Quality', quality, 35, 95, (v) => quality = v),
       ],
       if (!widget.tray && tool == EditorTool.move) ...[
         TextField(
@@ -806,241 +1153,4 @@ class _ImageEditorState extends State<ImageEditor> {
       ],
     ],
   );
-}
-
-class MediaPainter extends CustomPainter {
-  final ui.Image source;
-  final EditDocument doc;
-  final bool cropOverlay;
-  final int? selected;
-  MediaPainter(this.source, this.doc, this.cropOverlay, this.selected);
-  @override
-  void paint(Canvas canvas, Size size) {
-    final rect = Offset.zero & size;
-    canvas.save();
-    canvas.clipRect(rect);
-    canvas.saveLayer(rect, Paint());
-    final s = doc.grayscale ? 0.0 : doc.saturation,
-        c = doc.contrast,
-        b = (doc.brightness + (1 - c) / 2) * 255;
-    final r = .2126 * (1 - s), g = .7152 * (1 - s), bl = .0722 * (1 - s);
-    final paint = Paint()
-      ..filterQuality = FilterQuality.high
-      ..colorFilter = ColorFilter.matrix([
-        (r + s) * c,
-        g * c,
-        bl * c,
-        0,
-        b,
-        r * c,
-        (g + s) * c,
-        bl * c,
-        0,
-        b,
-        r * c,
-        g * c,
-        (bl + s) * c,
-        0,
-        b,
-        0,
-        0,
-        0,
-        1,
-        0,
-      ]);
-    final fit = applyBoxFit(
-      BoxFit.contain,
-      Size(source.width.toDouble(), source.height.toDouble()),
-      size,
-    );
-    final target = Alignment.center.inscribe(fit.destination, rect);
-    void original() {
-      canvas.save();
-      canvas.translate(size.width / 2, size.height / 2);
-      canvas.rotate(doc.rotation * math.pi / 2);
-      canvas.translate(-size.width / 2, -size.height / 2);
-      canvas.drawImageRect(
-        source,
-        Rect.fromLTWH(0, 0, source.width.toDouble(), source.height.toDouble()),
-        target,
-        paint,
-      );
-      canvas.restore();
-    }
-
-    original();
-    for (final stroke in doc.strokes) {
-      if (stroke.points.isEmpty) continue;
-      final path = Path()
-        ..moveTo(
-          stroke.points.first.dx * size.width,
-          stroke.points.first.dy * size.height,
-        );
-      for (final p in stroke.points.skip(1)) {
-        path.lineTo(p.dx * size.width, p.dy * size.height);
-      }
-      if (stroke.points.length == 1) {
-        path.lineTo(
-          stroke.points.first.dx * size.width + .01,
-          stroke.points.first.dy * size.height,
-        );
-      }
-      final width = stroke.width * size.width;
-      if (stroke.restore) {
-        final mask = Path();
-        for (final p in stroke.points) {
-          mask.addOval(
-            Rect.fromCircle(
-              center: Offset(p.dx * size.width, p.dy * size.height),
-              radius: width / 2,
-            ),
-          );
-        }
-        canvas.save();
-        canvas.clipPath(mask);
-        original();
-        canvas.restore();
-      } else {
-        canvas.drawPath(
-          path,
-          Paint()
-            ..blendMode = BlendMode.clear
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = width
-            ..strokeCap = StrokeCap.round
-            ..strokeJoin = StrokeJoin.round,
-        );
-      }
-    }
-    canvas.restore();
-    for (var i = 0; i < doc.texts.length; i++) {
-      final text = doc.texts[i],
-          position = Offset(
-            text.position.dx * size.width,
-            text.position.dy * size.height,
-          );
-      final stroke = Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = size.width * text.size * .09
-        ..color = Colors.black;
-      final style = TextStyle(
-        fontSize: text.size * size.width,
-        fontWeight: FontWeight.w800,
-        height: 1,
-      );
-      final outline = TextPainter(
-        text: TextSpan(
-          text: text.text,
-          style: style.copyWith(foreground: stroke),
-        ),
-        textDirection: TextDirection.ltr,
-      )..layout(maxWidth: size.width);
-      final fill = TextPainter(
-        text: TextSpan(
-          text: text.text,
-          style: style.copyWith(color: Colors.white),
-        ),
-        textDirection: TextDirection.ltr,
-      )..layout(maxWidth: size.width);
-      final origin = position - Offset(fill.width / 2, fill.height / 2);
-      outline.paint(canvas, origin);
-      fill.paint(canvas, origin);
-      if (selected == i) {
-        canvas.drawRect(
-          origin & fill.size,
-          Paint()
-            ..style = PaintingStyle.stroke
-            ..color = Colors.tealAccent
-            ..strokeWidth = 1,
-        );
-      }
-    }
-    if (cropOverlay) {
-      final crop = Rect.fromLTRB(
-        doc.crop.left * size.width,
-        doc.crop.top * size.height,
-        doc.crop.right * size.width,
-        doc.crop.bottom * size.height,
-      );
-      canvas.drawPath(
-        Path.combine(
-          PathOperation.difference,
-          Path()..addRect(rect),
-          Path()..addRect(crop),
-        ),
-        Paint()..color = Colors.black54,
-      );
-      canvas.drawRect(
-        crop,
-        Paint()
-          ..color = Colors.white
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 2,
-      );
-      for (final p in [
-        crop.topLeft,
-        crop.topRight,
-        crop.bottomLeft,
-        crop.bottomRight,
-      ]) {
-        canvas.drawCircle(p, 6, Paint()..color = Colors.tealAccent);
-      }
-    }
-    canvas.restore();
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
-}
-
-class ViewportPainter extends CustomPainter {
-  final ui.Image? source;
-  final EditDocument doc;
-  final bool crop, text;
-  final Offset pan;
-  final double zoom;
-  final int selected;
-  ViewportPainter(
-    this.source,
-    this.doc,
-    this.crop,
-    this.pan,
-    this.zoom,
-    this.selected,
-    this.text,
-  );
-  @override
-  void paint(Canvas canvas, Size size) {
-    if (source == null) return;
-    final side = math.min(size.width, size.height) * .90;
-    canvas.save();
-    canvas.translate(
-      (size.width - side) / 2 + pan.dx,
-      (size.height - side) / 2 + pan.dy,
-    );
-    canvas.translate(side / 2, side / 2);
-    canvas.scale(zoom);
-    canvas.translate(-side / 2, -side / 2);
-    for (double y = 0; y < side; y += 16) {
-      for (double x = 0; x < side; x += 16) {
-        canvas.drawRect(
-          Rect.fromLTWH(x, y, 16, 16),
-          Paint()
-            ..color = ((x / 16).floor() + (y / 16).floor()).isEven
-                ? const Color(0xffdce4e3)
-                : const Color(0xfff4f7f6),
-        );
-      }
-    }
-    MediaPainter(
-      source!,
-      doc,
-      crop,
-      text ? selected : null,
-    ).paint(canvas, Size.square(side));
-    canvas.restore();
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
 }

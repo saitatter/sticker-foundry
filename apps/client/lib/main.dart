@@ -5,7 +5,7 @@ import 'core/store.dart';
 import 'ui/app.dart';
 
 void main() {
-  WidgetsFlutterBinding.ensureInitialized();
   usePathUrlStrategy();
+  WidgetsFlutterBinding.ensureInitialized();
   runApp(FoundryApp(store: FoundryStore()));
 }

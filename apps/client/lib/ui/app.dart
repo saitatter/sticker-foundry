@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
@@ -7,6 +9,120 @@ import 'common.dart';
 import 'pack.dart';
 import 'settings.dart';
 
+GoRouter createFoundryRouter(FoundryStore store, {String? initialLocation}) {
+  return GoRouter(
+    initialLocation: initialLocation,
+    refreshListenable: store,
+    redirect: (_, state) {
+      if (!store.initialized) return null;
+      final path = state.uri.path;
+      if (path == '/') return store.user == null ? '/login' : '/app/packs';
+      final protected =
+          path.startsWith('/app') ||
+          path.startsWith('/packs') ||
+          path == '/settings';
+      if (protected && store.user == null) {
+        return Uri(
+          path: '/login',
+          queryParameters: {'next': state.uri.toString()},
+        ).toString();
+      }
+      if (path == '/login' && store.user != null) {
+        final next = Uri.tryParse(state.uri.queryParameters['next'] ?? '');
+        return next != null &&
+                !next.hasScheme &&
+                next.host.isEmpty &&
+                (next.path.startsWith('/app/') ||
+                    next.path.startsWith('/packs/') ||
+                    next.path.startsWith('/share/'))
+            ? next.toString()
+            : '/app/packs';
+      }
+      return null;
+    },
+    routes: [
+      GoRoute(
+        path: '/',
+        builder: (_, _) => Home(store: store),
+      ),
+      GoRoute(
+        path: '/login',
+        builder: (_, _) => Home(store: store),
+      ),
+      GoRoute(path: '/app', redirect: (_, _) => '/app/packs'),
+      GoRoute(
+        path: '/app/packs',
+        builder: (_, state) =>
+            Home(store: store, parameters: state.uri.queryParameters),
+        routes: [
+          GoRoute(
+            path: ':id',
+            redirect: (_, state) =>
+                '/app/packs/${state.pathParameters['id']}/stickers',
+          ),
+          GoRoute(
+            path: ':id/:tab',
+            builder: (_, state) => PackScreen(
+              store: store,
+              id: state.pathParameters['id']!,
+              section: state.pathParameters['tab']!,
+            ),
+          ),
+        ],
+      ),
+      GoRoute(
+        path: '/discover',
+        builder: (_, state) => Home(
+          store: store,
+          initialTab: 1,
+          parameters: state.uri.queryParameters,
+        ),
+      ),
+      GoRoute(path: '/settings', redirect: (_, _) => '/app/settings/account'),
+      GoRoute(
+        path: '/app/settings',
+        redirect: (_, _) => '/app/settings/account',
+      ),
+      GoRoute(
+        path: '/app/settings/:section',
+        builder: (_, state) => Home(
+          store: store,
+          initialTab: 2,
+          settingsSection: state.pathParameters['section']!,
+        ),
+      ),
+      GoRoute(
+        path: '/app/teams/:id',
+        builder: (_, state) => Home(
+          store: store,
+          initialTab: 2,
+          teamId: state.pathParameters['id'],
+        ),
+      ),
+      GoRoute(
+        path: '/packs/:id',
+        redirect: (_, state) =>
+            '/app/packs/${state.pathParameters['id']}/stickers',
+      ),
+      GoRoute(
+        path: '/share/:id',
+        builder: (_, state) => PackScreen(
+          store: store,
+          id: state.pathParameters['id']!,
+          public: true,
+        ),
+      ),
+      GoRoute(
+        path: '/reset-password',
+        builder: (_, state) => ResetScreen(
+          store: store,
+          token: state.uri.queryParameters['token'] ?? '',
+        ),
+      ),
+    ],
+  );
+}
+
 class FoundryApp extends StatefulWidget {
   final FoundryStore store;
   const FoundryApp({super.key, required this.store});
@@ -15,40 +131,13 @@ class FoundryApp extends StatefulWidget {
 }
 
 class _FoundryAppState extends State<FoundryApp> {
-  late final router = GoRouter(
-    routes: [
-      GoRoute(
-        path: '/',
-        builder: (_, _) => Home(store: widget.store),
-      ),
-      GoRoute(path: '/app', redirect: (_, _) => '/'),
-      GoRoute(
-        path: '/packs/:id',
-        builder: (_, s) =>
-            PackScreen(store: widget.store, id: s.pathParameters['id']!),
-      ),
-      GoRoute(
-        path: '/app/packs/:id/:tab',
-        builder: (_, s) =>
-            PackScreen(store: widget.store, id: s.pathParameters['id']!),
-      ),
-      GoRoute(
-        path: '/share/:id',
-        builder: (_, s) => PackScreen(
-          store: widget.store,
-          id: s.pathParameters['id']!,
-          public: true,
-        ),
-      ),
-      GoRoute(
-        path: '/reset-password',
-        builder: (_, s) => ResetScreen(
-          store: widget.store,
-          token: s.uri.queryParameters['token'] ?? '',
-        ),
-      ),
-    ],
-  );
+  late final router = createFoundryRouter(widget.store);
+  @override
+  void dispose() {
+    router.dispose();
+    super.dispose();
+  }
+
   @override
   void initState() {
     super.initState();
@@ -101,21 +190,128 @@ class _FoundryAppState extends State<FoundryApp> {
 
 class Home extends StatefulWidget {
   final FoundryStore store;
-  const Home({super.key, required this.store});
+  final int initialTab;
+  final Map<String, String> parameters;
+  final String settingsSection;
+  final String? teamId;
+  const Home({
+    super.key,
+    required this.store,
+    this.initialTab = 0,
+    this.parameters = const {},
+    this.settingsSection = 'account',
+    this.teamId,
+  });
   @override
   State<Home> createState() => _HomeState();
 }
 
 class _HomeState extends State<Home> {
   FoundryStore get s => widget.store;
-  int tab = 0;
+  late int tab;
   String query = '', filter = 'All', sort = 'Recent';
+  final search = TextEditingController();
+  Timer? searchDebounce;
+  void readParameters() {
+    tab = widget.initialTab;
+    query = widget.parameters['q'] ?? '';
+    filter =
+        const {
+          'public': 'Public',
+          'private': 'Private',
+          'ready': 'Ready',
+          'needs-work': 'Needs work',
+          'static': 'Static',
+          'animated': 'Animated',
+        }[widget.parameters['visibility']] ??
+        'All';
+    sort =
+        const {
+          'name': 'Name',
+          'stickers': 'Sticker count',
+        }[widget.parameters['sort']] ??
+        'Recent';
+    if (search.text != query) search.text = query;
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    readParameters();
+    if (tab == 1) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) discover();
+      });
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant Home old) {
+    super.didUpdateWidget(old);
+    if (old.initialTab != widget.initialTab ||
+        old.parameters.length != widget.parameters.length ||
+        old.parameters.entries.any(
+          (entry) => widget.parameters[entry.key] != entry.value,
+        )) {
+      readParameters();
+    }
+  }
+
+  @override
+  void dispose() {
+    searchDebounce?.cancel();
+    search.dispose();
+    super.dispose();
+  }
+
+  void filters({
+    String? q,
+    String? visibility,
+    String? ordering,
+    bool replace = false,
+  }) {
+    final params = <String, String>{...widget.parameters};
+    if (q != null) params['q'] = q;
+    if (visibility != null) {
+      params['visibility'] =
+          const {
+            'Public': 'public',
+            'Private': 'private',
+            'Ready': 'ready',
+            'Needs work': 'needs-work',
+            'Static': 'static',
+            'Animated': 'animated',
+          }[visibility] ??
+          'all';
+    }
+    if (ordering != null) {
+      params['sort'] =
+          const {'Name': 'name', 'Sticker count': 'stickers'}[ordering] ??
+          'updated';
+    }
+    params.removeWhere((k, v) => v.isEmpty || v == 'all' || v == 'updated');
+    final url = Uri(
+      path: tab == 1 ? '/discover' : '/app/packs',
+      queryParameters: params.isEmpty ? null : params,
+    ).toString();
+    if (replace) {
+      context.replace(url);
+    } else {
+      context.go(url);
+    }
+  }
+
   Future<void> discover() => s.run(() async {
     s.publicPacks = objects(await s.api.request('public/packs', auth: false));
   });
   void select(int v) {
-    setState(() => tab = v);
-    if (v == 1) discover();
+    context.go(
+      v == 0
+          ? '/app/packs'
+          : v == 1
+          ? '/discover'
+          : '/app/settings/account',
+    );
   }
 
   Future<void> create() async {
@@ -143,7 +339,7 @@ class _HomeState extends State<Home> {
         await s.api.request('packs', method: 'POST', data: data),
       );
       await s.refresh();
-      if (mounted) context.push('/packs/${p['id']}');
+      if (mounted) context.go('/packs/${p['id']}');
     });
   }
 
@@ -167,7 +363,9 @@ class _HomeState extends State<Home> {
       NavigationDestination(icon: Icon(Icons.tune), label: 'Settings'),
     ];
     final content = tab == 2
-        ? SettingsScreen(store: s)
+        ? (widget.teamId != null
+              ? TeamScreen(store: s, id: widget.teamId!)
+              : SettingsScreen(store: s, section: widget.settingsSection))
         : Column(
             children: [
               Padding(
@@ -176,19 +374,37 @@ class _HomeState extends State<Home> {
                   children: [
                     Expanded(
                       child: TextField(
+                        controller: search,
                         decoration: const InputDecoration(
                           hintText: 'Search packs',
                           prefixIcon: Icon(Icons.search),
                         ),
-                        onChanged: (v) => setState(() => query = v),
+                        onChanged: (v) {
+                          setState(() => query = v);
+                          searchDebounce?.cancel();
+                          searchDebounce = Timer(
+                            const Duration(milliseconds: 220),
+                            () {
+                              if (mounted) filters(q: v, replace: true);
+                            },
+                          );
+                        },
                       ),
                     ),
                     PopupMenuButton<String>(
                       tooltip: 'Filter',
                       icon: const Icon(Icons.filter_list),
-                      onSelected: (v) => setState(() => filter = v),
+                      onSelected: (v) => filters(visibility: v),
                       itemBuilder: (_) =>
-                          ['All', 'Static', 'Animated', 'Public', 'Private']
+                          [
+                                'All',
+                                'Static',
+                                'Animated',
+                                'Public',
+                                'Private',
+                                'Ready',
+                                'Needs work',
+                              ]
                               .map(
                                 (v) => CheckedPopupMenuItem(
                                   value: v,
@@ -201,7 +417,7 @@ class _HomeState extends State<Home> {
                     PopupMenuButton<String>(
                       tooltip: 'Sort',
                       icon: const Icon(Icons.sort),
-                      onSelected: (v) => setState(() => sort = v),
+                      onSelected: (v) => filters(ordering: v),
                       itemBuilder: (_) => ['Recent', 'Name', 'Sticker count']
                           .map(
                             (v) => CheckedPopupMenuItem(
@@ -225,6 +441,14 @@ class _HomeState extends State<Home> {
                                   .toLowerCase()
                                   .contains(query.toLowerCase()) &&
                               (filter == 'All' ||
+                                  filter == 'Ready' &&
+                                      (p['canExport'] == true ||
+                                          p['canExport'] == null &&
+                                              (p['stickerCount'] ?? 0) >= 3) ||
+                                  filter == 'Needs work' &&
+                                      (p['canExport'] == false ||
+                                          p['canExport'] == null &&
+                                              (p['stickerCount'] ?? 0) < 3) ||
                                   filter == 'Animated' &&
                                       p['isAnimated'] == true ||
                                   filter == 'Static' &&
@@ -280,7 +504,7 @@ class _HomeState extends State<Home> {
                           final p = rows[i];
                           return Card(
                             child: InkWell(
-                              onTap: () => context.push(
+                              onTap: () => context.go(
                                 '/${tab == 1 ? 'share' : 'packs'}/${p['id']}',
                               ),
                               child: Padding(

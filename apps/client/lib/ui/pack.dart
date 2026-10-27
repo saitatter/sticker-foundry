@@ -1,6 +1,7 @@
-import 'dart:typed_data';
+import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:go_router/go_router.dart';
 import 'package:share_plus/share_plus.dart';
@@ -9,17 +10,23 @@ import '../core/api.dart';
 import '../core/store.dart';
 import '../core/native_bridge.dart';
 import '../editor/image_editor.dart';
+import '../editor/editor_renderer.dart';
 import 'common.dart';
+import 'sticker_grid.dart';
+import 'pack_settings.dart';
+import 'activity_panel.dart';
 
 class PackScreen extends StatefulWidget {
   final FoundryStore store;
   final String id;
   final bool public;
+  final String section;
   const PackScreen({
     super.key,
     required this.store,
     required this.id,
     this.public = false,
+    this.section = 'stickers',
   });
   @override
   State<PackScreen> createState() => _PackScreenState();
@@ -29,14 +36,34 @@ class _PackScreenState extends State<PackScreen> {
   FoundryStore get s => widget.store;
   String get base => 'packs/${widget.id}';
   Json? pack;
+  Future<dynamic>? latestActivity;
   String? failure;
   int tab = 0;
   final selected = <String>{};
+  String? selectionAnchor;
+  final keyboardFocus = FocusNode(debugLabel: 'Pack shortcuts');
+  @override
+  void dispose() {
+    keyboardFocus.dispose();
+    super.dispose();
+  }
+
+  void readSection() {
+    tab = switch (widget.section) {
+      'collaboration' => 1,
+      'activity' => 2,
+      'settings' => 3,
+      'overview' => 4,
+      _ => 0,
+    };
+  }
+
   bool get edit => !widget.public && pack?['canEdit'] == true && !s.offline;
   bool get manage => !widget.public && pack?['canManage'] == true && !s.offline;
   @override
   void initState() {
     super.initState();
+    readSection();
     load();
   }
 
@@ -48,6 +75,7 @@ class _PackScreenState extends State<PackScreen> {
       if (mounted) {
         setState(() {
           pack = value;
+          latestActivity = null;
           failure = null;
         });
       }
@@ -59,11 +87,13 @@ class _PackScreenState extends State<PackScreen> {
   @override
   void didUpdateWidget(covariant PackScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.id != widget.id || oldWidget.public != widget.public) {
+    if (oldWidget.id != widget.id ||
+        oldWidget.public != widget.public ||
+        oldWidget.section != widget.section) {
       pack = null;
       failure = null;
       selected.clear();
-      tab = 0;
+      readSection();
       load();
     }
   }
@@ -72,31 +102,53 @@ class _PackScreenState extends State<PackScreen> {
       s.run(() async {
         await s.api.request(path, method: method, data: data);
         await load();
-        await s.refresh();
+        await s.afterPackMutation(widget.id);
       });
   Future<void> upload({String? replace, bool tray = false}) async {
     final files = await FilePicker.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['png', 'jpg', 'jpeg', 'webp', 'gif', 'avif'],
     );
-    for (final file in files) {
+    EditorRecipe? sharedRecipe;
+    for (final file in (replace != null || tray ? files.take(1) : files)) {
       if (!mounted) return;
+      if (!tray && replace == null && objects(pack!['stickers']).length >= 30) {
+        s.error = 'A pack can contain at most 30 stickers.';
+        s.changed();
+        return;
+      }
       final bytes = await file.readAsBytes();
       if (!mounted) return;
-      final media = await editMedia(
-        context,
-        bytes,
-        file.name,
-        animated: pack?['isAnimated'] == true && !tray,
-        tray: tray,
-      );
+      final isAnimated = pack?['isAnimated'] == true && !tray;
+      EditedMedia? media;
+      if (sharedRecipe != null) {
+        await s.run(() async {
+          media = await renderEditedMedia(
+            bytes,
+            file.name,
+            sharedRecipe!,
+            animated: isAnimated,
+          );
+        });
+        if (s.error != null) break;
+      } else {
+        media = await editMedia(
+          context,
+          bytes,
+          file.name,
+          animated: isAnimated,
+          tray: tray,
+          allowBatch: files.length > 1 && replace == null && !tray,
+        );
+        if (media?.applyToAll == true) sharedRecipe = media!.recipe;
+      }
       if (media == null) continue;
       await s.run(() async {
         await s.upload(
           widget.id,
-          media.bytes,
-          media.name,
-          media.options,
+          media!.bytes,
+          media!.name,
+          media!.options,
           replace: replace,
           tray: tray,
         );
@@ -129,16 +181,241 @@ class _PackScreenState extends State<PackScreen> {
     });
   }
 
-  Future<void> settings() async {
-    final d = await formDialog(
-      context,
-      'Pack settings',
-      {'name': 'Name', 'publisher': 'Publisher', 'description': 'Description'},
-      values: pack!,
-      optional: {'description'},
-      flags: ['isPublic', 'requiresApproval', 'isAnimated'],
+  void settings() => context.go('/app/packs/${widget.id}/settings');
+  void selectSticker(String id, bool range) {
+    final ids = objects(pack!['stickers'])
+        .map((s) => s['id'] as String)
+        .toList();
+    setState(() {
+      if (range && selectionAnchor != null && ids.contains(selectionAnchor)) {
+        final a = ids.indexOf(selectionAnchor!), b = ids.indexOf(id);
+        selected.addAll(ids.sublist(a < b ? a : b, (a > b ? a : b) + 1));
+      } else {
+        if (!selected.add(id)) selected.remove(id);
+        selectionAnchor = id;
+      }
+    });
+  }
+
+  Future<void> bulkUpdate(
+    Json Function(Json) data, {
+    String success = 'Selected stickers updated',
+  }) async {
+    final ids = Set<String>.from(selected);
+    await s.run(() async {
+      for (final sticker in objects(
+        pack!['stickers'],
+      ).where((sticker) => ids.contains(sticker['id']))) {
+        await s.api.request(
+          '$base/stickers/${sticker['id']}',
+          method: 'PATCH',
+          data: data(sticker),
+        );
+      }
+      await load();
+      await s.afterPackMutation(widget.id);
+    }, success: success);
+    if (mounted && !isTextEditingFocused()) keyboardFocus.requestFocus();
+  }
+
+  Future<void> bulkAction(String value) async {
+    if (value == 'select-all') {
+      setState(
+        () => selected.addAll(
+          objects(pack!['stickers']).map((v) => v['id'] as String),
+        ),
+      );
+      return;
+    }
+    if (value == 'emoji') {
+      final data = await formDialog(
+        context,
+        'Apply emoji to selected stickers',
+        {'emojis': 'Emoji (comma separated)'},
+      );
+      if (data != null) {
+        final emojis = (data['emojis'] as String)
+            .split(',')
+            .map((s) => s.trim())
+            .where((s) => s.isNotEmpty)
+            .take(3)
+            .toList();
+        await bulkUpdate((_) => {'emojis': emojis});
+      }
+    } else if (value == 'alt') {
+      final stickers = objects(pack!['stickers']);
+      await bulkUpdate(
+        (sticker) => {
+          'accessibilityText': String.fromCharCodes(
+            '${pack!['name']} sticker ${stickers.indexWhere((s) => s['id'] == sticker['id']) + 1} ${(sticker['emojis'] as List? ?? []).join(' ')}'
+                .runes
+                .take(125),
+          ),
+        },
+      );
+    } else {
+      await bulkUpdate((_) => {'reviewStatus': value});
+    }
+  }
+
+  Future<void> dropSticker(String from, String to) async {
+    if (!edit || s.busy) return;
+    final ids = objects(pack!['stickers'])
+        .map((v) => v['id'] as String)
+        .toList();
+    final fromIndex = ids.indexOf(from), toIndex = ids.indexOf(to);
+    if (fromIndex < 0 || toIndex < 0 || fromIndex == toIndex) return;
+    ids.removeAt(fromIndex);
+    ids.insert(toIndex, from);
+    await mutate('$base/stickers', method: 'PATCH', data: {'stickerIds': ids});
+  }
+
+  Future<void> deleteSelected() async {
+    final ids = selected.toList();
+    if (ids.isEmpty ||
+        !await confirm(context, 'Delete ${ids.length} stickers?')) {
+      return;
+    }
+    await s.run(() async {
+      for (final id in ids) {
+        await s.api.request('$base/stickers/$id', method: 'DELETE');
+      }
+      selected.clear();
+      await load();
+      await s.afterPackMutation(widget.id);
+    });
+  }
+
+  KeyEventResult keyboard(FocusNode _, KeyEvent event) {
+    if (event is! KeyDownEvent && event is! KeyRepeatEvent ||
+        !edit ||
+        tab != 0 ||
+        isTextEditingFocused()) {
+      return KeyEventResult.ignored;
+    }
+    final key = event.logicalKey,
+        modifier =
+            HardwareKeyboard.instance.isControlPressed ||
+            HardwareKeyboard.instance.isMetaPressed;
+    if (key == LogicalKeyboardKey.escape) {
+      setState(() {
+        selected.clear();
+        selectionAnchor = null;
+      });
+      return KeyEventResult.handled;
+    }
+    if (s.busy) return KeyEventResult.ignored;
+    if (modifier && key == LogicalKeyboardKey.keyA) {
+      bulkAction('select-all');
+      return KeyEventResult.handled;
+    }
+    final ids = objects(pack!['stickers'])
+        .map((s) => s['id'] as String)
+        .toList();
+    if (ids.isEmpty) return KeyEventResult.ignored;
+    if (key == LogicalKeyboardKey.keyJ || key == LogicalKeyboardKey.keyK) {
+      final delta = key == LogicalKeyboardKey.keyJ ? 1 : -1;
+      final start = selectionAnchor == null
+          ? (delta > 0 ? -1 : ids.length)
+          : ids.indexOf(selectionAnchor!);
+      final index = (start + delta).clamp(0, ids.length - 1);
+      setState(() {
+        selected
+          ..clear()
+          ..add(ids[index]);
+        selectionAnchor = ids[index];
+      });
+      return KeyEventResult.handled;
+    }
+    if (event is KeyRepeatEvent) return KeyEventResult.ignored;
+    if (selected.isEmpty) return KeyEventResult.ignored;
+    final status = {
+      LogicalKeyboardKey.keyA: 'APPROVED',
+      LogicalKeyboardKey.keyP: 'PENDING',
+      LogicalKeyboardKey.keyN: 'NEEDS_WORK',
+    }[key];
+    if (status != null && !modifier) {
+      bulkAction(status);
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.delete) {
+      deleteSelected();
+      return KeyEventResult.handled;
+    }
+    if (HardwareKeyboard.instance.isShiftPressed &&
+        selected.length == 1 &&
+        [
+          LogicalKeyboardKey.arrowUp,
+          LogicalKeyboardKey.arrowDown,
+        ].contains(key)) {
+      reorder(selected.single, key == LogicalKeyboardKey.arrowUp ? -1 : 1);
+      return KeyEventResult.handled;
+    }
+    return KeyEventResult.ignored;
+  }
+
+  Future<void> stickerAction(String value, Json sticker) async {
+    final id = sticker['id'] as String;
+    switch (value) {
+      case 'select':
+        selectSticker(id, false);
+      case 'edit':
+        await editImage(sticker);
+      case 'replace':
+        await upload(replace: id);
+      case 'details':
+        await metadata(sticker);
+      case 'comments':
+        comments(sticker);
+      case 'up':
+        await reorder(id, -1);
+      case 'down':
+        await reorder(id, 1);
+      case 'delete':
+        if (await confirm(context, 'Delete this sticker?')) {
+          await mutate('$base/stickers/$id', method: 'DELETE');
+        }
+    }
+  }
+
+  void openSticker(Json sticker) {
+    if (edit) {
+      editImage(sticker);
+      return;
+    }
+    if (!widget.public) {
+      comments(sticker);
+      return;
+    }
+    showDialog(
+      context: context,
+      builder: (c) => Dialog(
+        child: Stack(
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(32),
+              child: InteractiveViewer(
+                child: StickerImage(
+                  store: s,
+                  pack: pack!,
+                  sticker: sticker,
+                  public: true,
+                ),
+              ),
+            ),
+            Positioned(
+              top: 0,
+              right: 0,
+              child: action(
+                Icons.close,
+                'Close preview',
+                () => Navigator.pop(c),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
-    if (d != null) await mutate(base, method: 'PATCH', data: d);
   }
 
   Future<void> export({bool share = false}) => s.run(() async {
@@ -181,7 +458,10 @@ class _PackScreenState extends State<PackScreen> {
         '$base/stickers/${move ? 'move' : 'copy'}',
         data: {'targetPackId': target, 'stickerIds': selected.toList()},
       );
-      setState(selected.clear);
+      if (s.error == null) {
+        await s.afterPackMutation(target);
+      }
+      if (mounted) setState(selected.clear);
     }
   }
 
@@ -220,6 +500,7 @@ class _PackScreenState extends State<PackScreen> {
       builder: (c) => SizedBox(
         height: MediaQuery.sizeOf(c).height * .8,
         child: CommentPanel(
+          manage: manage,
           store: s,
           path: '$base/stickers/${sticker['id']}/comments',
         ),
@@ -239,8 +520,15 @@ class _PackScreenState extends State<PackScreen> {
   }
 
   @override
-  Widget build(BuildContext context) =>
-      ListenableBuilder(listenable: s, builder: (_, _) => content(context));
+  Widget build(BuildContext context) => Focus(
+    focusNode: keyboardFocus,
+    autofocus: true,
+    onKeyEvent: keyboard,
+    child: ListenableBuilder(
+      listenable: s,
+      builder: (_, _) => content(context),
+    ),
+  );
   Widget content(BuildContext context) {
     if (pack == null) {
       return Scaffold(
@@ -276,9 +564,35 @@ class _PackScreenState extends State<PackScreen> {
             onSelected: (v) async {
               switch (v) {
                 case 'settings':
-                  await settings();
+                  settings();
                 case 'tray':
                   await upload(tray: true);
+                case 'manifest':
+                  await s.run(() async {
+                    final value = await s.api.request('$base/contents');
+                    if (context.mounted) {
+                      await showDialog(
+                        context: context,
+                        builder: (c) => AlertDialog(
+                          title: const Text('Export manifest'),
+                          content: SingleChildScrollView(
+                            child: SelectionArea(
+                              child: Text(
+                                const JsonEncoder.withIndent('  ')
+                                    .convert(value),
+                              ),
+                            ),
+                          ),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(c),
+                              child: const Text('Close'),
+                            ),
+                          ],
+                        ),
+                      );
+                    }
+                  });
                 case 'export':
                   await export();
                 case 'share':
@@ -311,7 +625,7 @@ class _PackScreenState extends State<PackScreen> {
                       ),
                     );
                     await s.refresh();
-                    if (context.mounted) context.push('/packs/${p['id']}');
+                    if (context.mounted) context.go('/packs/${p['id']}');
                   });
                 case 'delete':
                   if (await confirm(
@@ -327,7 +641,12 @@ class _PackScreenState extends State<PackScreen> {
               }
             },
             itemBuilder: (_) => [
-              if (edit)
+              if (!widget.public && pack!['canExport'] == true)
+                const PopupMenuItem(
+                  value: 'manifest',
+                  child: Text('Preview export manifest'),
+                ),
+              if (manage)
                 const PopupMenuItem(
                   value: 'settings',
                   child: Text('Pack settings'),
@@ -401,25 +720,63 @@ class _PackScreenState extends State<PackScreen> {
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: SegmentedButton<int>(
-                segments: const [
+                segments: [
                   ButtonSegment(
                     value: 0,
                     icon: Icon(Icons.grid_view),
-                    label: Text('Stickers'),
+                    label: MediaQuery.sizeOf(context).width >= 600
+                        ? const Text('Stickers')
+                        : null,
+                    tooltip: MediaQuery.sizeOf(context).width < 600
+                        ? 'Stickers'
+                        : null,
                   ),
                   ButtonSegment(
                     value: 1,
                     icon: Icon(Icons.group_outlined),
-                    label: Text('People'),
+                    label: MediaQuery.sizeOf(context).width >= 600
+                        ? const Text('People')
+                        : null,
+                    tooltip: MediaQuery.sizeOf(context).width < 600
+                        ? 'People'
+                        : null,
                   ),
                   ButtonSegment(
                     value: 2,
                     icon: Icon(Icons.history),
-                    label: Text('Activity'),
+                    label: MediaQuery.sizeOf(context).width >= 600
+                        ? const Text('Activity')
+                        : null,
+                    tooltip: MediaQuery.sizeOf(context).width < 600
+                        ? 'Activity'
+                        : null,
                   ),
+                  ButtonSegment(
+                    value: 4,
+                    icon: const Icon(Icons.dashboard_outlined),
+                    label: MediaQuery.sizeOf(context).width >= 600
+                        ? const Text('Overview')
+                        : null,
+                    tooltip: MediaQuery.sizeOf(context).width < 600
+                        ? 'Overview'
+                        : null,
+                  ),
+                  if (manage || tab == 3)
+                    ButtonSegment(
+                      value: 3,
+                      icon: Icon(Icons.settings_outlined),
+                      label: MediaQuery.sizeOf(context).width >= 600
+                          ? const Text('Settings')
+                          : null,
+                      tooltip: MediaQuery.sizeOf(context).width < 600
+                          ? 'Settings'
+                          : null,
+                    ),
                 ],
                 selected: {tab},
-                onSelectionChanged: (v) => setState(() => tab = v.first),
+                onSelectionChanged: (v) => context.go(
+                  '/app/packs/${widget.id}/${['stickers', 'collaboration', 'activity', 'settings', 'overview'][v.first]}',
+                ),
               ),
             ),
           if (selected.isNotEmpty)
@@ -438,28 +795,49 @@ class _PackScreenState extends State<PackScreen> {
                   'Move',
                   () => moveOrCopy(true),
                 ),
-                action(Icons.delete_outline, 'Delete selected', () async {
-                  if (await confirm(
-                    context,
-                    'Delete ${selected.length} stickers?',
-                  )) {
-                    await s.run(() async {
-                      for (final id in selected.toList()) {
-                        await s.api.request(
-                          '$base/stickers/$id',
-                          method: 'DELETE',
-                        );
-                      }
-                      selected.clear();
-                      await load();
-                      await s.refresh();
-                    });
-                  }
-                }),
+                PopupMenuButton<String>(
+                  tooltip: 'Bulk actions',
+                  onSelected: bulkAction,
+                  itemBuilder: (_) => [
+                    const PopupMenuItem(
+                      value: 'APPROVED',
+                      child: Text('Approve selected'),
+                    ),
+                    const PopupMenuItem(
+                      value: 'PENDING',
+                      child: Text('Mark pending'),
+                    ),
+                    const PopupMenuItem(
+                      value: 'NEEDS_WORK',
+                      child: Text('Mark needs work'),
+                    ),
+                    const PopupMenuItem(
+                      value: 'emoji',
+                      child: Text('Apply emoji'),
+                    ),
+                    const PopupMenuItem(
+                      value: 'alt',
+                      child: Text('Generate descriptions'),
+                    ),
+                    const PopupMenuItem(
+                      value: 'select-all',
+                      child: Text('Select all'),
+                    ),
+                  ],
+                ),
+                action(Icons.delete_outline, 'Delete selected', deleteSelected),
               ],
             ),
           Expanded(
-            child: tab == 1
+            child: tab == 4
+                ? overview()
+                : tab == 3
+                ? (manage
+                      ? PackSettingsPanel(store: s, pack: pack!, reload: load)
+                      : const Center(
+                          child: Text('Pack owner permission required'),
+                        ))
+                : tab == 1
                 ? people()
                 : tab == 2
                 ? activity()
@@ -482,141 +860,22 @@ class _PackScreenState extends State<PackScreen> {
                       ],
                     ),
                   )
-                : GridView.builder(
-                    padding: const EdgeInsets.all(16),
-                    gridDelegate:
-                        const SliverGridDelegateWithMaxCrossAxisExtent(
-                          maxCrossAxisExtent: 180,
-                          mainAxisExtent: 188,
-                          crossAxisSpacing: 10,
-                          mainAxisSpacing: 10,
-                        ),
-                    itemCount: stickers.length,
-                    itemBuilder: (_, i) {
-                      final sticker = stickers[i], id = sticker['id'] as String;
-                      return Card(
-                        color: selected.contains(id)
-                            ? Theme.of(context).colorScheme.secondaryContainer
-                            : null,
-                        child: Column(
-                          children: [
-                            Expanded(
-                              child: InkWell(
-                                onTap: () => edit
-                                    ? editImage(sticker)
-                                    : comments(sticker),
-                                onLongPress: edit
-                                    ? () => setState(
-                                        () => selected.contains(id)
-                                            ? selected.remove(id)
-                                            : selected.add(id),
-                                      )
-                                    : null,
-                                child: Padding(
-                                  padding: const EdgeInsets.all(8),
-                                  child: StickerImage(
-                                    store: s,
-                                    pack: pack!,
-                                    sticker: sticker,
-                                    public: widget.public,
-                                  ),
-                                ),
-                              ),
-                            ),
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: Padding(
-                                    padding: const EdgeInsets.only(left: 10),
-                                    child: Text(
-                                      (sticker['emojis'] as List? ?? []).join(
-                                        ' ',
-                                      ),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ),
-                                ),
-                                if (!widget.public)
-                                  PopupMenuButton<String>(
-                                    tooltip: 'Sticker actions',
-                                    onSelected: (v) async {
-                                      switch (v) {
-                                        case 'select':
-                                          setState(
-                                            () => selected.contains(id)
-                                                ? selected.remove(id)
-                                                : selected.add(id),
-                                          );
-                                        case 'edit':
-                                          await editImage(sticker);
-                                        case 'replace':
-                                          await upload(replace: id);
-                                        case 'details':
-                                          await metadata(sticker);
-                                        case 'comments':
-                                          comments(sticker);
-                                        case 'up':
-                                          await reorder(id, -1);
-                                        case 'down':
-                                          await reorder(id, 1);
-                                        case 'delete':
-                                          if (await confirm(
-                                            context,
-                                            'Delete this sticker?',
-                                          )) {
-                                            await mutate(
-                                              '$base/stickers/$id',
-                                              method: 'DELETE',
-                                            );
-                                          }
-                                      }
-                                    },
-                                    itemBuilder: (_) => [
-                                      if (edit) ...[
-                                        const PopupMenuItem(
-                                          value: 'edit',
-                                          child: Text('Edit image'),
-                                        ),
-                                        const PopupMenuItem(
-                                          value: 'replace',
-                                          child: Text('Replace image'),
-                                        ),
-                                        const PopupMenuItem(
-                                          value: 'details',
-                                          child: Text(
-                                            'Emoji, description & review',
-                                          ),
-                                        ),
-                                        const PopupMenuItem(
-                                          value: 'select',
-                                          child: Text('Select'),
-                                        ),
-                                        const PopupMenuItem(
-                                          value: 'up',
-                                          child: Text('Move earlier'),
-                                        ),
-                                        const PopupMenuItem(
-                                          value: 'down',
-                                          child: Text('Move later'),
-                                        ),
-                                        const PopupMenuItem(
-                                          value: 'delete',
-                                          child: Text('Delete'),
-                                        ),
-                                      ],
-                                      const PopupMenuItem(
-                                        value: 'comments',
-                                        child: Text('Comments'),
-                                      ),
-                                    ],
-                                  ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      );
-                    },
+                : StickerGrid(
+                    stickers: stickers,
+                    selected: Set.unmodifiable(selected),
+                    editable: edit && !s.busy,
+                    public: widget.public,
+                    focusId: selectionAnchor,
+                    image: (sticker) => StickerImage(
+                      store: s,
+                      pack: pack!,
+                      sticker: sticker,
+                      public: widget.public,
+                    ),
+                    open: openSticker,
+                    select: selectSticker,
+                    drop: dropSticker,
+                    action: stickerAction,
                   ),
           ),
           if (s.jobs.any((j) => j['packId'] == widget.id))
@@ -632,7 +891,7 @@ class _PackScreenState extends State<PackScreen> {
                         child: Row(
                           children: [
                             Text(
-                              '${j['type'] ?? 'Processing'}: ${j['status']}',
+                              '${j['label'] ?? j['type'] ?? 'Processing'}: ${j['status']} ${j['progress'] ?? 0}%',
                             ),
                             if (['QUEUED', 'PROCESSING'].contains(j['status']))
                               action(
@@ -750,7 +1009,18 @@ class _PackScreenState extends State<PackScreen> {
                           ),
                       ],
                       item: (row, reload) => ListTile(
-                        title: SelectableText('${row['code']}'),
+                        title: Row(
+                          children: [
+                            Expanded(child: SelectableText('${row['code']}')),
+                            action(Icons.copy, 'Copy invite code', () async {
+                              await Clipboard.setData(
+                                ClipboardData(text: '${row['code']}'),
+                              );
+                              s.notice = 'Invite code copied';
+                              s.changed();
+                            }),
+                          ],
+                        ),
                         subtitle: Text(
                           '${row['email'] ?? 'Anyone with this code'} · ${row['role']} · ${row['acceptedAt'] != null ? 'Accepted' : row['expiresAt'] ?? 'No expiry'}',
                         ),
@@ -771,41 +1041,97 @@ class _PackScreenState extends State<PackScreen> {
             ],
           ),
         );
-  int activityLimit = 50;
-  Widget activity() => RemoteList(
-    key: ValueKey(activityLimit),
-    store: s,
-    path: '$base/activity?limit=$activityLimit',
-    actions: [
-      TextButton(
-        onPressed: () => setState(() => activityLimit += 50),
-        child: const Text('Load more'),
-      ),
-      if (manage)
-        TextButton(
-          onPressed: () async {
-            if (await confirm(context, 'Clear activity history?')) {
-              await mutate('$base/activity', method: 'DELETE');
-              if (mounted) setState(() => activityLimit = 50);
-            }
-          },
-          child: const Text('Clear history'),
+  Widget overview() {
+    final rows = objects(pack!['stickers']);
+    if (!widget.public && !s.offline) {
+      latestActivity ??= s.api.request('$base/activity?limit=1');
+    }
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        ListTile(
+          contentPadding: EdgeInsets.zero,
+          leading: SizedBox(
+            width: 64,
+            height: 64,
+            child: FutureBuilder<Uint8List?>(
+              future: s.cover(pack!, public: widget.public),
+              builder: (_, snap) => snap.hasData
+                  ? Image.memory(snap.data!)
+                  : const Icon(Icons.collections_outlined),
+            ),
+          ),
+          title: Text('${pack!['name']}'),
+          subtitle: Text(
+            '${pack!['publisher']} ? ${fieldLabel('${pack!['role'] ?? (manage
+                    ? 'OWNER'
+                    : edit
+                    ? 'EDITOR'
+                    : 'VIEWER')}')}',
+          ),
         ),
-    ],
-    item: (row, reload) => ListTile(
-      leading: const Icon(Icons.history),
-      title: Text('${row['action'] ?? row['type']}'),
-      subtitle: Text(
-        '${row['createdAt']}\n${row['metadata'] ?? row['details'] ?? ''}',
-      ),
-      trailing: manage
-          ? action(Icons.delete_outline, 'Delete entry', () async {
-              await mutate('$base/activity/${row['id']}', method: 'DELETE');
-              reload();
-            })
-          : null,
-    ),
-  );
+        if ('${pack!['description'] ?? ''}'.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            child: Text('${pack!['description']}'),
+          ),
+        Wrap(
+          spacing: 8,
+          runSpacing: 6,
+          children: [
+            Chip(label: Text('${rows.length}/30 stickers')),
+            Chip(
+              label: Text(
+                '${rows.where((s) => s['reviewStatus'] == 'APPROVED').length} approved',
+              ),
+            ),
+            Chip(
+              label: Text(pack!['isAnimated'] == true ? 'Animated' : 'Static'),
+            ),
+            Chip(label: Text(pack!['isPublic'] == true ? 'Public' : 'Private')),
+          ],
+        ),
+        ListTile(
+          contentPadding: EdgeInsets.zero,
+          leading: Icon(
+            pack!['canExport'] == true
+                ? Icons.check_circle_outline
+                : Icons.info_outline,
+          ),
+          title: Text(
+            pack!['canExport'] == true
+                ? 'Ready to export'
+                : 'Export needs at least 3 eligible stickers',
+          ),
+          subtitle: pack!['requiresApproval'] == true
+              ? const Text('Only approved stickers are exported.')
+              : null,
+        ),
+        if (latestActivity != null)
+          FutureBuilder(
+            future: latestActivity,
+            builder: (_, snap) {
+              if (!snap.hasData) return const SizedBox.shrink();
+              final entries = objects(snap.data);
+              return ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.history),
+                title: const Text('Latest activity'),
+                subtitle: Text(
+                  entries.isEmpty
+                      ? 'No activity yet'
+                      : '${entries.first['action']} ? ${entries.first['createdAt']}',
+                ),
+                onTap: () => context.go('/app/packs/${widget.id}/activity'),
+              );
+            },
+          ),
+      ],
+    );
+  }
+
+  Widget activity() =>
+      ActivityPanel(store: s, packId: widget.id, manage: manage);
 }
 
 class StickerImage extends StatelessWidget {
@@ -849,7 +1175,13 @@ class StickerImage extends StatelessWidget {
 class CommentPanel extends StatelessWidget {
   final FoundryStore store;
   final String path;
-  const CommentPanel({super.key, required this.store, required this.path});
+  final bool manage;
+  const CommentPanel({
+    super.key,
+    required this.store,
+    required this.path,
+    this.manage = false,
+  });
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(
@@ -876,7 +1208,7 @@ class CommentPanel extends StatelessWidget {
       item: (row, reload) => ListTile(
         title: Text('${object(row['user'])['displayName']}'),
         subtitle: Text('${row['body']}'),
-        trailing: row['userId'] == store.user?['id']
+        trailing: manage || row['userId'] == store.user?['id']
             ? action(
                 Icons.delete_outline,
                 'Delete comment',
