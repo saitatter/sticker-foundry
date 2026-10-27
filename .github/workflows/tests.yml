@@ -3,10 +3,13 @@ on:
   workflow_call:
   workflow_dispatch:
   push:
-    branches: [main, feat/python-backend]
+    branches: [main]
   pull_request:
 permissions:
   contents: read
+concurrency:
+  group: tests-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 jobs:
   check:
     runs-on: ubuntu-24.04
