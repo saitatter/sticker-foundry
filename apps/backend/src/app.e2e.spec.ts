@@ -5,7 +5,7 @@ import { mkdtemp, rm } from 'fs/promises';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import request = require('supertest');
-import sharp = require('sharp');
+import sharp from 'sharp';
 import { AppModule } from './app.module';
 import { PrismaService } from './prisma.service';
 

@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { createHash } from 'crypto';
 import { mkdir, stat, writeFile } from 'fs/promises';
 import { dirname } from 'path';
-import sharp = require('sharp');
+import sharp from 'sharp';
 import { WHATSAPP_LIMITS } from '../packs/whatsapp-constraints';
 
 export type ProcessedImage = {
@@ -25,7 +25,7 @@ export type StickerProcessingOptions = {
   animatedQuality?: number;
 };
 
-type ImageMetadata = Awaited<ReturnType<sharp.Sharp['metadata']>>;
+type ImageMetadata = Awaited<ReturnType<ReturnType<typeof sharp>['metadata']>>;
 
 @Injectable()
 export class StickerImageService {

@@ -1,5 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
-import sharp = require('sharp');
+import sharp from 'sharp';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 import { StickerImageService } from '../media/sticker-image.service';
@@ -160,7 +160,7 @@ describe(StickerImageService, () => {
   });
 });
 
-function frameBuffer(background: sharp.Color) {
+function frameBuffer(background: { r: number; g: number; b: number; alpha: number }) {
   return sharp({
     create: {
       width: 64,

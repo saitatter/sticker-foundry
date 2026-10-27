@@ -6,7 +6,7 @@ import { mkdir, readFile, rm, writeFile } from 'fs/promises';
 import { join } from 'path';
 import { tmpdir } from 'os';
 import { Worker } from 'worker_threads';
-import sharp = require('sharp');
+import sharp from 'sharp';
 
 export type BackgroundRemovalMode = 'none' | 'threshold' | 'ai';
 
