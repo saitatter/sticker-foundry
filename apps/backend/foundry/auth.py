@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 
 from .common import audit, data, fail, public_user, setting
 from .config import get_settings
-from .db import get_db
+from .db import db_dependency
 from .models import PasswordResetToken, User, UserSession, now
 from .schemas import ChangePassword, Login, Refresh, Register, RequestReset, ResetPassword
 
@@ -38,7 +38,7 @@ def check_password(value: str, hashed: str) -> bool:
         return False
 
 
-def current_user(request: Request, db: Session = Depends(get_db)) -> User:
+def current_user(request: Request, db: Session = db_dependency) -> User:
     auth = request.headers.get("authorization", "")
     if not auth.lower().startswith("bearer "):
         fail(401, "Unauthorized")
@@ -107,7 +107,7 @@ def auth_response(db: Session, user: User, request: Request, response: Response,
 
 
 @router.post("/register", status_code=201)
-def register(payload: Register, request: Request, response: Response, db: Session = Depends(get_db)):
+def register(payload: Register, request: Request, response: Response, db: Session = db_dependency):
     settings = get_settings()
     mode = setting(db, "registrationMode", settings.registration_mode).lower()
     if mode == "disabled":
@@ -138,7 +138,7 @@ def register(payload: Register, request: Request, response: Response, db: Sessio
 
 
 @router.post("/login", status_code=201)
-def login(payload: Login, request: Request, response: Response, db: Session = Depends(get_db)):
+def login(payload: Login, request: Request, response: Response, db: Session = db_dependency):
     user = db.scalar(select(User).where(User.email == payload.email.lower()))
     if user is None or not check_password(payload.password, user.password_hash):
         fail(401, "Invalid email or password")
@@ -148,9 +148,7 @@ def login(payload: Login, request: Request, response: Response, db: Session = De
 
 
 @router.post("/refresh", status_code=201)
-def refresh(
-    request: Request, response: Response, payload: Refresh = Refresh(), db: Session = Depends(get_db)
-):
+def refresh(request: Request, response: Response, payload: Refresh = Refresh(), db: Session = db_dependency):
     token = payload.refreshToken or request.cookies.get(get_settings().auth_refresh_cookie_name)
     session = db.scalar(
         select(UserSession).where(UserSession.refresh_token_hash == digest(token or "")).with_for_update()
@@ -166,7 +164,7 @@ def me(user: User = Depends(current_user)):
 
 
 @router.post("/logout", status_code=201)
-def logout(request: Request, response: Response, payload: Refresh = Refresh(), db: Session = Depends(get_db)):
+def logout(request: Request, response: Response, payload: Refresh = Refresh(), db: Session = db_dependency):
     settings = get_settings()
     token = payload.refreshToken or request.cookies.get(settings.auth_refresh_cookie_name)
     if token:
@@ -186,9 +184,7 @@ def logout(request: Request, response: Response, payload: Refresh = Refresh(), d
 
 
 @router.patch("/password")
-def change_password(
-    payload: ChangePassword, user: User = Depends(current_user), db: Session = Depends(get_db)
-):
+def change_password(payload: ChangePassword, user: User = Depends(current_user), db: Session = db_dependency):
     if not check_password(payload.currentPassword, user.password_hash):
         fail(401, "Current password is incorrect")
     user.password_hash = hash_password(payload.newPassword)
@@ -202,7 +198,7 @@ def change_password(
 
 
 @router.get("/sessions")
-def sessions(user: User = Depends(current_user), db: Session = Depends(get_db)):
+def sessions(user: User = Depends(current_user), db: Session = db_dependency):
     return [
         data(row, exclude=("userId", "refreshTokenHash"))
         for row in db.scalars(
@@ -212,7 +208,7 @@ def sessions(user: User = Depends(current_user), db: Session = Depends(get_db)):
 
 
 @router.delete("/sessions")
-def revoke_all(user: User = Depends(current_user), db: Session = Depends(get_db)):
+def revoke_all(user: User = Depends(current_user), db: Session = db_dependency):
     result = db.execute(
         update(UserSession)
         .where(UserSession.user_id == user.id, UserSession.revoked_at.is_(None))
@@ -223,7 +219,7 @@ def revoke_all(user: User = Depends(current_user), db: Session = Depends(get_db)
 
 
 @router.delete("/sessions/{session_id}")
-def revoke_one(session_id: str, user: User = Depends(current_user), db: Session = Depends(get_db)):
+def revoke_one(session_id: str, user: User = Depends(current_user), db: Session = db_dependency):
     result = db.execute(
         update(UserSession)
         .where(UserSession.id == session_id, UserSession.user_id == user.id, UserSession.revoked_at.is_(None))
@@ -236,7 +232,7 @@ def revoke_one(session_id: str, user: User = Depends(current_user), db: Session 
 
 
 @router.post("/password/reset/request", status_code=201)
-def request_reset(payload: RequestReset, db: Session = Depends(get_db)):
+def request_reset(payload: RequestReset, db: Session = db_dependency):
     from .jobs import enqueue
 
     settings = get_settings()
@@ -264,7 +260,7 @@ def request_reset(payload: RequestReset, db: Session = Depends(get_db)):
 
 
 @router.post("/password/reset/confirm", status_code=201)
-def confirm_reset(payload: ResetPassword, db: Session = Depends(get_db)):
+def confirm_reset(payload: ResetPassword, db: Session = db_dependency):
     reset = db.scalar(
         select(PasswordResetToken)
         .where(PasswordResetToken.token_hash == digest(payload.token))

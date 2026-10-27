@@ -22,7 +22,7 @@ from .access import (
 from .auth import current_user
 from .common import audit, data, fail, iso, snake
 from .config import get_settings
-from .db import after_commit, get_db
+from .db import after_commit, db_dependency
 from .exports import build_zip, content_hash, contents, export_stickers, manifest
 from .media import apply_upload, stage_file
 from .models import Pack, Sticker, User
@@ -35,7 +35,7 @@ sync_router = APIRouter(prefix="/sync", tags=["Offline sync"])
 
 
 @router.get("")
-def list_packs(user: User = Depends(current_user), db: Session = Depends(get_db)):
+def list_packs(user: User = Depends(current_user), db: Session = db_dependency):
     access = Access(db, user.id)
     rows = list(db.scalars(access.visible().order_by(Pack.updated_at.desc(), Pack.name)))
     counts = pack_counts(db, [row.id for row in rows])
@@ -43,7 +43,7 @@ def list_packs(user: User = Depends(current_user), db: Session = Depends(get_db)
 
 
 @router.post("", status_code=201)
-def create_pack(payload: CreatePack, user: User = Depends(current_user), db: Session = Depends(get_db)):
+def create_pack(payload: CreatePack, user: User = Depends(current_user), db: Session = db_dependency):
     if payload.teamId:
         team_edit(db, user.id, payload.teamId)
     row = Pack(owner_id=user.id, **{snake(key): value for key, value in payload.model_dump().items()})
@@ -61,14 +61,14 @@ def create_pack(payload: CreatePack, user: User = Depends(current_user), db: Ses
 
 
 @router.get("/{pack_id}")
-def get_pack(pack_id: str, user: User = Depends(current_user), db: Session = Depends(get_db)):
+def get_pack(pack_id: str, user: User = Depends(current_user), db: Session = db_dependency):
     access = Access(db, user.id)
     return access.summary(access.get(pack_id), detail=True)
 
 
 @router.patch("/{pack_id}")
 def update_pack(
-    pack_id: str, payload: UpdatePack, user: User = Depends(current_user), db: Session = Depends(get_db)
+    pack_id: str, payload: UpdatePack, user: User = Depends(current_user), db: Session = db_dependency
 ):
     access = Access(db, user.id)
     row = access.get(pack_id, permission="manage", lock=True)
@@ -102,7 +102,7 @@ def delete_pack_files(pack_id):
 
 
 @router.delete("/{pack_id}")
-def delete_pack(pack_id: str, user: User = Depends(current_user), db: Session = Depends(get_db)):
+def delete_pack(pack_id: str, user: User = Depends(current_user), db: Session = db_dependency):
     row = Access(db, user.id).get(pack_id, permission="manage", lock=True)
     before = data(row, exclude=("coverKey",))
     db.delete(row)
@@ -136,7 +136,7 @@ def copy_sticker(db, source, target, position):
 
 
 @router.post("/{pack_id}/clone", status_code=201)
-def clone_pack(pack_id: str, user: User = Depends(current_user), db: Session = Depends(get_db)):
+def clone_pack(pack_id: str, user: User = Depends(current_user), db: Session = db_dependency):
     access = Access(db, user.id)
     source = access.get(pack_id)
     rows = stickers(db, pack_id)
@@ -216,7 +216,7 @@ def upload_sticker(
     file: UploadFile = File(...),
     options: MediaOptions = Depends(media_options),
     user: User = Depends(current_user),
-    db: Session = Depends(get_db),
+    db: Session = db_dependency,
 ):
     return apply_upload(
         db, user.id, pack_id, upload_bytes(file), options, version=request.headers.get("if-match")
@@ -230,7 +230,7 @@ def queue_upload(
     file: UploadFile = File(...),
     options: MediaOptions = Depends(media_options),
     user: User = Depends(current_user),
-    db: Session = Depends(get_db),
+    db: Session = db_dependency,
 ):
     from .jobs import assert_queue_capacity, enqueue
 
@@ -253,7 +253,7 @@ def replace_image(
     file: UploadFile = File(...),
     options: MediaOptions = Depends(media_options),
     user: User = Depends(current_user),
-    db: Session = Depends(get_db),
+    db: Session = db_dependency,
 ):
     return apply_upload(
         db,
@@ -272,7 +272,7 @@ def upload_tray(
     request: Request,
     file: UploadFile = File(...),
     user: User = Depends(current_user),
-    db: Session = Depends(get_db),
+    db: Session = db_dependency,
 ):
     return apply_upload(
         db,
@@ -294,7 +294,7 @@ def find_sticker(db, pack_id, sticker_id):
 
 @router.patch("/{pack_id}/stickers")
 def reorder(
-    pack_id: str, payload: StickerIds, user: User = Depends(current_user), db: Session = Depends(get_db)
+    pack_id: str, payload: StickerIds, user: User = Depends(current_user), db: Session = db_dependency
 ):
     pack = Access(db, user.id).get(pack_id, permission="edit", lock=True)
     rows = stickers(db, pack_id)
@@ -319,7 +319,7 @@ def update_sticker(
     sticker_id: str,
     payload: UpdateSticker,
     user: User = Depends(current_user),
-    db: Session = Depends(get_db),
+    db: Session = db_dependency,
 ):
     pack = Access(db, user.id).get(pack_id, permission="edit", lock=True)
     row = find_sticker(db, pack_id, sticker_id)
@@ -342,7 +342,7 @@ def update_sticker(
 
 @router.delete("/{pack_id}/stickers/{sticker_id}")
 def delete_sticker(
-    pack_id: str, sticker_id: str, user: User = Depends(current_user), db: Session = Depends(get_db)
+    pack_id: str, sticker_id: str, user: User = Depends(current_user), db: Session = db_dependency
 ):
     pack = Access(db, user.id).get(pack_id, permission="edit", lock=True)
     row = find_sticker(db, pack_id, sticker_id)
@@ -417,14 +417,14 @@ def transfer_stickers(db, user_id, pack_id, payload, *, move):
 
 @router.post("/{pack_id}/stickers/copy", status_code=201)
 def copy_selected(
-    pack_id: str, payload: Transfer, user: User = Depends(current_user), db: Session = Depends(get_db)
+    pack_id: str, payload: Transfer, user: User = Depends(current_user), db: Session = db_dependency
 ):
     return transfer_stickers(db, user.id, pack_id, payload, move=False)
 
 
 @router.post("/{pack_id}/stickers/move", status_code=201)
 def move_selected(
-    pack_id: str, payload: Transfer, user: User = Depends(current_user), db: Session = Depends(get_db)
+    pack_id: str, payload: Transfer, user: User = Depends(current_user), db: Session = db_dependency
 ):
     return transfer_stickers(db, user.id, pack_id, payload, move=True)
 
@@ -443,13 +443,13 @@ def cover_response(db, pack, request, *, public=False):
 
 
 @router.get("/{pack_id}/tray-icon")
-def cover(pack_id: str, request: Request, user: User = Depends(current_user), db: Session = Depends(get_db)):
+def cover(pack_id: str, request: Request, user: User = Depends(current_user), db: Session = db_dependency):
     return cover_response(db, Access(db, user.id).get(pack_id), request)
 
 
 @router.get("/{pack_id}/stickers/{sticker_id}/file")
 def sticker_file(
-    pack_id: str, sticker_id: str, user: User = Depends(current_user), db: Session = Depends(get_db)
+    pack_id: str, sticker_id: str, user: User = Depends(current_user), db: Session = db_dependency
 ):
     Access(db, user.id).get(pack_id)
     return Response(
@@ -460,13 +460,13 @@ def sticker_file(
 
 
 @router.get("/{pack_id}/contents")
-def pack_contents(pack_id: str, user: User = Depends(current_user), db: Session = Depends(get_db)):
+def pack_contents(pack_id: str, user: User = Depends(current_user), db: Session = db_dependency):
     return contents(db, Access(db, user.id).get(pack_id))
 
 
 @router.get("/{pack_id}/manifest")
 def pack_manifest(
-    pack_id: str, request: Request, user: User = Depends(current_user), db: Session = Depends(get_db)
+    pack_id: str, request: Request, user: User = Depends(current_user), db: Session = db_dependency
 ):
     result = manifest(db, Access(db, user.id).get(pack_id))
     etag = f'"{result["contentHash"]}"'
@@ -476,7 +476,7 @@ def pack_manifest(
 
 
 @router.get("/{pack_id}/export")
-def export_pack(pack_id: str, user: User = Depends(current_user), db: Session = Depends(get_db)):
+def export_pack(pack_id: str, user: User = Depends(current_user), db: Session = db_dependency):
     path, checksum = build_zip(db, Access(db, user.id).get(pack_id))
     return FileResponse(
         path,
@@ -487,7 +487,7 @@ def export_pack(pack_id: str, user: User = Depends(current_user), db: Session = 
 
 
 @router.post("/{pack_id}/export/jobs", status_code=202)
-def queue_export(pack_id: str, user: User = Depends(current_user), db: Session = Depends(get_db)):
+def queue_export(pack_id: str, user: User = Depends(current_user), db: Session = db_dependency):
     from .jobs import enqueue
 
     pack = Access(db, user.id).get(pack_id)
@@ -496,24 +496,24 @@ def queue_export(pack_id: str, user: User = Depends(current_user), db: Session =
 
 
 @public_router.get("")
-def discover(db: Session = Depends(get_db)):
+def discover(db: Session = db_dependency):
     rows = list(db.scalars(select(Pack).where(Pack.is_public.is_(True)).order_by(Pack.updated_at.desc())))
     counts = pack_counts(db, [row.id for row in rows])
     return [public_summary(db, row, counts=counts.get(row.id, (0, 0))) for row in rows]
 
 
 @public_router.get("/{pack_id}")
-def public_detail(pack_id: str, db: Session = Depends(get_db)):
+def public_detail(pack_id: str, db: Session = db_dependency):
     return public_summary(db, public_pack(db, pack_id), detail=True)
 
 
 @public_router.get("/{pack_id}/tray-icon")
-def public_cover(pack_id: str, request: Request, db: Session = Depends(get_db)):
+def public_cover(pack_id: str, request: Request, db: Session = db_dependency):
     return cover_response(db, public_pack(db, pack_id), request, public=True)
 
 
 @public_router.get("/{pack_id}/stickers/{sticker_id}/file")
-def public_sticker(pack_id: str, sticker_id: str, db: Session = Depends(get_db)):
+def public_sticker(pack_id: str, sticker_id: str, db: Session = db_dependency):
     pack = public_pack(db, pack_id)
     sticker = find_sticker(db, pack_id, sticker_id)
     if pack.requires_approval and sticker.review_status != "APPROVED":
@@ -526,7 +526,7 @@ def public_sticker(pack_id: str, sticker_id: str, db: Session = Depends(get_db))
 
 
 @public_router.get("/{pack_id}/export")
-def public_export(pack_id: str, db: Session = Depends(get_db)):
+def public_export(pack_id: str, db: Session = db_dependency):
     pack = public_pack(db, pack_id)
     if not 3 <= len(export_stickers(db, pack)) <= 30:
         fail(404, "Public pack is not exportable yet")
@@ -540,7 +540,7 @@ def public_export(pack_id: str, db: Session = Depends(get_db)):
 
 
 @sync_router.get("/packs")
-def sync(user: User = Depends(current_user), db: Session = Depends(get_db)):
+def sync(user: User = Depends(current_user), db: Session = db_dependency):
     from .models import now
 
     access = Access(db, user.id)

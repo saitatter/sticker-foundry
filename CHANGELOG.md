@@ -6,11 +6,12 @@
 
 - Use one Flutter application on Android, desktop and the web, with an image editor, animated previews, batch editing and offline downloads.
 - **Breaking:** Run the server and workers in Python, with a new database baseline and no support for previous server or client installations.
+- Confirm saved changes only after their database transaction completes, so immediately following requests can read them reliably.
 
 ### 🧰 CI & Build
 
 - Build release notes from the curated Unreleased changelog, with the version selected from conventional commits.
-- Validate Python, Flutter and container acceptance with pinned tooling versions.
+- Validate Python, Flutter and container acceptance with pinned tooling versions, testing the served Docker web build directly without rebuilding it on the host.
 
 ### Docs
 

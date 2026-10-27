@@ -18,7 +18,7 @@ For Android install JDK 17 and the Android SDK, enable USB debugging, accept aut
 
 ## Checks
 
-Run `dart run tool/ci_check.dart` before pushing. Add `--integration` for isolated Docker, PostgreSQL/Redis/Celery and browser acceptance. It removes only its unique test project. Never point tests or initialization at a real installation.
+Run `dart run tool/ci_check.dart` before pushing. Add `--integration` for isolated Docker, PostgreSQL/Redis/Celery and browser acceptance against the web image built by Compose. No second host web build or preview server is needed. It removes only its unique test project. Never point tests or initialization at a real installation.
 
 Focused checks: `uv run --project apps/backend pytest apps/backend/tests -m 'not integration'` and `uv run --project apps/backend ruff check apps/backend tool`. Run `flutter analyze` and `flutter test` in `apps/client`.
 

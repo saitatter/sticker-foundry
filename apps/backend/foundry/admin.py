@@ -12,7 +12,7 @@ from .auth import admin_user
 from .collaboration import audit_data
 from .common import audit, iso, positive, setting
 from .config import get_settings
-from .db import get_db
+from .db import db_dependency
 from .models import AppSetting, AuditLog, User, now
 from .schemas import UpdateSettings
 
@@ -46,17 +46,17 @@ def all_settings(db):
 
 
 @public_router.get("/instance")
-def instance(db: Session = Depends(get_db)):
+def instance(db: Session = db_dependency):
     return instance_settings(db)
 
 
 @router.get("/settings")
-def settings(user: User = Depends(admin_user), db: Session = Depends(get_db)):
+def settings(user: User = Depends(admin_user), db: Session = db_dependency):
     return all_settings(db)
 
 
 @router.patch("/settings")
-def update_settings(payload: UpdateSettings, user: User = Depends(admin_user), db: Session = Depends(get_db)):
+def update_settings(payload: UpdateSettings, user: User = Depends(admin_user), db: Session = db_dependency):
     values = payload.model_dump(exclude_unset=True)
     for key, value in values.items():
         if value is None and key in {"instanceName", "instanceDescription", "registrationMode"}:
@@ -75,7 +75,7 @@ def update_settings(payload: UpdateSettings, user: User = Depends(admin_user), d
 def audit_log(
     limit: int = Query(default=100, ge=1, le=1000),
     user: User = Depends(admin_user),
-    db: Session = Depends(get_db),
+    db: Session = db_dependency,
 ):
     return [
         audit_data(db, row)
@@ -94,7 +94,7 @@ def csv_cell(value):
 def export_audit(
     limit: int = Query(default=1000, ge=1, le=1000),
     user: User = Depends(admin_user),
-    db: Session = Depends(get_db),
+    db: Session = db_dependency,
 ):
     output = io.StringIO(newline="")
     writer = csv.writer(output, lineterminator="\r\n")
@@ -138,7 +138,7 @@ def export_audit(
 
 
 @router.post("/audit-log/cleanup", status_code=201)
-def cleanup(user: User = Depends(admin_user), db: Session = Depends(get_db)):
+def cleanup(user: User = Depends(admin_user), db: Session = db_dependency):
     days = positive(setting(db, "auditRetentionDays", get_settings().audit_retention_days))
     cutoff = now() - timedelta(days=days) if days else None
     removed = db.execute(delete(AuditLog).where(AuditLog.created_at < cutoff)).rowcount if cutoff else 0

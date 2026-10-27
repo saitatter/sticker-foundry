@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from .auth import current_user
 from .common import data, fail
 from .config import get_settings
-from .db import get_db, session_factory
+from .db import db_dependency, session_factory
 from .models import MediaJob, User, now
 
 router = APIRouter(prefix="/jobs", tags=["Background jobs"])
@@ -55,13 +55,10 @@ def dispatch(job_id, kind):
         process_job.apply_async(args=[job_id], queue=kind)
 
 
-def enqueue(db, user_id, kind, payload, *, pack_id=None):
-    job = MediaJob(user_id=user_id, type=kind, pack_id=pack_id, payload=payload)
-    db.add(job)
-    # The worker must never receive a job whose database transaction is not committed.
-    db.commit()
+def dispatch_committed(db, job):
+    """Publish an already committed job and persist its dispatch outcome."""
     try:
-        dispatch(job.id, kind)
+        dispatch(job.id, job.type)
         job.dispatched_at = now()
         db.commit()
     except Exception:
@@ -72,13 +69,21 @@ def enqueue(db, user_id, kind, payload, *, pack_id=None):
     return job_data(job)
 
 
+def enqueue(db, user_id, kind, payload, *, pack_id=None):
+    job = MediaJob(user_id=user_id, type=kind, pack_id=pack_id, payload=payload)
+    db.add(job)
+    # The worker must never receive a job whose database transaction is not committed.
+    db.commit()
+    return dispatch_committed(db, job)
+
+
 @router.get("/{job_id}")
-def get_job(job_id: str, user: User = Depends(current_user), db: Session = Depends(get_db)):
+def get_job(job_id: str, user: User = Depends(current_user), db: Session = db_dependency):
     return job_data(owned_job(db, user.id, job_id))
 
 
 @router.post("/{job_id}/cancel", status_code=201)
-def cancel(job_id: str, user: User = Depends(current_user), db: Session = Depends(get_db)):
+def cancel(job_id: str, user: User = Depends(current_user), db: Session = db_dependency):
     job = owned_job(db, user.id, job_id, lock=True)
     if job.status not in {"QUEUED", "PROCESSING"}:
         fail(400, "Job cannot be cancelled in its current state")
@@ -88,7 +93,7 @@ def cancel(job_id: str, user: User = Depends(current_user), db: Session = Depend
 
 
 @router.post("/{job_id}/retry", status_code=201)
-def retry(job_id: str, user: User = Depends(current_user), db: Session = Depends(get_db)):
+def retry(job_id: str, user: User = Depends(current_user), db: Session = db_dependency):
     job = owned_job(db, user.id, job_id, lock=True)
     if job.status not in {"FAILED", "CANCELLED"}:
         fail(400, "Only failed or cancelled jobs can be retried")
@@ -97,16 +102,7 @@ def retry(job_id: str, user: User = Depends(current_user), db: Session = Depends
     job.dispatched_at = None
     job.attempts = 0
     db.commit()
-    try:
-        dispatch(job.id, job.type)
-        job.dispatched_at = now()
-        db.commit()
-    except Exception:
-        job.status, job.error, job.completed_at = "FAILED", "The processing queue is unavailable", now()
-        db.commit()
-        fail(503, "The processing queue is unavailable")
-    db.refresh(job)
-    return job_data(job)
+    return dispatch_committed(db, job)
 
 
 def read_event(user_id, job_id):
@@ -115,7 +111,7 @@ def read_event(user_id, job_id):
 
 
 @router.get("/{job_id}/events")
-def events(job_id: str, request: Request, user: User = Depends(current_user), db: Session = Depends(get_db)):
+def events(job_id: str, request: Request, user: User = Depends(current_user), db: Session = db_dependency):
     owned_job(db, user.id, job_id)
 
     async def stream():

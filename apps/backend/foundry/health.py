@@ -6,14 +6,14 @@ from functools import lru_cache
 
 import psutil
 import redis
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter
 from fastapi.responses import JSONResponse, PlainTextResponse
 from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session
 
 from .common import iso
 from .config import get_settings
-from .db import get_db
+from .db import db_dependency
 from .models import MediaJob, now
 
 router = APIRouter(tags=["Health"])
@@ -63,7 +63,7 @@ def queue_status(db):
 
 
 @router.get("/health")
-def live(db: Session = Depends(get_db)):
+def live(db: Session = db_dependency):
     try:
         db.execute(text("SELECT 1"))
         database = "ok"
@@ -82,7 +82,7 @@ def live(db: Session = Depends(get_db)):
 
 
 @router.get("/health/ready")
-def ready(db: Session = Depends(get_db)):
+def ready(db: Session = db_dependency):
     database, queue, queues = "ok", "ok", []
     try:
         db.execute(text("SELECT 1"))
@@ -110,7 +110,7 @@ def ready(db: Session = Depends(get_db)):
 
 
 @router.get("/health/metrics")
-def metrics(db: Session = Depends(get_db)):
+def metrics(db: Session = db_dependency):
     queues = []
     try:
         queues = queue_status(db)
@@ -131,7 +131,7 @@ def metrics(db: Session = Depends(get_db)):
 
 
 @router.get("/metrics", response_class=PlainTextResponse)
-def prometheus(db: Session = Depends(get_db)):
+def prometheus(db: Session = db_dependency):
     values = metrics(db)
     lines = [
         "# TYPE stickerfoundry_uptime_seconds gauge",

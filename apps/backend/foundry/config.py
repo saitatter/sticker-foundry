@@ -12,7 +12,6 @@ class Settings(BaseSettings):
         extra="ignore",
     )
     app_env: str = "development"
-    port: int = 3000
     database_url: str = "postgresql://stickers:stickers@localhost:5432/stickers"
     redis_url: str = "redis://localhost:6379"
     jwt_secret: str = "change-this-long-random-secret"
@@ -26,7 +25,6 @@ class Settings(BaseSettings):
     cors_origin: str = "http://localhost:8080,http://localhost:5173"
     data_dir: Path = Path("data")
     export_cache_dir: str = ""
-    public_base_url: str = "http://localhost:3000"
     password_reset_public_url: str = "http://localhost:8080"
     password_reset_ttl_minutes: int = 30
     instance_name: str = "Sticker Foundry"
@@ -50,9 +48,6 @@ class Settings(BaseSettings):
     queue_prefix: str = "sticker-foundry"
     queue_attempts: int = 3
     queue_backoff_ms: int = 1000
-    media_queue_concurrency: int = 1
-    export_queue_concurrency: int = 1
-    email_queue_concurrency: int = 2
     media_queue_max_waiting: int = 50
     media_queue_retry_after_seconds: int = 5
     background_removal_command: str = ""

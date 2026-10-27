@@ -4,7 +4,7 @@ x-runtime: &runtime
     context: .
     dockerfile: apps/backend/Dockerfile
   restart: unless-stopped
-  environment: &server-env
+  environment:
     APP_ENV: ${APP_ENV:-development}
     DATABASE_URL: postgresql://${POSTGRES_USER:-stickers}:${POSTGRES_PASSWORD:-stickers}@postgres:5432/${POSTGRES_DB:-stickers}
     REDIS_URL: redis://redis:6379/0
@@ -19,7 +19,6 @@ x-runtime: &runtime
     CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:8080,http://localhost:5173}
     DATA_DIR: /data
     EXPORT_CACHE_DIR: /data/export-cache
-    PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost:3000}
     PASSWORD_RESET_PUBLIC_URL: ${PASSWORD_RESET_PUBLIC_URL:-http://localhost:8080}
     PASSWORD_RESET_TTL_MINUTES: ${PASSWORD_RESET_TTL_MINUTES:-30}
     INSTANCE_NAME: ${INSTANCE_NAME:-Sticker Foundry}

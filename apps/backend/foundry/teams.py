@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from .auth import current_user
 from .collaboration import actor, member_role
 from .common import audit, data, fail
-from .db import get_db
+from .db import db_dependency
 from .models import Pack, Team, TeamMember, User
 from .schemas import AddTeamMember, CreateTeam, MemberRole
 
@@ -37,7 +37,7 @@ def team_summary(db, row, user_id, role):
 
 
 @router.get("")
-def list_teams(user: User = Depends(current_user), db: Session = Depends(get_db)):
+def list_teams(user: User = Depends(current_user), db: Session = db_dependency):
     roles = dict(
         db.execute(select(TeamMember.team_id, TeamMember.role).where(TeamMember.user_id == user.id)).all()
     )
@@ -50,7 +50,7 @@ def list_teams(user: User = Depends(current_user), db: Session = Depends(get_db)
 
 
 @router.post("", status_code=201)
-def create_team(payload: CreateTeam, user: User = Depends(current_user), db: Session = Depends(get_db)):
+def create_team(payload: CreateTeam, user: User = Depends(current_user), db: Session = db_dependency):
     row = Team(name=payload.name, description=payload.description, owner_id=user.id)
     db.add(row)
     db.flush()
@@ -61,7 +61,7 @@ def create_team(payload: CreateTeam, user: User = Depends(current_user), db: Ses
 
 
 @router.get("/{team_id}/members")
-def members(team_id: str, user: User = Depends(current_user), db: Session = Depends(get_db)):
+def members(team_id: str, user: User = Depends(current_user), db: Session = db_dependency):
     managed_team(db, user.id, team_id)
     rows = db.scalars(select(TeamMember).where(TeamMember.team_id == team_id).order_by(TeamMember.created_at))
     return [{**data(row), "user": actor(db, row.user_id)} for row in rows]
@@ -69,7 +69,7 @@ def members(team_id: str, user: User = Depends(current_user), db: Session = Depe
 
 @router.post("/{team_id}/members", status_code=201)
 def add_member(
-    team_id: str, payload: AddTeamMember, user: User = Depends(current_user), db: Session = Depends(get_db)
+    team_id: str, payload: AddTeamMember, user: User = Depends(current_user), db: Session = db_dependency
 ):
     team = managed_team(db, user.id, team_id)
     member_role(payload.role)
@@ -104,7 +104,7 @@ def update_member(
     member_id: str,
     payload: MemberRole,
     user: User = Depends(current_user),
-    db: Session = Depends(get_db),
+    db: Session = db_dependency,
 ):
     team = managed_team(db, user.id, team_id)
     member_role(payload.role)
@@ -125,7 +125,7 @@ def update_member(
 
 @router.delete("/{team_id}/members/{member_id}")
 def remove_member(
-    team_id: str, member_id: str, user: User = Depends(current_user), db: Session = Depends(get_db)
+    team_id: str, member_id: str, user: User = Depends(current_user), db: Session = db_dependency
 ):
     team = managed_team(db, user.id, team_id)
     row = team_member(db, team, member_id)

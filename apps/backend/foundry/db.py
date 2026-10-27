@@ -2,6 +2,7 @@ import logging
 from contextlib import contextmanager
 from functools import lru_cache
 
+from fastapi import Depends
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
@@ -73,12 +74,10 @@ def transaction():
             raise
 
 
-def get_db():
-    with Session(get_engine(), expire_on_commit=False) as db:
-        try:
-            yield db
-            db.commit()
-        except Exception:
-            db.rollback()
-            rollback_files(db)
-            raise
+def _request_session():
+    with transaction() as db:
+        yield db
+
+
+# Finish commits and rollbacks before sending headers, including streamed responses.
+db_dependency = Depends(_request_session, scope="function")

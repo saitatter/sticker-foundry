@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from .access import Access
 from .auth import current_user
 from .common import audit, data, fail, public_user
-from .db import get_db
+from .db import db_dependency
 from .models import AuditLog, PackInvite, PackMember, StickerComment, User, now
 from .packs import find_sticker
 from .schemas import Comment, CreateInvite, MemberRole
@@ -29,7 +29,7 @@ def member_role(role):
 
 
 @router.get("/{pack_id}/members")
-def members(pack_id: str, user: User = Depends(current_user), db: Session = Depends(get_db)):
+def members(pack_id: str, user: User = Depends(current_user), db: Session = db_dependency):
     Access(db, user.id).get(pack_id, permission="manage")
     rows = db.scalars(select(PackMember).where(PackMember.pack_id == pack_id).order_by(PackMember.created_at))
     return [{**data(row), "user": actor(db, row.user_id)} for row in rows]
@@ -41,7 +41,7 @@ def update_member(
     member_id: str,
     payload: MemberRole,
     user: User = Depends(current_user),
-    db: Session = Depends(get_db),
+    db: Session = db_dependency,
 ):
     Access(db, user.id).get(pack_id, permission="manage", lock=True)
     member_role(payload.role)
@@ -64,7 +64,7 @@ def update_member(
 
 @router.delete("/{pack_id}/members/{member_id}")
 def remove_member(
-    pack_id: str, member_id: str, user: User = Depends(current_user), db: Session = Depends(get_db)
+    pack_id: str, member_id: str, user: User = Depends(current_user), db: Session = db_dependency
 ):
     Access(db, user.id).get(pack_id, permission="manage", lock=True)
     row = db.scalar(select(PackMember).where(PackMember.id == member_id, PackMember.pack_id == pack_id))
@@ -84,7 +84,7 @@ def remove_member(
 
 
 @router.get("/{pack_id}/invites")
-def invites(pack_id: str, user: User = Depends(current_user), db: Session = Depends(get_db)):
+def invites(pack_id: str, user: User = Depends(current_user), db: Session = db_dependency):
     Access(db, user.id).get(pack_id, permission="manage")
     rows = db.scalars(
         select(PackInvite).where(PackInvite.pack_id == pack_id).order_by(PackInvite.created_at.desc())
@@ -97,7 +97,7 @@ def invites(pack_id: str, user: User = Depends(current_user), db: Session = Depe
 
 @router.post("/{pack_id}/invites", status_code=201)
 def create_invite(
-    pack_id: str, payload: CreateInvite, user: User = Depends(current_user), db: Session = Depends(get_db)
+    pack_id: str, payload: CreateInvite, user: User = Depends(current_user), db: Session = db_dependency
 ):
     Access(db, user.id).get(pack_id, permission="manage", lock=True)
     member_role(payload.role)
@@ -122,7 +122,7 @@ def create_invite(
 
 @router.delete("/{pack_id}/invites/{invite_id}")
 def revoke_invite(
-    pack_id: str, invite_id: str, user: User = Depends(current_user), db: Session = Depends(get_db)
+    pack_id: str, invite_id: str, user: User = Depends(current_user), db: Session = db_dependency
 ):
     Access(db, user.id).get(pack_id, permission="manage", lock=True)
     row = db.scalar(
@@ -146,7 +146,7 @@ def revoke_invite(
 
 
 @router.post("/invites/{code}/accept", status_code=201)
-def accept_invite(code: str, user: User = Depends(current_user), db: Session = Depends(get_db)):
+def accept_invite(code: str, user: User = Depends(current_user), db: Session = db_dependency):
     row = db.scalar(select(PackInvite).where(PackInvite.code == code).with_for_update())
     if row is None:
         fail(404, "Invite not found")
@@ -186,7 +186,7 @@ def activity(
     pack_id: str,
     limit: int | None = Query(default=None, ge=1, le=100),
     user: User = Depends(current_user),
-    db: Session = Depends(get_db),
+    db: Session = db_dependency,
 ):
     Access(db, user.id).get(pack_id)
     query = select(AuditLog).where(activity_scope(pack_id)).order_by(AuditLog.created_at.desc())
@@ -197,7 +197,7 @@ def activity(
 
 @router.delete("/{pack_id}/activity/{activity_id}")
 def delete_activity(
-    pack_id: str, activity_id: str, user: User = Depends(current_user), db: Session = Depends(get_db)
+    pack_id: str, activity_id: str, user: User = Depends(current_user), db: Session = db_dependency
 ):
     Access(db, user.id).get(pack_id, permission="manage")
     result = db.execute(delete(AuditLog).where(AuditLog.id == activity_id, activity_scope(pack_id)))
@@ -207,16 +207,14 @@ def delete_activity(
 
 
 @router.delete("/{pack_id}/activity")
-def clear_activity(pack_id: str, user: User = Depends(current_user), db: Session = Depends(get_db)):
+def clear_activity(pack_id: str, user: User = Depends(current_user), db: Session = db_dependency):
     Access(db, user.id).get(pack_id, permission="manage")
     result = db.execute(delete(AuditLog).where(activity_scope(pack_id)))
     return {"deleted": result.rowcount}
 
 
 @router.get("/{pack_id}/stickers/{sticker_id}/comments")
-def comments(
-    pack_id: str, sticker_id: str, user: User = Depends(current_user), db: Session = Depends(get_db)
-):
+def comments(pack_id: str, sticker_id: str, user: User = Depends(current_user), db: Session = db_dependency):
     Access(db, user.id).get(pack_id)
     find_sticker(db, pack_id, sticker_id)
     rows = db.scalars(
@@ -233,7 +231,7 @@ def add_comment(
     sticker_id: str,
     payload: Comment,
     user: User = Depends(current_user),
-    db: Session = Depends(get_db),
+    db: Session = db_dependency,
 ):
     Access(db, user.id).get(pack_id)
     find_sticker(db, pack_id, sticker_id)
@@ -260,7 +258,7 @@ def delete_comment(
     sticker_id: str,
     comment_id: str,
     user: User = Depends(current_user),
-    db: Session = Depends(get_db),
+    db: Session = db_dependency,
 ):
     access = Access(db, user.id)
     pack = access.get(pack_id)

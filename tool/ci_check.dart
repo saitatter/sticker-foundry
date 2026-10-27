@@ -108,7 +108,7 @@ Future<void> main(List<String> args) async {
     'SMTP_HOST': '',
     'LIVE_QA_API': 'http://127.0.0.1:$apiPort/api/',
     'LIVE_QA_PROJECT': project,
-    'API_ORIGIN': 'http://127.0.0.1:$apiPort',
+    'WEB_BASE_URL': 'http://127.0.0.1:$webPort',
   };
   try {
     await run('docker', [
@@ -130,12 +130,6 @@ Future<void> main(List<String> args) async {
       'integration',
       '-q',
     ], env: environment);
-    await run('flutter', [
-      'build',
-      'web',
-      '--release',
-      '--no-web-resources-cdn',
-    ], cwd: '$root/apps/client');
     await run('npx', ['playwright', 'test'], env: environment);
   } finally {
     await run('docker', [
