@@ -19,6 +19,7 @@
     "prisma:migrate": "npm --workspace apps/backend run prisma:migrate",
     "prisma:seed": "npm --workspace apps/backend run prisma:seed",
     "test:backend": "npm --workspace apps/backend run test",
+    "test:live": "node scripts/test-live-parity.mjs",
     "test:e2e:backend": "npm --workspace apps/backend run test:e2e",
     "test:web": "playwright test",
     "test:web:unit": "npm run test:client",

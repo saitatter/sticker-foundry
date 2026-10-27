@@ -127,6 +127,13 @@ jobs:
         working-directory: apps/client/android
         run: ./gradlew :app:lintDebug
 
+      - name: Keep the Android QA build
+        uses: actions/upload-artifact@v7
+        with:
+          name: sticker-foundry-android-${{ github.sha }}
+          path: apps/client/build/app/outputs/flutter-apk/app-debug.apk
+          retention-days: 7
+
   docker:
     runs-on: ubuntu-latest
 
@@ -155,6 +162,20 @@ jobs:
           curl --fail --silent http://localhost:8080/ >/dev/null
           docker compose ps
 
+      - name: Set up Node for live API acceptance
+        uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install acceptance dependencies
+        run: npm ci
+
+      - name: Verify live accounts, permissions, media workers and exports
+        run: npm run test:live
+        env:
+          LIVE_QA_API: http://localhost:3000/api/
+
       - name: Tear down Compose stack
         if: always()
         run: docker compose down -v
@@ -182,6 +203,28 @@ jobs:
       - name: Build desktop client
         working-directory: apps/client
         run: flutter build ${{ matrix.target }} --release
+      - name: Package Windows build
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force dist | Out-Null
+          Compress-Archive -Path apps/client/build/windows/x64/runner/Release/* -DestinationPath dist/sticker-foundry-windows.zip
+      - name: Package macOS build
+        if: runner.os == 'macOS'
+        run: |
+          mkdir -p dist
+          ditto -c -k --sequesterRsrc --keepParent apps/client/build/macos/Build/Products/Release/*.app dist/sticker-foundry-macos.zip
+      - name: Package Linux build
+        if: runner.os == 'Linux'
+        run: |
+          mkdir -p dist
+          tar -czf dist/sticker-foundry-linux.tar.gz -C apps/client/build/linux/x64/release/bundle .
+      - name: Keep desktop QA build
+        uses: actions/upload-artifact@v7
+        with:
+          name: sticker-foundry-${{ matrix.target }}-${{ github.sha }}
+          path: dist/sticker-foundry-*
+          retention-days: 7
       - name: Compile iOS without signing
         if: runner.os == 'macOS'
         working-directory: apps/client
