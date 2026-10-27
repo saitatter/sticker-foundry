@@ -2,12 +2,10 @@
 .idea
 .vscode
 test-results
-playwright-report
 coverage
 dist
 data
 uploads
-**/node_modules
 **/.dart_tool
 **/.gradle
 **/.cxx

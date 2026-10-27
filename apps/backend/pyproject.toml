@@ -32,17 +32,4 @@ build-backend = "hatchling.build"
 packages = ["foundry"]
 
 [dependency-groups]
-dev = ["pytest>=8.4,<10", "httpx2>=2,<3", "ruff>=0.12,<1", "pip-audit>=2.9,<3"]
-
-[tool.ruff]
-target-version = "py313"
-line-length = 110
-
-[tool.ruff.lint]
-select = ["E", "F", "I", "UP", "B"]
-ignore = ["B008", "E501"]
-
-[tool.pytest.ini_options]
-testpaths = ["tests"]
-pythonpath = ["."]
-markers = ["integration: acceptance against an explicitly configured disposable API stack"]
+dev = ["pytest>=8.4,<10", "httpx2>=2,<3", "ruff>=0.12,<1", "pip-audit>=2.9,<3", "pytest-playwright>=0.7,<1", "uiautomator2>=3,<4"]

@@ -1,5 +1,4 @@
 import 'dart:io';
-import 'dart:convert';
 
 import 'release/release_preparation.dart';
 
@@ -95,15 +94,6 @@ Future<void> main(List<String> args) async {
       (match) => '${match[1]}$version${match[2]}',
     ),
   );
-  for (final name in ['package.json', 'package-lock.json']) {
-    final file = File(name);
-    final value = jsonDecode(file.readAsStringSync()) as Map<String, dynamic>;
-    value['version'] = version;
-    if (name.endsWith('lock.json')) value['packages']['']['version'] = version;
-    file.writeAsStringSync(
-      '${const JsonEncoder.withIndent('  ').convert(value)}\n',
-    );
-  }
   changelogFile.writeAsStringSync(cut.changelog);
   File(notesPath!).writeAsStringSync(
     releaseNotes(

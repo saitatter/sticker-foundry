@@ -1,9 +1,8 @@
 import pytest
-from sqlalchemy import inspect, text
-
 from foundry.config import Settings
 from foundry.db import get_engine
 from foundry.db_init import initialize_database
+from sqlalchemy import inspect, text
 
 
 def test_schema_initializer_never_resets_unrecognized_data(client):

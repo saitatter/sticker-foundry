@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -16,8 +15,6 @@ void main() {
         'apps/client/pubspec.yaml',
         'apps/backend/pyproject.toml',
         'apps/backend/uv.lock',
-        'package.json',
-        'package-lock.json',
       ];
       ProcessResult run(String binary, List<String> args) {
         final result = Process.runSync(
@@ -79,15 +76,6 @@ void main() {
               .replaceAll('\r\n', '\n'),
           contains('name = "sticker-foundry-backend"\nversion = "2.0.0"'),
         );
-        for (final name in ['package.json', 'package-lock.json']) {
-          final value = jsonDecode(
-            File('${sandbox.path}/$name').readAsStringSync(),
-          );
-          expect(value['version'], '2.0.0');
-          if (name.endsWith('lock.json')) {
-            expect(value['packages']['']['version'], '2.0.0');
-          }
-        }
         expect(changelog.readAsStringSync(), contains('## 2.0.0 - '));
         expect(
           File('${sandbox.path}/notes.md').readAsStringSync(),

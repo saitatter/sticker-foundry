@@ -4,7 +4,6 @@ os.environ["TESTING"] = "true"
 
 import pytest
 from fastapi.testclient import TestClient
-
 from foundry.config import get_settings
 from foundry.db import get_engine
 from foundry.db_init import initialize_database

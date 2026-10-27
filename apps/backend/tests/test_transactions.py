@@ -1,8 +1,7 @@
 from fastapi.testclient import TestClient
+from foundry.main import create_app
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
-
-from foundry.main import create_app
 
 from .conftest import register
 
