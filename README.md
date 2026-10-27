@@ -44,3 +44,7 @@ Android builds require JDK 17 and the Android SDK. The JDK compiles the app and 
 - [Changelog](CHANGELOG.md)
 
 Original logo: `assets/brand/sticker-foundry-icon.png`. Check icons with `dart run tool/sync_brand.dart --check` from `apps/client`; omit `--check` to regenerate them.
+
+## Support
+
+If Sticker Foundry is useful to you, you can support ongoing development on [Ko-fi](https://ko-fi.com/saitatter).
