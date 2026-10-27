@@ -15,6 +15,7 @@
 
 ### Docs
 
+- Keep the project support link available in the current README.
 - Document the current Flutter/Python stack and adopt shared contribution and changelog rules in AGENTS.md.
 
 ## [1.3.0](https://github.com/saitatter/sticker-foundry/compare/v1.2.0...v1.3.0) (2026-09-21)
