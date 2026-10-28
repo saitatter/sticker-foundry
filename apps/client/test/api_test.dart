@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -6,6 +7,20 @@ import 'package:http/testing.dart';
 import 'package:sticker_foundry/core/api.dart';
 
 void main() {
+  test('request timeout includes a stalled response body', () async {
+    final body = StreamController<List<int>>();
+    final api = FoundryApi(
+      'https://example.test/api/',
+      client: MockClient.streaming(
+        (_, _) async => http.StreamedResponse(body.stream, 200),
+      ),
+    );
+    await expectLater(
+      api.request('instance', timeout: const Duration(milliseconds: 20)),
+      throwsA(isA<TimeoutException>()),
+    );
+    await body.close();
+  });
   test('server addresses preserve prefixes and reject credentials', () {
     expect(normalizeServer('localhost:8080'), 'http://localhost:8080/api/');
     expect(

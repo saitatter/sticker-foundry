@@ -51,6 +51,21 @@ void main() {
         );
   });
   test(
+    'known offline packs open from cache without a network request',
+    () async {
+      final store = TestStore()..offline = true;
+      store.cached['pack'] = {'id': 'pack', 'name': 'Downloaded pack'};
+      store.api = FoundryApi(
+        'http://example.test/api/',
+        client: MockClient(
+          (_) async => throw StateError('Unexpected network request'),
+        ),
+      );
+      expect(await store.pack('pack'), store.cached['pack']);
+      expect(store.offline, isTrue);
+    },
+  );
+  test(
     'switching accounts erases private downloads and image memory',
     () async {
       SharedPreferences.setMockInitialValues({});

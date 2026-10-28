@@ -51,15 +51,16 @@ class FoundryApi {
   FoundryApi(this.baseUrl, {http.Client? client})
     : client = client ?? platform.createClient();
 
-  Future<void> refresh() =>
-      _refreshing ??= _refresh().whenComplete(() => _refreshing = null);
-  Future<void> _refresh() async {
+  Future<void> refresh({Duration timeout = const Duration(seconds: 90)}) =>
+      _refreshing ??= _refresh(timeout).whenComplete(() => _refreshing = null);
+  Future<void> _refresh(Duration timeout) async {
     final data = object(
       await request(
         'auth/refresh',
         method: 'POST',
         data: kIsWeb ? {} : {'refreshToken': refreshToken},
         auth: false,
+        timeout: timeout,
       ),
     );
     accessToken = data['accessToken'];
@@ -78,6 +79,7 @@ class FoundryApi {
     Json? fields,
     String? version,
     bool retry = true,
+    Duration timeout = const Duration(seconds: 90),
   }) async {
     final uri = Uri.parse(baseUrl).resolve(path);
     final http.BaseRequest req;
@@ -116,11 +118,12 @@ class FoundryApi {
     }
     if (kIsWeb) req.headers['X-Refresh-Cookie'] = 'true';
     if (version != null) req.headers['If-Match'] = version;
-    final response = await http.Response.fromStream(
-      await client.send(req).timeout(const Duration(seconds: 90)),
-    );
+    final response = await client
+        .send(req)
+        .then(http.Response.fromStream)
+        .timeout(timeout);
     if (response.statusCode == 401 && auth && retry) {
-      await refresh();
+      await refresh(timeout: timeout);
       return request(
         path,
         method: method,
@@ -132,6 +135,7 @@ class FoundryApi {
         fields: fields,
         version: version,
         retry: false,
+        timeout: timeout,
       );
     }
     if (response.statusCode >= 400) {

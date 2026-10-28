@@ -74,10 +74,13 @@ class FoundryStore extends ChangeNotifier {
       }
       if (user != null || kIsWeb) {
         try {
-          if (kIsWeb || api.accessToken == null) await api.refresh();
-          user = object(await api.request('auth/me'));
+          const startupTimeout = Duration(seconds: 5);
+          if (kIsWeb || api.accessToken == null) {
+            await api.refresh(timeout: startupTimeout);
+          }
+          user = object(await api.request('auth/me', timeout: startupTimeout));
           await persist();
-          await refresh();
+          await refresh(timeout: startupTimeout);
         } on ApiError catch (e) {
           if (e.status == 401 || e.status == 403) {
             await signOut();
@@ -88,10 +91,18 @@ class FoundryStore extends ChangeNotifier {
           offline = user != null;
         }
       }
-      try {
-        final instance = object(await api.request('instance', auth: false));
-        instanceName = instance['instanceName'] ?? instanceName;
-      } catch (_) {}
+      if (!offline) {
+        try {
+          final instance = object(
+            await api.request(
+              'instance',
+              auth: false,
+              timeout: const Duration(seconds: 5),
+            ),
+          );
+          instanceName = instance['instanceName'] ?? instanceName;
+        } catch (_) {}
+      }
     } catch (e) {
       error = 'Could not restore session: $e';
     }
@@ -181,11 +192,11 @@ class FoundryStore extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> refresh() async {
+  Future<void> refresh({Duration timeout = const Duration(seconds: 90)}) async {
     final owner = scope;
-    final freshPacks = objects(await api.request('packs'));
+    final freshPacks = objects(await api.request('packs', timeout: timeout));
     if (scope != owner) return;
-    final freshTeams = objects(await api.request('teams'));
+    final freshTeams = objects(await api.request('teams', timeout: timeout));
     if (scope != owner) return;
     packs = freshPacks;
     teams = freshTeams;
@@ -194,6 +205,7 @@ class FoundryStore extends ChangeNotifier {
   }
 
   Future<Json> pack(String id) async {
+    if (offline && cached.containsKey(id)) return cached[id]!;
     try {
       final value = object(await api.request('packs/$id'));
       offline = false;
