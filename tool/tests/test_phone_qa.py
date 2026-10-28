@@ -27,6 +27,13 @@ def test_recorded_commands_keep_credentials_in_environment_references():
         "instance": 1,
     }
     assert interactive_step("drag --start .3 .4 --end .6 .7 --duration .8")["duration"] == 0.8
+    assert interactive_step('assert --description "Dark theme" --checked')["selector"]["checked"] is True
+    assert interactive_step('assert --description "Dark theme" --no-checked')["selector"]["checked"] is False
+    assert interactive_step("launch --restart")["restart"] is True
+    with pytest.raises(ValueError, match="boolean"):
+        validate_step({"action": "launch", "restart": "yes"})
+    with pytest.raises(ValueError, match="boolean"):
+        validate_step({"action": "assert", "selector": {"description": "Dark theme", "checked": 1}})
 
 
 def test_scenarios_reject_arbitrary_commands_and_unknown_versions(tmp_path):
@@ -43,7 +50,7 @@ def test_scenarios_reject_arbitrary_commands_and_unknown_versions(tmp_path):
 class Target:
     exists = True
     count = 1
-    info = {"bounds": {"left": 0, "top": 100, "right": 100, "bottom": 200}}
+    info = {"bounds": {"left": 0, "top": 100, "right": 100, "bottom": 200}, "focused": True}
 
     def __init__(self, device):
         self.device = device
@@ -60,6 +67,7 @@ class Device:
         self.package = APP
         self.calls = []
         self.queries = []
+        self.starts = []
 
     def app_current(self):
         raise AssertionError("Android 16 task history is not a foreground-app signal")
@@ -70,6 +78,7 @@ class Device:
 
     def app_start(self, package, **_kwargs):
         self.package = package
+        self.starts.append((package, _kwargs))
 
     def __call__(self, **selector):
         self.queries.append(selector)
@@ -106,6 +115,28 @@ def test_replay_never_interacts_with_unapproved_foreground_apps(tmp_path):
     assert device.calls == []
     assert not json.loads((tmp_path / "evidence/report.json").read_text(encoding="utf-8"))["passed"]
     assert "private" not in redacted_hierarchy(device.dump_hierarchy())
+
+
+def test_restart_launch_requests_an_actual_application_restart(tmp_path):
+    device = Device()
+    session = PhoneSession(device, tmp_path / "evidence")
+    session.execute({"action": "launch", "restart": True})
+    assert device.starts == [(APP, {"stop": True})]
+
+
+def test_app_links_keep_tokens_in_environment_references(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+
+    monkeypatch.setenv("QA_RESET_LINK", "http://example.test/reset-password?token=private-link-token")
+    device = Device()
+    device.shell = lambda command: SimpleNamespace(output="Starting activity", exit_code=0)
+    session = PhoneSession(device, tmp_path / "evidence")
+    session.execute({"action": "open-link", "env": "QA_RESET_LINK"})
+    report = (session.output / "report.json").read_text(encoding="utf-8")
+    assert "QA_RESET_LINK" in report
+    assert "private-link-token" not in report
+    with pytest.raises(ValueError, match="environment"):
+        validate_step({"action": "open-link"})
 
 
 def test_hierarchy_excludes_other_apps_and_system_notifications():

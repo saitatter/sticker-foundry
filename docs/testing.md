@@ -45,6 +45,8 @@ save
 
 `label` matches exact Android text or accessibility description. `--text`, `--description` and `--id` select a specific property; `--text-contains`, `--description-contains` and `--instance` refine compound or repeated labels. Prefer these over coordinates. For canvas edits use normalized coordinates, for example `swipe --start .3 .4 --end .6 .7` or `tap-point --point .5 .5`. `drag` uses a held drag for reorder handles; `long-tap` opens long-press interactions. Other commands include `absent`, `press --key back` and `checkpoint`.
 
+Use `launch --restart` to restart the app without clearing its data. Switches and checkboxes can be asserted with `assert --description "Dark theme" --checked` or `--no-checked`. Password and other form inputs wait for focus and keyboard layout to settle before setting text. `open-link --env QA_RESET_LINK` opens an HTTP(S) link explicitly inside Sticker Foundry; the scenario keeps only the environment reference. This tests native routing, independently of the phone's default URL-handler associations.
+
 This records actions executed through the runner; arbitrary taps made directly on the physical phone are not automatically converted into selectors. Each successful recorded step is written immediately. Assert the visible result of each operation so replay checks behavior rather than merely reproducing taps. `qa/android/login.sample.json` is a template whose selectors still need confirmation on the device; suites exclude `.sample.json` files.
 
 ## Replay and evidence

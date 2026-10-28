@@ -12,6 +12,7 @@ import uuid
 import xml.etree.ElementTree as ET
 from datetime import UTC, datetime
 from pathlib import Path
+from urllib.parse import urlsplit
 
 APP = "com.stickerfoundry.app"
 ROOT = Path(__file__).resolve().parents[1]
@@ -24,9 +25,11 @@ SELECTORS = {
     "textContains",
     "descriptionContains",
     "instance",
+    "checked",
 }
 ACTIONS = {
     "launch",
+    "open-link",
     "tap",
     "long-tap",
     "input",
@@ -45,7 +48,8 @@ def validate_step(step):
         raise ValueError("Unknown step action")
     action = step["action"]
     fields = {
-        "launch": {"package"},
+        "launch": {"package", "restart"},
+        "open-link": {"env"},
         "tap": {"selector"},
         "long-tap": {"selector"},
         "assert": {"selector"},
@@ -65,10 +69,16 @@ def validate_step(step):
             raise ValueError("A supported semantic selector is required")
         if "label" in selector and len(selector) != 1:
             raise ValueError("label matches either exact text or description; use it alone")
-        if any(not isinstance(value, str) for key, value in selector.items() if key != "instance"):
+        if any(
+            not isinstance(value, str)
+            for key, value in selector.items()
+            if key not in {"instance", "checked"}
+        ):
             raise ValueError("Selector values must be text")
         if "instance" in selector and (type(selector["instance"]) is not int or selector["instance"] < 0):
             raise ValueError("instance must be a nonnegative integer")
+        if "checked" in selector and type(selector["checked"]) is not bool:
+            raise ValueError("checked must be a boolean")
     if action == "input":
         if ("env" in step) == ("value" in step):
             raise ValueError("Input requires exactly one of env or value")
@@ -79,6 +89,10 @@ def validate_step(step):
             raise ValueError("Use an environment variable for secret inputs")
     if action == "press" and step.get("key") not in {"back", "enter", "search", "delete"}:
         raise ValueError("Unsupported key")
+    if "restart" in step and type(step["restart"]) is not bool:
+        raise ValueError("restart must be a boolean")
+    if action == "open-link" and (not isinstance(step.get("env"), str) or not step["env"]):
+        raise ValueError("App links require an environment reference")
     for name in {"tap-point": ("point",), "swipe": ("start", "end"), "drag": ("start", "end")}.get(
         action, ()
     ):
@@ -160,6 +174,13 @@ class PhoneSession:
             raise RuntimeError(f"Foreground package {package!r} is outside this QA session")
         return package
 
+    def wait_for_package(self, package, timeout):
+        deadline = time.monotonic() + timeout
+        while self.device.info.get("currentPackageName") != package:
+            if time.monotonic() >= deadline:
+                raise RuntimeError("The requested application did not enter the foreground")
+            time.sleep(0.15)
+
     def find(self, selector, timeout, *, exists=True, enabled=False):
         choices = (
             [{"description": selector["label"]}, {"text": selector["label"]}]
@@ -167,6 +188,7 @@ class PhoneSession:
             else [selector]
         )
         deadline = time.monotonic() + timeout
+        previous_targets = {}
         while True:
             package = self.guard()
             found = None
@@ -175,6 +197,12 @@ class PhoneSession:
                 if target.exists:
                     if target.count != 1:
                         raise AssertionError("Selector is ambiguous; make it more specific")
+                    if enabled:
+                        key = tuple(sorted(query.items()))
+                        bounds = target.info["bounds"]
+                        if bounds != previous_targets.get(key):
+                            previous_targets[key] = bounds
+                            continue
                     if enabled and target_obscured(
                         self.device.dump_hierarchy(compressed=False), package, target.info["bounds"]
                     ):
@@ -256,12 +284,32 @@ class PhoneSession:
                 package = step.get("package", APP)
                 if package not in self.allowed:
                     raise ValueError("Launching this package is not enabled for this session")
-                self.device.app_start(package)
-                deadline = time.monotonic() + step.get("timeout", 15)
-                while self.device.info.get("currentPackageName") != package:
-                    if time.monotonic() >= deadline:
-                        raise RuntimeError("The requested application did not enter the foreground")
-                    time.sleep(0.15)
+                self.device.app_start(package, stop=step.get("restart", False))
+                self.wait_for_package(package, step.get("timeout", 15))
+            elif action == "open-link":
+                link = os.environ[step["env"]]
+                uri = urlsplit(link)
+                if uri.scheme not in {"http", "https"} or not uri.netloc or uri.username or uri.password:
+                    raise ValueError("An HTTP(S) app link without embedded credentials is required")
+                try:
+                    result = self.device.shell(
+                        [
+                            "am",
+                            "start",
+                            "-W",
+                            "-a",
+                            "android.intent.action.VIEW",
+                            "-d",
+                            link,
+                            "-n",
+                            f"{APP}/.MainActivity",
+                        ]
+                    )
+                    if result.exit_code != 0 or "Error" in result.output:
+                        raise RuntimeError("App link launch failed")
+                    self.wait_for_package(APP, step.get("timeout", 15))
+                except Exception:
+                    raise RuntimeError("The app link could not be opened") from None
             else:
                 self.guard()
             if action in {"tap", "long-tap", "input", "assert", "absent"}:
@@ -285,6 +333,17 @@ class PhoneSession:
                     value = os.environ[step["env"]] if "env" in step else step["value"]
                     try:
                         target.click()
+                        deadline = time.monotonic() + step.get("timeout", 15)
+                        previous_bounds = None
+                        while True:
+                            self.guard()
+                            info = target.info
+                            if info.get("focused") and info["bounds"] == previous_bounds:
+                                break
+                            if time.monotonic() >= deadline:
+                                raise RuntimeError("Input focus did not settle")
+                            previous_bounds = info["bounds"]
+                            time.sleep(0.15)
                         target.set_text(value)
                     except Exception:
                         raise RuntimeError("Input failed for the selected field") from None
@@ -390,10 +449,12 @@ def interactive_step(line):
     parser.add_argument("--description-contains", dest="descriptionContains")
     parser.add_argument("--class", dest="className")
     parser.add_argument("--instance", type=int)
+    parser.add_argument("--checked", action=argparse.BooleanOptionalAction, default=None)
     parser.add_argument("--env")
     parser.add_argument("--value")
     parser.add_argument("--key")
     parser.add_argument("--package")
+    parser.add_argument("--restart", action="store_true", default=None)
     parser.add_argument("--point", type=float, nargs=2)
     parser.add_argument("--start", type=float, nargs=2)
     parser.add_argument("--end", type=float, nargs=2)
@@ -449,7 +510,7 @@ def main():
     import uiautomator2 as u2
 
     device = u2.connect(args.serial)
-    device.jsonrpc.setConfigurator({"waitForIdleTimeout": 0, "waitForSelectorTimeout": 0})
+    device.jsonrpc.setConfigurator({"waitForIdleTimeout": 500, "waitForSelectorTimeout": 0})
     stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ") + "-" + uuid.uuid4().hex[:8]
     output = args.output or ROOT / "test-results/android" / stamp
     print(f"Evidence: {output}")
