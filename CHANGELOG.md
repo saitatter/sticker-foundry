@@ -2,31 +2,33 @@
 
 ## Unreleased
 
+This release brings Sticker Foundry to one Flutter interface across mobile, desktop and web, with a Python server, a more spacious phone editor and repeatable testing on a real Android device. Version 2 starts a new installation baseline.
+
 ### ✨ Features
 
-- Use one Flutter application on Android, desktop and the web, with an image editor, animated previews, batch editing, offline downloads and working team/settings lists and refresh actions.
-- Reset passwords with confirmation and visible link errors, clear old sessions after success and preserve password whitespace.
-- End access immediately when sessions are revoked or passwords change, and identify the current device in active sessions.
-- Give the phone editor more canvas space, collapse activity details and use logo-matched accents with clearer connection errors and editable existing sticker metadata.
-- Open downloaded packs directly while offline and bound startup checks and stalled response bodies.
-- Return from shared public packs to discovery with the toolbar or Android Back button.
-- **Breaking:** Run the server and workers in Python, with a new database baseline and no support for previous server or client installations.
-- Confirm saved changes only after their database transaction completes, so immediately following requests can read them reliably.
+- **Breaking:** Start fresh with the Python API and workers, a new database baseline and the Flutter client. Previous server databases and clients are not supported; keep old installations and backups separate.
+- **Use one interface everywhere:** manage packs with Flutter on Android, desktop and web, including animated previews, batch editing, offline downloads and working team/settings lists.
+- **Edit with more room:** work directly on the image with more canvas space, logo-matched accents, editable existing metadata and reliable clearing of empty fields.
+- **Read activity more easily:** see friendly action names and local timestamps, with detailed metadata collapsed until needed.
+- **Keep account access under control:** reset passwords with confirmation and clear link errors, preserve password whitespace and immediately block access when sessions are revoked or passwords change. Identify the current device in active sessions.
+- **Use downloads without a connection:** open cached packs directly while offline, with bounded startup checks and stalled requests.
+- **Navigate and save reliably:** return from public packs using the toolbar or Android Back, see clearer connection errors and read saved changes immediately after they complete.
 
 ### 🧰 CI & Build
 
-- Run browser tests and project utilities in Python, remove the TypeScript/npm toolchain and replay Android QA with stable controls, private video evidence, token-safe app links and an isolated phone acceptance suite.
-- Remove unused Cupertino icon assets, retire the completed feature branch's CI trigger and cancel superseded CI runs.
-- Update PostgreSQL access to the tested SQLAlchemy 2.1 release.
-- Update the Redis client used by job queues and health checks to the tested 8.1 release.
-- Keep Android validation and release builds on the maintained Java setup action.
-- Build release notes from the curated Unreleased changelog, with the version selected from conventional commits.
-- Validate Python, Flutter and container acceptance with pinned tooling versions, testing the served Docker web build directly and waiting for edits to finish before checking subsequent shortcuts.
+- **Replay real phone checks:** use synthetic media and an isolated server to test editing, exports, WhatsApp imports and offline restart, with stable selectors and private video evidence.
+- **Simplify development:** use Python and Dart tooling without a separate TypeScript/npm setup, remove unused assets and stale branch triggers, and update PostgreSQL, Redis and Android build dependencies.
+- **Verify release builds:** check Python, Flutter, real container workers and three browser engines with pinned tooling; publish curated release notes and protected-main release commits through the Release workflow.
 
 ### Docs
 
-- Keep the project support link available in the current README.
-- Document the current Flutter/Python stack and adopt shared contribution and changelog rules in AGENTS.md.
+- **Find installation guidance:** refresh the README with features, platform downloads, version 2 compatibility requirements and repeatable phone testing. Use reader-oriented release summaries, installation links and known limitations.
+
+### Known limitations
+
+- WhatsApp import is available on Android; WhatsApp Business was not available on the test phone.
+- AI background removal requires its optional service. The release does not include a prebuilt iOS app.
+- Physical-device automation covers the core flows; advanced erase/restore and tray-editing gestures still need separate scenarios. Desktop builds are checked in CI; interactive desktop testing is separate.
 
 ## [1.3.0](https://github.com/saitatter/sticker-foundry/compare/v1.2.0...v1.3.0) (2026-09-21)
 

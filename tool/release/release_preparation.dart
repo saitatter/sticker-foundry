@@ -87,5 +87,20 @@ String releaseNotes({
   required String previousTag,
   required String repository,
 }) =>
-    "## What's Changed\n\n${entries.replaceAllMapped(RegExp(r'\]\((?!https?:|#)([^)]+)\)'), (match) => '](https://github.com/$repository/blob/v$version/${match[1]})')}\n\n**Full Changelog**: https://github.com/$repository/compare/"
-    '$previousTag...v$version\n';
+    '## Changes since last release\n\n'
+    "${entries.replaceAllMapped(RegExp(r'\]\((?!https?:|#)([^)]+)\)'), (match) => '](https://github.com/$repository/blob/v$version/${match[1]})')}\n\n"
+    '## Installing & Updating\n\n'
+    'Download the Android APK or Windows, macOS and Linux archives from the assets below. '
+    'If Android signing is not configured, the APK is explicitly named `sticker-foundry-android-debug.apk`. '
+    'The server archive includes the Docker deployment files; the web archive contains the browser client.\n\n'
+    'For installation, compatibility requirements and server configuration, see the '
+    '[README](https://github.com/$repository/blob/v$version/README.md) and '
+    '[deployment guide](https://github.com/$repository/blob/v$version/docs/DEPLOY_SERVER.md). '
+    'Pin published container images with `STICKER_FOUNDRY_VERSION=$version`.\n\n'
+    '## About Sticker Foundry\n\n'
+    'Sticker Foundry is an open-source, self-hosted workspace for creating, editing and sharing sticker packs. '
+    'Flutter provides the mobile, desktop and web interface; Python runs the API and media workers.\n\n'
+    'Report problems and suggest improvements through '
+    '[GitHub Issues](https://github.com/$repository/issues). '
+    'You can support development on [Ko-fi](https://ko-fi.com/saitatter).\n\n'
+    '**Full Changelog**: https://github.com/$repository/compare/$previousTag...v$version\n';

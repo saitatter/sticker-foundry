@@ -6,6 +6,10 @@
 - Update `CHANGELOG.md` under `Unreleased` in the same commit: one short,
   user-facing line in Features, Fixes, Refactors, Docs, or CI & Build. Describe
   the effect. The Release workflow turns these entries into release notes.
+- Introduce Unreleased with a brief user-facing overview. Group related changes
+  into benefit-led bullets with bold labels; include known limitations when
+  relevant. Release notes add installation links, project information and the
+  full comparison link. Keep published changelog sections unchanged.
 - Fixes and Refactors entries only describe behavior or code that shipped in a
   published release. For unreleased work, update its Features entry instead.
   Check `git show <last tag>:<path>` when unsure.

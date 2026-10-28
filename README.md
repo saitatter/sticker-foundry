@@ -1,6 +1,33 @@
 # Sticker Foundry
 
-Self-hosted sticker management with Flutter for Android, iOS, Windows, macOS, Linux and web, and a Python API. Edit stickers directly on the image, collaborate on packs and keep offline downloads. Android integrates with WhatsApp through its native sticker provider.
+Self-hosted sticker management with a shared Flutter interface and a Python backend. Create static and animated packs, edit directly on the image, collaborate with your team and keep packs available offline. Android imports packs into WhatsApp through its native sticker provider.
+
+## What you can do
+
+- **Create and edit:** upload PNG/GIF media individually or in batches, crop and rotate, add text, adjust effects and edit sticker metadata.
+- **Organize your library:** search, filter, rename and clone packs; copy or move stickers between them.
+- **Collaborate safely:** use teams, invitations, roles, comments, review approvals and public sharing.
+- **Export and take offline:** validate pack readiness, download ZIP archives, cache packs per server/account and import static or animated packs into WhatsApp on Android.
+- **Manage your instance:** configure registration, quotas and processing, review activity and audit entries, reset passwords and revoke individual or all sessions.
+
+## Install the app
+
+Download a build from [GitHub Releases](https://github.com/saitatter/sticker-foundry/releases/latest), then connect it to your server's API URL, for example `https://stickers.example.com/api/`.
+
+| Platform | Release asset |
+| --- | --- |
+| Android | `sticker-foundry-android.apk`, or the explicitly named `sticker-foundry-android-debug.apk` when release signing is unavailable |
+| Windows | `sticker-foundry-windows.zip` |
+| macOS | `sticker-foundry-macos.zip` |
+| Linux | `sticker-foundry-linux.tar.gz` |
+| Web | Served by the Docker web service; `sticker-foundry-web.tar.gz` is also available |
+| Server | `sticker-foundry-server.tar.gz` includes the source and Docker deployment files |
+
+Flutter also includes an iOS target, but this release does not distribute a prebuilt iOS app. WhatsApp import is Android-only. AI background removal requires the optional service; threshold removal works without a model.
+
+## Compatibility
+
+**Version 2 is a fresh installation baseline.** The Python backend and Flutter client do not support databases or clients from earlier major versions. Use a new database and separate media storage; retain the old installation and its backups independently. There is no automatic data upgrade from version 1. See the [deployment guide](docs/DEPLOY_SERVER.md) before switching a running instance.
 
 ## Run the server
 
@@ -10,9 +37,11 @@ Install Docker Compose, copy `.env.example` to `.env`, set unique PostgreSQL and
 docker compose up -d --build
 ```
 
-Open http://localhost:8080. The first registered account becomes administrator. Start with an empty database; initialization refuses an unrelated schema without changing it. The next major release requires a fresh installation.
+Open http://localhost:8080. The first registered account becomes administrator. Start with an empty database; initialization refuses an unrelated schema without changing it.
 
 FastAPI, PostgreSQL, Redis and separate Celery workers handle media, exports and email. Optional AI removal uses `docker compose -f docker-compose.yml -f docker-compose.ai.yml up -d --build`. Threshold removal needs no model. Project tools and browser tests use Python and Dart; no separate Node/npm installation is required.
+
+For production, configure HTTPS, SMTP and the public URLs as described in [Server deployment](docs/DEPLOY_SERVER.md). Published images are `ghcr.io/saitatter/sticker-foundry-backend`, `sticker-foundry-backend-ai` and `sticker-foundry-web`; set `STICKER_FOUNDRY_VERSION` to an exact release when using `docker-compose.ghcr.yml`.
 
 ## Develop and verify
 
@@ -29,6 +58,14 @@ dart run tool/ci_check.dart
 Add `--integration` to build an isolated Docker stack, test actual PostgreSQL/Redis/workers, and run Chromium, Firefox and WebKit acceptance. It removes only its own test volumes.
 
 Android builds require JDK 17 and the Android SDK. The JDK compiles the app and WhatsApp bridge; it is not a backend dependency.
+
+For repeatable physical-device checks, install the debug APK and configure an isolated QA server, then use:
+
+```sh
+uv run --project apps/backend python -m tool.phone_smoke --serial SERIAL --video --whatsapp
+```
+
+The suite exercises the library, editor, exports, offline use and both WhatsApp pack types. Credentials, recordings and reports stay in ignored `test-results/`. Setup, safety checks and coverage limits are documented in [Android automation](docs/testing.md).
 
 ## Documentation
 

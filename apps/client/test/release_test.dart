@@ -74,13 +74,25 @@ void main() {
       previousTag: 'v1.1.0',
       repository: 'saitatter/sticker-foundry',
     );
+    expect(notes, startsWith('## Changes since last release\n\n'));
     expect(
       notes,
-      "## What's Changed\n\n### 📚 Docs\n- See the "
-      '[report](https://github.com/saitatter/sticker-foundry/blob/v1.2.0/'
-      'docs/architecture.md) and [site](https://example.org).\n\n'
-      '**Full Changelog**: https://github.com/saitatter/sticker-foundry/'
-      'compare/v1.1.0...v1.2.0\n',
+      contains(
+        '### 📚 Docs\n- See the '
+        '[report](https://github.com/saitatter/sticker-foundry/blob/v1.2.0/'
+        'docs/architecture.md) and [site](https://example.org).',
+      ),
+    );
+    expect(notes, contains('## Installing & Updating'));
+    expect(notes, contains('/blob/v1.2.0/README.md'));
+    expect(notes, contains('STICKER_FOUNDRY_VERSION=1.2.0'));
+    expect(notes, contains('## About Sticker Foundry'));
+    expect(
+      notes,
+      endsWith(
+        '**Full Changelog**: https://github.com/saitatter/sticker-foundry/'
+        'compare/v1.1.0...v1.2.0\n',
+      ),
     );
   });
 }

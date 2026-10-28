@@ -69,8 +69,16 @@ Future<void> main(List<String> args) async {
     'Release $previousTag -> v$version '
     '(${messages.length} commits since $previousTag)',
   );
+  final notes = releaseNotes(
+    entries: cut.entries,
+    version: version,
+    previousTag: previousTag,
+    repository:
+        Platform.environment['GITHUB_REPOSITORY'] ??
+        'saitatter/sticker-foundry',
+  );
   if (check) {
-    stdout.writeln('\n${cut.entries}');
+    stdout.writeln('\n$notes');
     return;
   }
   final pubspecFile = File('apps/client/pubspec.yaml');
@@ -95,16 +103,7 @@ Future<void> main(List<String> args) async {
     ),
   );
   changelogFile.writeAsStringSync(cut.changelog);
-  File(notesPath!).writeAsStringSync(
-    releaseNotes(
-      entries: cut.entries,
-      version: version,
-      previousTag: previousTag,
-      repository:
-          Platform.environment['GITHUB_REPOSITORY'] ??
-          'saitatter/sticker-foundry',
-    ),
-  );
+  File(notesPath!).writeAsStringSync(notes);
   final output = Platform.environment['GITHUB_OUTPUT'];
   if (output != null) {
     File(output).writeAsStringSync('version=$version\n', mode: FileMode.append);
