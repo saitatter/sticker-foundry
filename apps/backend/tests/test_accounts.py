@@ -2,7 +2,7 @@ from datetime import timedelta
 
 from foundry.auth import digest
 from foundry.db import session_factory
-from foundry.models import PasswordResetToken, now
+from foundry.models import PasswordResetToken, UserSession, now
 
 from .conftest import register
 
@@ -52,6 +52,7 @@ def test_password_change_and_owned_session_revocation(client, owner):
         == 200
     )
     assert client.post("/api/auth/refresh", json={"refreshToken": result["refreshToken"]}).status_code == 401
+    assert client.get("/api/auth/me", headers=headers).status_code == 401
     assert (
         client.post(
             "/api/auth/login", json={"email": "owner@example.test", "password": "updated-pass"}
@@ -73,6 +74,7 @@ def test_reset_token_is_single_use_and_does_not_require_a_session(client, owner)
         db.commit()
     reset = {"token": "test-reset-token", "newPassword": "replacement-pass"}
     assert client.post("/api/auth/password/reset/confirm", json=reset).status_code == 201
+    assert client.get("/api/auth/me", headers=headers).status_code == 401
     assert client.post("/api/auth/password/reset/confirm", json=reset).status_code == 400
     assert (
         client.post(
@@ -80,6 +82,37 @@ def test_reset_token_is_single_use_and_does_not_require_a_session(client, owner)
         ).status_code
         == 201
     )
+
+
+def test_session_revocation_blocks_access_and_refresh_without_affecting_other_devices(client, owner):
+    original, first = owner
+    second = client.post(
+        "/api/auth/login", json={"email": "owner@example.test", "password": "password123"}
+    ).json()
+    other = {"Authorization": "Bearer " + second["accessToken"]}
+    rows = client.get("/api/auth/sessions", headers=first).json()
+    assert sum(row["isCurrent"] for row in rows) == 1
+    current = next(row for row in rows if row["isCurrent"])
+    assert client.delete(f"/api/auth/sessions/{current['id']}", headers=other).status_code == 200
+    assert client.get("/api/auth/me", headers=first).status_code == 401
+    assert (
+        client.post("/api/auth/refresh", json={"refreshToken": original["refreshToken"]}).status_code == 401
+    )
+    assert client.get("/api/auth/me", headers=other).status_code == 200
+    remaining = client.get("/api/auth/sessions", headers=other).json()
+    assert len(remaining) == 1 and remaining[0]["isCurrent"]
+    assert client.delete("/api/auth/sessions", headers=other).status_code == 200
+    assert client.get("/api/auth/me", headers=other).status_code == 401
+    assert client.post("/api/auth/refresh", json={"refreshToken": second["refreshToken"]}).status_code == 401
+
+
+def test_expired_session_blocks_an_unexpired_access_token(client, owner):
+    _, headers = owner
+    row = client.get("/api/auth/sessions", headers=headers).json()[0]
+    with session_factory()() as db:
+        db.get(UserSession, row["id"]).expires_at = now() - timedelta(seconds=1)
+        db.commit()
+    assert client.get("/api/auth/me", headers=headers).status_code == 401
 
 
 def test_instance_policy_and_admin_permissions(client, owner):

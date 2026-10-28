@@ -206,18 +206,25 @@ def test_live_accounts_workers_collaboration_and_exports():
             sessions = api(viewer, "auth/sessions")
             api(viewer, f"auth/sessions/{sessions[0]['id']}", "DELETE")
             api(None, "auth/refresh", "POST", {"refreshToken": viewer["refreshToken"]}, 401)
+            api(viewer, "auth/me", expected=401)
+            viewer.update(
+                api(None, "auth/login", "POST", {"email": viewer["user"]["email"], "password": password}, 201)
+            )
             api(
                 editor,
                 "auth/password",
                 "PATCH",
                 {"currentPassword": password, "newPassword": password + "-new"},
             )
-            api(
-                None,
-                "auth/login",
-                "POST",
-                {"email": editor["user"]["email"], "password": password + "-new"},
-                201,
+            api(editor, "auth/me", expected=401)
+            editor.update(
+                api(
+                    None,
+                    "auth/login",
+                    "POST",
+                    {"email": editor["user"]["email"], "password": password + "-new"},
+                    201,
+                )
             )
         finally:
             for session, pack_id in reversed(created):

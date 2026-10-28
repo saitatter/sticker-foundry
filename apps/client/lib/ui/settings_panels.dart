@@ -30,14 +30,14 @@ class SecurityPanel extends StatelessWidget {
             secrets: {'currentPassword', 'newPassword'},
           );
           if (data != null) {
-            await store.run(
-              () => store.api.request(
+            await store.run(() async {
+              await store.api.request(
                 'auth/password',
                 method: 'PATCH',
                 data: data,
-              ),
-              success: 'Password changed',
-            );
+              );
+              await store.signOut();
+            }, success: 'Password changed. Sign in again.');
           }
         },
       ),
@@ -55,7 +55,11 @@ class SecurityPanel extends StatelessWidget {
     ],
     item: (row, reload) => ListTile(
       leading: const Icon(Icons.devices),
-      title: Text('${row['userAgent'] ?? 'Device'}'),
+      title: Text(
+        row['isCurrent'] == true
+            ? 'This device'
+            : '${row['userAgent'] ?? 'Device'}',
+      ),
       subtitle: Text(
         '${row['ipAddress'] ?? ''}\nCreated ${row['createdAt']}\nExpires ${row['expiresAt'] ?? '—'}',
       ),
@@ -67,7 +71,11 @@ class SecurityPanel extends StatelessWidget {
             'auth/sessions/${row['id']}',
             method: 'DELETE',
           );
-          reload();
+          if (row['isCurrent'] == true) {
+            await store.signOut();
+          } else {
+            reload();
+          }
         }),
       ),
     ),

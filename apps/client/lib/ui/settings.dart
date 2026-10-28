@@ -39,6 +39,7 @@ class SettingsScreen extends StatelessWidget {
     if (d != null) {
       await store.run(() async {
         await store.api.request(path, method: method, data: d);
+        if (path == 'auth/password') await store.signOut();
         if (path == 'teams') await store.refresh();
       }, success: 'Saved');
     }

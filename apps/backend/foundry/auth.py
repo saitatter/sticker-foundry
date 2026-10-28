@@ -44,10 +44,22 @@ def current_user(request: Request, db: Session = db_dependency) -> User:
         fail(401, "Unauthorized")
     try:
         payload = jwt.decode(
-            auth[7:], get_settings().jwt_secret, algorithms=["HS256"], options={"require": ["sub", "exp"]}
+            auth[7:],
+            get_settings().jwt_secret,
+            algorithms=["HS256"],
+            options={"require": ["sub", "sid", "exp"]},
         )
     except jwt.PyJWTError:
         fail(401, "Unauthorized")
+    session = db.get(UserSession, payload["sid"])
+    if (
+        session is None
+        or session.user_id != payload["sub"]
+        or session.revoked_at is not None
+        or session.expires_at <= now()
+    ):
+        fail(401, "Unauthorized")
+    request.state.session_id = session.id
     user = db.get(User, payload["sub"])
     if user is None:
         fail(401, "Unauthorized")
@@ -83,6 +95,7 @@ def auth_response(db: Session, user: User, request: Request, response: Response,
     access = jwt.encode(
         {
             "sub": user.id,
+            "sid": session.id,
             "email": user.email,
             "iat": timestamp,
             "exp": timestamp + timedelta(seconds=token_ttl(settings.access_token_ttl)),
@@ -198,11 +211,17 @@ def change_password(payload: ChangePassword, user: User = Depends(current_user),
 
 
 @router.get("/sessions")
-def sessions(user: User = Depends(current_user), db: Session = db_dependency):
+def sessions(request: Request, user: User = Depends(current_user), db: Session = db_dependency):
     return [
-        data(row, exclude=("userId", "refreshTokenHash"))
+        {**data(row, exclude=("userId", "refreshTokenHash")), "isCurrent": row.id == request.state.session_id}
         for row in db.scalars(
-            select(UserSession).where(UserSession.user_id == user.id).order_by(UserSession.created_at.desc())
+            select(UserSession)
+            .where(
+                UserSession.user_id == user.id,
+                UserSession.revoked_at.is_(None),
+                UserSession.expires_at > now(),
+            )
+            .order_by(UserSession.created_at.desc())
         )
     ]
 

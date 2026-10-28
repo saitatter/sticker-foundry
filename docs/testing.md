@@ -109,4 +109,6 @@ Record separate scenarios during the device session and list their feature IDs i
 | WhatsApp | Static/animated imports, update of downloaded packs, provider data and Business when installed |
 | Administration | Instance settings, registration policy, quotas and audit access/cleanup |
 
+The core suite does not cover every editor gesture or optional deployment feature. Advanced erase/restore and tray editing need separate phone scenarios; AI removal needs a configured service. WhatsApp Business and native desktop behavior require those targets to be available. Session revocation is also checked separately: revoking the current device must return it to sign-in, reject both access and refresh tokens, and leave other active devices usable. Password changes and resets must invalidate old access as well as refresh tokens.
+
 Use [WhatsApp validation](WHATSAPP_VALIDATION.md) for the import checklist. Chat sending requires a specifically authorized test conversation; it is not part of the sample scenario.
