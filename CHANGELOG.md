@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Docs
+
+- **Find the server download:** use the published `sticker-foundry-server-package.tar.gz` archive name in the installation guide.
+
 ## 2.0.0 - 2026-10-28
 
 This release brings Sticker Foundry to one Flutter interface across mobile, desktop and web, with a Python server, a more spacious phone editor and repeatable testing on a real Android device. Version 2 starts a new installation baseline.

@@ -21,7 +21,7 @@ Download a build from [GitHub Releases](https://github.com/saitatter/sticker-fou
 | macOS | `sticker-foundry-macos.zip` |
 | Linux | `sticker-foundry-linux.tar.gz` |
 | Web | Served by the Docker web service; `sticker-foundry-web.tar.gz` is also available |
-| Server | `sticker-foundry-server.tar.gz` includes the source and Docker deployment files |
+| Server | `sticker-foundry-server-package.tar.gz` includes the source and Docker deployment files |
 
 Flutter also includes an iOS target, but this release does not distribute a prebuilt iOS app. WhatsApp import is Android-only. AI background removal requires the optional service; threshold removal works without a model.
 
