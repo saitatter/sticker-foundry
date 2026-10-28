@@ -10,7 +10,7 @@
 
 ### 🧰 CI & Build
 
-- Run browser tests and project utilities in Python, removing the TypeScript/npm toolchain and recording replayable Android QA scenarios with private evidence.
+- Run browser tests and project utilities in Python, removing the TypeScript/npm toolchain and recording replayable Android QA scenarios with private evidence, Android 16 foreground detection and validated video captures.
 - Remove unused Cupertino icon assets, retire the completed feature branch's CI trigger and cancel superseded CI runs.
 - Update PostgreSQL access to the tested SQLAlchemy 2.1 release.
 - Update the Redis client used by job queues and health checks to the tested 8.1 release.

@@ -3,7 +3,9 @@
 import argparse
 import json
 import os
+import re
 import shlex
+import subprocess
 import sys
 import time
 import uuid
@@ -110,14 +112,34 @@ def load_flow(path):
     return flow
 
 
-def redacted_hierarchy(xml):
+def redacted_hierarchy(xml, allowed_packages=(APP,)):
     root = ET.fromstring(xml)
+    for parent in list(root.iter()):
+        for child in list(parent):
+            package = child.get("package")
+            if package and package not in allowed_packages:
+                parent.remove(child)
     for node in root.iter():
         if node.get("password") == "true":
             for child in node.iter():
                 child.set("text", "[redacted]")
                 child.set("content-desc", "[redacted]")
     return ET.tostring(root, encoding="unicode")
+
+
+def target_obscured(xml, package, bounds):
+    """Inspect window geometry only, without retaining unrelated window contents."""
+    x = (bounds["left"] + bounds["right"]) / 2
+    y = (bounds["top"] + bounds["bottom"]) / 2
+    for node in ET.fromstring(xml):
+        if node.get("package") in {None, package}:
+            continue
+        coordinates = [int(value) for value in re.findall(r"-?\d+", node.get("bounds", ""))]
+        if len(coordinates) == 4:
+            left, top, right, bottom = coordinates
+            if left <= x < right and top <= y < bottom:
+                return True
+    return False
 
 
 class PhoneSession:
@@ -127,16 +149,18 @@ class PhoneSession:
         self.output.mkdir(parents=True, exist_ok=False)
         self.allowed = {APP, *allowed_packages}
         self.video = video
+        self.video_status = "pending" if video else "disabled"
         self.covers = list(covers)
         self.recording = None
         self.results = []
 
     def guard(self):
-        package = self.device.app_current().get("package")
+        package = self.device.info.get("currentPackageName")
         if package not in self.allowed:
             raise RuntimeError(f"Foreground package {package!r} is outside this QA session")
+        return package
 
-    def find(self, selector, timeout, *, exists=True):
+    def find(self, selector, timeout, *, exists=True, enabled=False):
         choices = (
             [{"description": selector["label"]}, {"text": selector["label"]}]
             if "label" in selector
@@ -144,13 +168,17 @@ class PhoneSession:
         )
         deadline = time.monotonic() + timeout
         while True:
-            self.guard()
+            package = self.guard()
             found = None
             for query in choices:
-                target = self.device(**query)
+                target = self.device(packageName=package, **({"enabled": True} if enabled else {}), **query)
                 if target.exists:
                     if target.count != 1:
                         raise AssertionError("Selector is ambiguous; make it more specific")
+                    if enabled and target_obscured(
+                        self.device.dump_hierarchy(compressed=False), package, target.info["bounds"]
+                    ):
+                        continue
                     found = target
                     break
             if (found is not None) == exists:
@@ -163,24 +191,45 @@ class PhoneSession:
         self.guard()
         self.device.screenshot(str(self.output / f"{stem}.png"))
         xml = self.device.dump_hierarchy(compressed=False)
-        (self.output / f"{stem}.xml").write_text(redacted_hierarchy(xml), encoding="utf-8")
+        (self.output / f"{stem}.xml").write_text(redacted_hierarchy(xml, self.allowed), encoding="utf-8")
 
     def start_video(self):
+        from adbutils import adb_path
+
         self.guard()
+        self.video_status = "failed"
         remote = f"/sdcard/foundry-qa-{uuid.uuid4().hex}.mp4"
-        result = self.device.shell(
-            ["sh", "-c", f"screenrecord --time-limit 180 {remote} >/dev/null 2>&1 & echo $!"]
+        self.video_process = subprocess.Popen(
+            [
+                adb_path(),
+                "-s",
+                self.device.serial,
+                "shell",
+                f"echo $$; exec screenrecord --size 720x1600 --time-limit 180 {remote}",
+            ],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            stdin=subprocess.DEVNULL,
+            text=True,
         )
-        pid = int(result.output.strip())
-        if result.exit_code != 0 or pid <= 1:
+        pid = int(self.video_process.stdout.readline().strip())
+        if pid <= 1:
             raise RuntimeError("Could not start Android screen recording")
         self.recording = pid, remote
+        deadline = time.monotonic() + 5
+        while self.device.shell(["test", "-f", remote]).exit_code != 0:
+            if time.monotonic() < deadline:
+                time.sleep(0.2)
+                continue
+            raise RuntimeError("Android screen recording did not create a video file")
+        self.video_status = "recording"
 
     def stop_video(self):
         if self.recording is None:
             return
         pid, remote = self.recording
         self.recording = None
+        self.video_status = "failed"
         command = self.device.shell(["cat", f"/proc/{pid}/cmdline"]).output
         if "screenrecord" in command and remote in command:
             self.device.shell(["kill", "-2", str(pid)])
@@ -188,8 +237,15 @@ class PhoneSession:
             if self.device.shell(["kill", "-0", str(pid)]).exit_code != 0:
                 break
             time.sleep(0.2)
-        self.device.pull(remote, str(self.output / "screen.mp4"))
+        if self.device.shell(["test", "-s", remote]).exit_code != 0:
+            raise RuntimeError("Android screen recording is missing or empty")
+        destination = self.output / "screen.mp4"
+        self.device.pull(remote, str(destination))
+        if not destination.is_file() or destination.stat().st_size == 0:
+            raise RuntimeError("Android video download failed")
         self.device.shell(["rm", remote])
+        self.video_process.wait(timeout=10)
+        self.video_status = "saved"
 
     def execute(self, step):
         validate_step(step)
@@ -200,11 +256,21 @@ class PhoneSession:
                 package = step.get("package", APP)
                 if package not in self.allowed:
                     raise ValueError("Launching this package is not enabled for this session")
-                self.device.app_start(package, wait=True)
+                self.device.app_start(package)
+                deadline = time.monotonic() + step.get("timeout", 15)
+                while self.device.info.get("currentPackageName") != package:
+                    if time.monotonic() >= deadline:
+                        raise RuntimeError("The requested application did not enter the foreground")
+                    time.sleep(0.15)
             else:
                 self.guard()
             if action in {"tap", "long-tap", "input", "assert", "absent"}:
-                target = self.find(step["selector"], step.get("timeout", 15), exists=action != "absent")
+                target = self.find(
+                    step["selector"],
+                    step.get("timeout", 15),
+                    exists=action != "absent",
+                    enabled=action in {"tap", "long-tap", "input"},
+                )
                 if target is None:
                     raise AssertionError(
                         "Selected element did not disappear"
@@ -218,6 +284,7 @@ class PhoneSession:
                 elif action == "input":
                     value = os.environ[step["env"]] if "env" in step else step["value"]
                     try:
+                        target.click()
                         target.set_text(value)
                     except Exception:
                         raise RuntimeError("Input failed for the selected field") from None
@@ -260,7 +327,10 @@ class PhoneSession:
             "covers": self.covers,
             "package": APP,
             "steps": self.results,
-            "passed": bool(self.results) and all(step["status"] == "passed" for step in self.results),
+            "video": {"status": self.video_status},
+            "passed": bool(self.results)
+            and all(step["status"] == "passed" for step in self.results)
+            and self.video_status in {"disabled", "saved"},
         }
         (self.output / "report.json").write_text(
             json.dumps(result, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"

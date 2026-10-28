@@ -9,6 +9,7 @@ from tool.phone_qa import (
     load_flow,
     redacted_hierarchy,
     replay_suite,
+    target_obscured,
     validate_step,
 )
 
@@ -42,6 +43,7 @@ def test_scenarios_reject_arbitrary_commands_and_unknown_versions(tmp_path):
 class Target:
     exists = True
     count = 1
+    info = {"bounds": {"left": 0, "top": 100, "right": 100, "bottom": 200}}
 
     def __init__(self, device):
         self.device = device
@@ -57,14 +59,20 @@ class Device:
     def __init__(self):
         self.package = APP
         self.calls = []
+        self.queries = []
 
     def app_current(self):
-        return {"package": self.package}
+        raise AssertionError("Android 16 task history is not a foreground-app signal")
+
+    @property
+    def info(self):
+        return {"currentPackageName": self.package}
 
     def app_start(self, package, **_kwargs):
         self.package = package
 
-    def __call__(self, **_selector):
+    def __call__(self, **selector):
+        self.queries.append(selector)
         return Target(self)
 
     def screenshot(self, path):
@@ -84,6 +92,8 @@ def test_replay_logs_selectors_and_evidence_without_secret_values(tmp_path, monk
     assert '"passed": true' in report
     assert "QA_PASSWORD" in report and "test-only-secret" not in report
     assert "test-only-secret" in device.calls
+    assert device.calls[:2] == ["click", "test-only-secret"]
+    assert all(query["packageName"] == APP and query["enabled"] for query in device.queries)
     assert "private" not in (output / "001-input.xml").read_text(encoding="utf-8")
 
 
@@ -96,6 +106,39 @@ def test_replay_never_interacts_with_unapproved_foreground_apps(tmp_path):
     assert device.calls == []
     assert not json.loads((tmp_path / "evidence/report.json").read_text(encoding="utf-8"))["passed"]
     assert "private" not in redacted_hierarchy(device.dump_hierarchy())
+
+
+def test_hierarchy_excludes_other_apps_and_system_notifications():
+    xml = (
+        '<hierarchy><node package="com.android.systemui" text="notification"/>'
+        f'<node package="{APP}" text="Library"><node package="com.whatsapp" '
+        'text="external"/></node></hierarchy>'
+    )
+    result = redacted_hierarchy(xml)
+    assert "Library" in result
+    assert "notification" not in result and "external" not in result
+    assert "external" in redacted_hierarchy(xml, {APP, "com.whatsapp"})
+
+
+def test_video_finalization_rejects_missing_remote_file(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+
+    device = Device()
+    device.shell = lambda _command: SimpleNamespace(output="", exit_code=1)
+    monkeypatch.setattr("tool.phone_qa.time.sleep", lambda _seconds: None)
+    session = PhoneSession(device, tmp_path / "evidence", video=True)
+    session.recording = 42, "/sdcard/foundry-qa-test.mp4"
+    with pytest.raises(RuntimeError, match="missing or empty"):
+        session.stop_video()
+    assert not (session.output / "screen.mp4").exists()
+
+
+def test_notifications_block_taps_but_status_and_navigation_bars_do_not():
+    bounds = {"left": 100, "top": 150, "right": 200, "bottom": 250}
+    bars = '<node package="com.android.systemui" bounds="[0,0][1000,100]"/>'
+    assert not target_obscured(f"<hierarchy>{bars}</hierarchy>", APP, bounds)
+    banner = '<node package="com.android.systemui" bounds="[0,100][1000,400]"/>'
+    assert target_obscured(f"<hierarchy>{bars}{banner}</hierarchy>", APP, bounds)
 
 
 def test_suite_reports_coverage_and_stops_after_a_failed_scenario(tmp_path):
