@@ -141,7 +141,7 @@ def test_activity_pagination(page: Page):
     page.get_by_role("button", name="Activity", exact=True).click()
     expect(page.get_by_role("group", name=re.compile("Page 1 of 2"))).to_be_visible()
     page.get_by_role("button", name="Next page", exact=True).click()
-    expect(page.get_by_role("group", name=re.compile(r"^Event 10 "))).to_be_visible()
+    expect(page.get_by_role("button", name=re.compile(r"^Event 10 "))).to_be_visible()
     page.get_by_role("button", name="10 per page", exact=True).click()
     page.get_by_role("menuitem", name="25 per page", exact=True).click()
     expect(page.get_by_role("group", name=re.compile("Page 1 of 1"))).to_be_visible()

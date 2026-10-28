@@ -7,10 +7,37 @@ import 'package:http/testing.dart';
 import 'package:sticker_foundry/core/api.dart';
 import 'package:sticker_foundry/core/store.dart';
 import 'package:sticker_foundry/ui/activity_panel.dart';
+import 'package:sticker_foundry/ui/activity_entry.dart';
 import 'package:sticker_foundry/ui/common.dart';
 import 'package:sticker_foundry/ui/settings_panels.dart';
 
 void main() {
+  testWidgets(
+    'activity details expand without filling the list with metadata',
+    (tester) async {
+      var deleted = false;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: ActivityEntry(
+              entry: {
+                'action': 'pack.update',
+                'metadata': {'description': 'Detailed change'},
+              },
+              onDelete: () => deleted = true,
+            ),
+          ),
+        ),
+      );
+      expect(find.textContaining('Detailed change'), findsNothing);
+      expect(find.byTooltip('Delete entry'), findsNothing);
+      await tester.tap(find.text('Pack settings updated'));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('Detailed change'), findsOneWidget);
+      await tester.tap(find.byTooltip('Delete entry'));
+      expect(deleted, isTrue);
+    },
+  );
   testWidgets(
     'remote lists load, refresh after mutations and follow a new path',
     (tester) async {
@@ -75,11 +102,11 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      expect(find.text('pack.create'), findsOneWidget);
+      expect(find.text('Pack created'), findsOneWidget);
       await tester.tap(find.byTooltip('Refresh activity'));
       await tester.pumpAndSettle();
-      expect(find.text('pack.update'), findsOneWidget);
-      expect(find.text('pack.create'), findsNothing);
+      expect(find.text('Pack settings updated'), findsOneWidget);
+      expect(find.text('Pack created'), findsNothing);
       expect(tester.takeException(), isNull);
     },
   );
@@ -104,7 +131,7 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    await tester.tap(find.textContaining('Retry:'));
+    await tester.tap(find.text('Try again'));
     await tester.pumpAndSettle();
     expect(find.text('Recovered instance'), findsOneWidget);
     expect(tester.takeException(), isNull);

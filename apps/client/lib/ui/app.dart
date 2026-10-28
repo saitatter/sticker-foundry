@@ -127,7 +127,7 @@ class _FoundryAppState extends State<FoundryApp> {
   ThemeData theme(Brightness b) => ThemeData(
     useMaterial3: true,
     colorScheme: ColorScheme.fromSeed(
-      seedColor: const Color(0xff6551cf),
+      seedColor: const Color(0xff087f83),
       brightness: b,
     ),
     visualDensity: VisualDensity.compact,

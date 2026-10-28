@@ -1,10 +1,9 @@
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
 
 import '../core/api.dart';
 import '../core/store.dart';
 import 'common.dart';
+import 'activity_entry.dart';
 
 class ActivityPanel extends StatefulWidget {
   final FoundryStore store;
@@ -38,12 +37,7 @@ class _ActivityPanelState extends State<ActivityPanel> {
     future: data,
     builder: (_, snapshot) {
       if (snapshot.hasError) {
-        return Center(
-          child: TextButton(
-            onPressed: reload,
-            child: Text('Retry: ${snapshot.error}'),
-          ),
-        );
+        return requestFailure(snapshot.error, reload);
       }
       if (!snapshot.hasData) {
         return const Center(child: CircularProgressIndicator());
@@ -105,26 +99,16 @@ class _ActivityPanelState extends State<ActivityPanel> {
                 if (rows.isEmpty)
                   const ListTile(title: Text('No activity yet')),
                 for (final row in rows.skip(current * size).take(size))
-                  ListTile(
-                    leading: const Icon(Icons.history),
-                    title: Text('${row['action'] ?? row['type']}'),
-                    subtitle: SelectionArea(
-                      child: Text(
-                        '${row['actor']?['displayName'] ?? ''} · ${row['createdAt']}\n${const JsonEncoder.withIndent('  ').convert(row['metadata'] ?? {})}',
-                      ),
-                    ),
-                    trailing: widget.manage
-                        ? action(
-                            Icons.delete_outline,
-                            'Delete entry',
-                            () => widget.store.run(() async {
-                              await widget.store.api.request(
-                                '$path/${row['id']}',
-                                method: 'DELETE',
-                              );
-                              reload();
-                            }),
-                          )
+                  ActivityEntry(
+                    entry: row,
+                    onDelete: widget.manage
+                        ? () => widget.store.run(() async {
+                            await widget.store.api.request(
+                              '$path/${row['id']}',
+                              method: 'DELETE',
+                            );
+                            reload();
+                          })
                         : null,
                   ),
               ],

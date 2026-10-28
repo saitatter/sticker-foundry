@@ -20,6 +20,7 @@ enum EditorTool {
   effects,
   background,
   animation,
+  details,
 }
 
 Future<EditedMedia?> editMedia(
@@ -237,6 +238,7 @@ class _ImageEditorState extends State<ImageEditor>
     quality: quality,
     optimize: optimize,
     animatedCompress: compressAnimation,
+    includeEmptyMetadata: widget.initial?.includeEmptyMetadata ?? false,
   );
 
   @override
@@ -465,7 +467,11 @@ class _ImageEditorState extends State<ImageEditor>
       .where(
         (t) =>
             (!widget.tray ||
-                ![EditorTool.background, EditorTool.animation].contains(t)) &&
+                ![
+                  EditorTool.background,
+                  EditorTool.animation,
+                  EditorTool.details,
+                ].contains(t)) &&
             (widget.animated || t != EditorTool.animation),
       )
       .toList();
@@ -479,6 +485,7 @@ class _ImageEditorState extends State<ImageEditor>
     EditorTool.effects => Icons.auto_awesome_outlined,
     EditorTool.background => Icons.layers_clear,
     EditorTool.animation => Icons.animation,
+    EditorTool.details => Icons.info_outline,
   };
   String label(EditorTool tool) => switch (tool) {
     EditorTool.move => 'Move / zoom',
@@ -490,6 +497,7 @@ class _ImageEditorState extends State<ImageEditor>
     EditorTool.effects => 'Effects',
     EditorTool.background => 'Background',
     EditorTool.animation => 'Animation',
+    EditorTool.details => 'Sticker details',
   };
   void select(EditorTool value) {
     if (value == EditorTool.text && doc.texts.isEmpty) {
@@ -729,7 +737,7 @@ class _ImageEditorState extends State<ImageEditor>
               ),
             );
             final controls = Container(
-              width: wide ? 300 : null,
+              width: wide ? 300 : double.infinity,
               constraints: BoxConstraints(
                 maxHeight: wide ? double.infinity : 210,
               ),
@@ -1136,7 +1144,7 @@ class _ImageEditorState extends State<ImageEditor>
         ),
         if (optimize) slider('Quality', quality, 35, 95, (v) => quality = v),
       ],
-      if (!widget.tray && tool == EditorTool.move) ...[
+      if (tool == EditorTool.details) ...[
         TextField(
           controller: emoji,
           decoration: const InputDecoration(

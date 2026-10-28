@@ -7,6 +7,26 @@ import 'package:http/testing.dart';
 import 'package:sticker_foundry/core/api.dart';
 
 void main() {
+  test(
+    'network messages hide transport details and preserve server validation',
+    () {
+      final message = userMessage(
+        http.ClientException('SocketException at http://internal.test/api'),
+      );
+      expect(
+        message,
+        'Cannot reach the server. Check your connection and try again.',
+      );
+      expect(
+        userMessage(ApiError(400, 'Choose an animated GIF')),
+        'Choose an animated GIF',
+      );
+      expect(
+        userMessage(TimeoutException('private transport detail')),
+        'The server took too long to respond. Try again.',
+      );
+    },
+  );
   test('request timeout includes a stalled response body', () async {
     final body = StreamController<List<int>>();
     final api = FoundryApi(

@@ -80,7 +80,7 @@ class _PackScreenState extends State<PackScreen> {
         });
       }
     } catch (e) {
-      if (mounted) setState(() => failure = '$e');
+      if (mounted) setState(() => failure = userMessage(e));
     }
   }
 
@@ -167,6 +167,12 @@ class _PackScreenState extends State<PackScreen> {
         bytes,
         sticker['fileName'],
         animated: pack?['isAnimated'] == true,
+        initial: EditorRecipe(
+          document: EditDocument(),
+          emojis: (sticker['emojis'] as List? ?? []).join(', '),
+          accessibilityText: '${sticker['accessibilityText'] ?? ''}',
+          includeEmptyMetadata: true,
+        ),
       );
       if (media != null) {
         await s.upload(
@@ -547,7 +553,7 @@ class _PackScreenState extends State<PackScreen> {
         body: Center(
           child: failure == null
               ? const CircularProgressIndicator()
-              : TextButton(onPressed: load, child: Text('Retry: $failure')),
+              : requestFailure(failure, load),
         ),
       );
     }
@@ -557,6 +563,11 @@ class _PackScreenState extends State<PackScreen> {
               !widget.public ||
               pack!['requiresApproval'] != true ||
               sticker['reviewStatus'] == 'APPROVED',
+        )
+        .toList();
+    final visibleJobs = s.jobs
+        .where(
+          (job) => job['packId'] == widget.id && job['status'] != 'COMPLETED',
         )
         .toList();
     return Scaffold(
@@ -894,20 +905,19 @@ class _PackScreenState extends State<PackScreen> {
                     action: stickerAction,
                   ),
           ),
-          if (s.jobs.any((j) => j['packId'] == widget.id))
+          if (!widget.public && visibleJobs.isNotEmpty)
             SizedBox(
-              height: 72,
+              height: 64,
               child: ListView(
                 scrollDirection: Axis.horizontal,
-                children: s.jobs
-                    .where((j) => j['packId'] == widget.id)
+                children: visibleJobs
                     .map(
                       (j) => Padding(
                         padding: const EdgeInsets.all(8),
                         child: Row(
                           children: [
                             Text(
-                              '${j['label'] ?? j['type'] ?? 'Processing'}: ${j['status']} ${j['progress'] ?? 0}%',
+                              '${fieldLabel('${j['label'] ?? j['type'] ?? 'Processing'}')}: ${fieldLabel('${j['status']}')} ${j['progress'] ?? 0}%',
                             ),
                             if (['QUEUED', 'PROCESSING'].contains(j['status']))
                               action(

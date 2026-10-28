@@ -5,6 +5,7 @@
 ### ✨ Features
 
 - Use one Flutter application on Android, desktop and the web, with an image editor, animated previews, batch editing, offline downloads and working team/settings lists and refresh actions.
+- Give the phone editor more canvas space, collapse activity details and use logo-matched accents with clearer connection errors and editable existing sticker metadata.
 - Open downloaded packs directly while offline and bound startup checks and stalled response bodies.
 - Return from shared public packs to discovery with the toolbar or Android Back button.
 - **Breaking:** Run the server and workers in Python, with a new database baseline and no support for previous server or client installations.

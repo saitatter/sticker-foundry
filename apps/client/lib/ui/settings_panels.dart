@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -7,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import '../core/api.dart';
 import '../core/store.dart';
 import 'common.dart';
+import 'activity_entry.dart';
 
 class SecurityPanel extends StatelessWidget {
   final FoundryStore store;
@@ -127,14 +127,7 @@ class _AuditPanelState extends State<AuditPanel> {
               onChanged: (v) => setState(() => limit = v!),
             ),
           ],
-          item: (row, _) => ListTile(
-            title: Text('${row['action']}'),
-            subtitle: SelectionArea(
-              child: Text(
-                '${row['createdAt']} · ${row['actor']?['displayName'] ?? row['actorEmail'] ?? row['userId'] ?? ''}\n${const JsonEncoder.withIndent('  ').convert(row['metadata'] ?? {})}',
-              ),
-            ),
-          ),
+          item: (row, _) => ActivityEntry(entry: row),
         );
 }
 
@@ -195,16 +188,14 @@ class _InstancePanelState extends State<InstancePanel> {
     future: request,
     builder: (_, snapshot) {
       if (snapshot.hasError) {
-        return Center(
-          child: TextButton(
-            onPressed: () => setState(() {
-              request = widget.store.api.request(
-                widget.store.admin ? 'admin/settings' : 'instance',
-                auth: widget.store.admin,
-              );
-            }),
-            child: Text('Retry: ${snapshot.error}'),
-          ),
+        return requestFailure(
+          snapshot.error,
+          () => setState(() {
+            request = widget.store.api.request(
+              widget.store.admin ? 'admin/settings' : 'instance',
+              auth: widget.store.admin,
+            );
+          }),
         );
       }
       if (!snapshot.hasData) {
@@ -356,7 +347,14 @@ class _TeamScreenState extends State<TeamScreen> {
   Widget build(BuildContext context) => FutureBuilder(
     future: request,
     builder: (_, snapshot) {
-      if (snapshot.hasError) return Center(child: Text('${snapshot.error}'));
+      if (snapshot.hasError) {
+        return requestFailure(
+          snapshot.error,
+          () => setState(() {
+            request = widget.store.api.request('teams');
+          }),
+        );
+      }
       if (!snapshot.hasData) {
         return const Center(child: CircularProgressIndicator());
       }

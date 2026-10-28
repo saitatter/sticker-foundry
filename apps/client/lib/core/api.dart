@@ -1,6 +1,8 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 import 'package:mime/mime.dart';
@@ -39,6 +41,23 @@ class ApiError implements Exception {
   ApiError(this.status, this.message);
   @override
   String toString() => message;
+}
+
+String userMessage(Object? error) {
+  if (error is http.ClientException) {
+    return 'Cannot reach the server. Check your connection and try again.';
+  }
+  if (error is TimeoutException) {
+    return 'The server took too long to respond. Try again.';
+  }
+  if (error is ApiError) return error.message;
+  if (error is FormatException) return error.message;
+  if (error is StateError) return error.message;
+  if (error is PlatformException) {
+    return error.message ?? 'The device could not complete this action.';
+  }
+  if (error is String) return error;
+  return 'The action could not be completed. Try again.';
 }
 
 class FoundryApi {

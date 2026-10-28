@@ -137,7 +137,7 @@ class EditorRecipe {
   final EditDocument document;
   final String background, emojis, accessibilityText;
   final double trimStart, trimEnd, fps, quality;
-  final bool optimize, animatedCompress;
+  final bool optimize, animatedCompress, includeEmptyMetadata;
   EditorRecipe({
     required this.document,
     this.background = 'none',
@@ -149,6 +149,7 @@ class EditorRecipe {
     this.quality = 82,
     this.optimize = false,
     this.animatedCompress = true,
+    this.includeEmptyMetadata = false,
   });
   EditorRecipe copy() => EditorRecipe(
     document: document.copy(),
@@ -161,6 +162,7 @@ class EditorRecipe {
     quality: quality,
     optimize: optimize,
     animatedCompress: animatedCompress,
+    includeEmptyMetadata: includeEmptyMetadata,
   );
   Json options({
     required bool animated,
@@ -172,14 +174,14 @@ class EditorRecipe {
     'backgroundRemovalFeather': document.feather.round(),
     'backgroundRemovalCleanupSpeckles': document.cleanup,
     'backgroundRemovalSpeckleSize': document.speckle.round(),
-    if (emojis.trim().isNotEmpty)
+    if (includeEmptyMetadata || emojis.trim().isNotEmpty)
       'emojis': emojis
           .split(',')
           .map((s) => s.trim())
           .where((s) => s.isNotEmpty)
           .take(3)
           .toList(),
-    if (accessibilityText.trim().isNotEmpty)
+    if (includeEmptyMetadata || accessibilityText.trim().isNotEmpty)
       'accessibilityText': accessibilityText.trim(),
     if (!animated && optimize && !tray) 'staticQuality': quality.round(),
     if (animated && !tray) ...{

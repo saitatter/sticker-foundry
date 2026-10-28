@@ -196,7 +196,17 @@ void main() {
             builder: (context) => Scaffold(
               body: TextButton(
                 onPressed: () async {
-                  result = await editMedia(context, bytes, 'photo.png');
+                  result = await editMedia(
+                    context,
+                    bytes,
+                    'photo.png',
+                    initial: EditorRecipe(
+                      document: EditDocument(),
+                      emojis: '\u{1F642}',
+                      accessibilityText: 'Original description',
+                      includeEmptyMetadata: true,
+                    ),
+                  );
                 },
                 child: const Text('Open editor'),
               ),
@@ -211,6 +221,23 @@ void main() {
         () => Future<void>.delayed(const Duration(milliseconds: 200)),
       );
       await tester.pumpAndSettle();
+      expect(
+        find.widgetWithText(TextField, 'Accessibility description'),
+        findsNothing,
+      );
+      await tester.ensureVisible(find.byTooltip('Sticker details'));
+      await tester.tap(find.byTooltip('Sticker details'));
+      await tester.pumpAndSettle();
+      expect(find.text('Original description'), findsOneWidget);
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Emojis, separated by commas'),
+        '',
+      );
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Accessibility description'),
+        'Orange greeting',
+      );
+      await tester.ensureVisible(find.byTooltip('Text'));
       await tester.tap(find.byTooltip('Text'));
       await tester.pumpAndSettle();
       await tester.enterText(find.byType(TextField).last, 'HELLO');
@@ -239,6 +266,8 @@ void main() {
       expect(output.width, 512);
       expect(output.height, 512);
       expect(result!.options['backgroundRemovalMode'], 'none');
+      expect(result!.options['accessibilityText'], 'Orange greeting');
+      expect(result!.options['emojis'], isEmpty);
       expect(tester.takeException(), isNull);
     },
   );

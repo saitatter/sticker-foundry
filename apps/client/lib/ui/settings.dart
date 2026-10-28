@@ -156,7 +156,9 @@ class SettingsScreen extends StatelessWidget {
         ListTile(
           leading: const Icon(Icons.group_work_outlined),
           title: const Text('Teams'),
-          subtitle: Text('${s.teams.length} teams'),
+          subtitle: Text(
+            '${s.teams.length} ${s.teams.length == 1 ? 'team' : 'teams'}',
+          ),
           onTap: () => context.go('/app/settings/teams'),
         ),
         ListTile(
@@ -224,7 +226,7 @@ class SettingsScreen extends StatelessWidget {
     item: (team, reload) => ListTile(
       title: Text('${team['name']}'),
       subtitle: Text(
-        '${team['memberCount']} members · ${team['packCount']} packs',
+        '${team['memberCount']} ${team['memberCount'] == 1 ? 'member' : 'members'} · ${team['packCount']} ${team['packCount'] == 1 ? 'pack' : 'packs'}',
       ),
       onTap: () => context.go('/app/teams/${team['id']}'),
     ),

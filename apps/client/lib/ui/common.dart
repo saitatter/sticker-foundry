@@ -28,11 +28,39 @@ String fieldLabel(String key) =>
       'EDITOR': 'Editor',
       'VIEWER': 'Viewer',
       'OWNER': 'Owner',
+      'QUEUED': 'Queued',
+      'PROCESSING': 'Processing',
+      'COMPLETED': 'Completed',
+      'FAILED': 'Failed',
+      'CANCELLED': 'Cancelled',
+      'media': 'Sticker processing',
+      'export': 'Export',
     }[key] ??
     key;
 
 Widget action(IconData icon, String label, VoidCallback? callback) =>
     IconButton(tooltip: label, onPressed: callback, icon: Icon(icon));
+
+Widget requestFailure(Object? error, VoidCallback retry) => Center(
+  child: ConstrainedBox(
+    constraints: const BoxConstraints(maxWidth: 400),
+    child: Padding(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(userMessage(error), textAlign: TextAlign.center),
+          const SizedBox(height: 12),
+          OutlinedButton.icon(
+            onPressed: retry,
+            icon: const Icon(Icons.refresh),
+            label: const Text('Try again'),
+          ),
+        ],
+      ),
+    ),
+  ),
+);
 Future<bool> confirm(BuildContext context, String title) async =>
     await showDialog<bool>(
       context: context,
@@ -274,12 +302,7 @@ class _RemoteListState extends State<RemoteList> {
           future: data,
           builder: (c, s) {
             if (s.hasError) {
-              return Center(
-                child: TextButton(
-                  onPressed: reload,
-                  child: Text('Retry: ${s.error}'),
-                ),
-              );
+              return requestFailure(s.error, reload);
             }
             if (!s.hasData) {
               return const Center(child: CircularProgressIndicator());

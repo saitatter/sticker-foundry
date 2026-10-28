@@ -104,7 +104,7 @@ class FoundryStore extends ChangeNotifier {
         } catch (_) {}
       }
     } catch (e) {
-      error = 'Could not restore session: $e';
+      error = 'Could not restore your session. Sign in again.';
     }
     initialized = true;
     notifyListeners();
@@ -366,7 +366,8 @@ class FoundryStore extends ChangeNotifier {
       try {
         await sync(id: id);
       } catch (e) {
-        notice = 'Saved online. Refresh the offline download: $e';
+        notice =
+            'Saved online. Refresh the offline download. ${userMessage(e)}';
       }
     }
   }
@@ -508,7 +509,7 @@ class FoundryStore extends ChangeNotifier {
       if (e is ApiError && e.status == 401) {
         await signOut();
       }
-      error = e.toString();
+      error = userMessage(e);
     } finally {
       busy = --_operations > 0;
       notifyListeners();
