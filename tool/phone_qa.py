@@ -157,7 +157,7 @@ def target_obscured(xml, package, bounds):
 
 
 class PhoneSession:
-    def __init__(self, device, output, allowed_packages=(), video=False, covers=()):
+    def __init__(self, device, output, allowed_packages=(), video=False, covers=(), before_step=None):
         self.device = device
         self.output = Path(output)
         self.output.mkdir(parents=True, exist_ok=False)
@@ -167,6 +167,7 @@ class PhoneSession:
         self.covers = list(covers)
         self.recording = None
         self.results = []
+        self.before_step = before_step
 
     def guard(self):
         package = self.device.info.get("currentPackageName")
@@ -280,6 +281,8 @@ class PhoneSession:
         action, started = step["action"], time.monotonic()
         item = {"step": step, "status": "failed"}
         try:
+            if self.before_step is not None:
+                self.before_step()
             if action == "launch":
                 package = step.get("package", APP)
                 if package not in self.allowed:
@@ -396,7 +399,7 @@ class PhoneSession:
         )
 
 
-def replay_suite(device, paths, output, allowed_packages=(), video=False):
+def replay_suite(device, paths, output, allowed_packages=(), video=False, before_step=None):
     flows = [load_flow(path) for path in paths]
     output = Path(output)
     output.mkdir(parents=True, exist_ok=False)
@@ -412,7 +415,9 @@ def replay_suite(device, paths, output, allowed_packages=(), video=False):
                 allowed_packages,
                 video,
                 flow.get("covers", []),
+                before_step,
             )
+            print(f"Scenario {index + 1}/{len(paths)}: {paths[index].stem}", flush=True)
             try:
                 for step in flow["steps"]:
                     session.execute(step)

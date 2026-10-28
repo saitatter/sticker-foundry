@@ -159,7 +159,9 @@ def test_admin_route_and_public_password_reset(page: Page):
     fill(page, "New password", "replacement-password")
     fill(page, "Confirm password", "different-password")
     page.get_by_role("button", name="Reset password", exact=True).click()
-    expect(page.locator("flt-semantics span").filter(has_text=re.compile(r"^Passwords do not match$"))).to_be_visible()
+    expect(
+        page.locator("flt-semantics span").filter(has_text=re.compile(r"^Passwords do not match$"))
+    ).to_be_visible()
     page.route(
         "**/api/auth/password/reset/confirm",
         lambda route: route.fulfill(

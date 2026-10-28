@@ -47,13 +47,13 @@ save
 
 Use `launch --restart` to restart the app without clearing its data. Switches and checkboxes can be asserted with `assert --description "Dark theme" --checked` or `--no-checked`. Password and other form inputs wait for focus and keyboard layout to settle before setting text. `open-link --env QA_RESET_LINK` opens an HTTP(S) link explicitly inside Sticker Foundry; the scenario keeps only the environment reference. This tests native routing, independently of the phone's default URL-handler associations.
 
-This records actions executed through the runner; arbitrary taps made directly on the physical phone are not automatically converted into selectors. Each successful recorded step is written immediately. Assert the visible result of each operation so replay checks behavior rather than merely reproducing taps. `qa/android/login.sample.json` is a template whose selectors still need confirmation on the device; suites exclude `.sample.json` files.
+This records actions executed through the runner; arbitrary taps made directly on the physical phone are not automatically converted into selectors. Each successful recorded step is written immediately. Assert the visible result of each operation so replay checks behavior rather than merely reproducing taps. `qa/android/login.json` contains the login selectors verified on the physical device. Commit scenarios only after their selectors and assertions have passed on the target phone; keep exploratory flows in ignored `test-results/`.
 
 ## Replay and evidence
 
 ```sh
-uv run --project apps/backend python tool/phone_qa.py validate qa/android/login.sample.json
-uv run --project apps/backend python tool/phone_qa.py --serial SERIAL --video replay qa/android/recorded
+uv run --project apps/backend python tool/phone_qa.py validate qa/android/login.json
+uv run --project apps/backend python tool/phone_qa.py --serial SERIAL --video replay qa/android/login.json
 ```
 
 A directory replays recorded scenarios in filename order and stops on the first failed scenario. The report marks later scenarios as not run. Every step retains its selector, assertion outcome, screenshot and redacted UI hierarchy restricted to allowed apps; the suite report includes each scenario's `covers` list. Environment references are saved instead of resolved secrets. Evidence is stored under `test-results/android/<session>/` by default; a new `--output` directory can be specified.
@@ -68,9 +68,33 @@ For native WhatsApp import checks explicitly permit its package with `--allow-pa
 uv run --project apps/backend python tool/phone_qa.py --serial SERIAL inspect
 ```
 
+## Automated phone acceptance
+
+`tool.phone_smoke` creates a unique test account and replays the reusable selectors in `tool/phone_scenarios.py`. It generates six synthetic PNG/GIF fixtures, copies them to `Download/Foundry-QA`, records each scenario separately and validates both export archives against the server. It checks the named Docker project, its API port, the internal PostgreSQL connection and its dedicated volume before creating test data.
+
+Use a running Compose project named `sticker-foundry-device-qa` or `sticker-foundry-device-qa-<suffix>`. For a fresh lab, choose unused host ports and keep the same environment file between runs. For example, in PowerShell:
+
+```powershell
+$env:POSTGRES_HOST_PORT = '15434'
+$env:REDIS_HOST_PORT = '16381'
+$env:BACKEND_HOST_PORT = '13002'
+$env:WEB_HOST_PORT = '18082'
+docker compose --env-file .env.example -p sticker-foundry-device-qa-local up -d --build
+```
+
+Install the debug APK and select `http://127.0.0.1:13002/api/` in its server settings. The debug build lets the runner check that saved setting before launching the app. The runner maintains the USB API route during online scenarios and restores it after the offline check.
+
+```sh
+uv run --project apps/backend python -m tool.phone_smoke --serial SERIAL --project sticker-foundry-device-qa-local --video --whatsapp
+```
+
+The core flow covers login, static and animated uploads, batch edits, text/rotation/undo, metadata prefill and clearing, approvals and export restrictions, public navigation, archive saving, clone/copy/move, rename, search/filter/sort, theme changes, offline restart/reconnect and deletion. `--whatsapp` adds both native pack imports; omit it when WhatsApp is unavailable. `--keep-packs` retains the two base packs for inspection; temporary clone/transfer packs are still deleted. `--no-offline` skips the network interruption.
+
+Generated credentials, exact JSON flows, per-scenario evidence and the aggregate report are private artifacts under `test-results/phone-smoke/<run>/`. The account is retained in the isolated QA database. Administrative, collaboration and email-recovery checks are exercised separately from this core suite; record their account/invite/link preconditions through environment references.
+
 ## Physical-device coverage
 
-Record separate scenarios during the device session and list their feature IDs in `--covers`. The initial template is not a claim of physical-device coverage.
+Record separate scenarios during the device session and list their feature IDs in `--covers`. A scenario definition alone is not a claim of physical-device coverage. The checked-in login and generated core selectors have been exercised on the connected phone; a run is verified only when its report and assertions pass.
 
 | Area | Checks to record |
 | --- | --- |
