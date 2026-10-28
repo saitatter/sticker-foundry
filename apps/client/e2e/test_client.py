@@ -58,6 +58,22 @@ def test_public_discovery_at_phone_width(page: Page):
     expect(page.get_by_role("menuitem", name="Delete pack", exact=True)).to_have_count(0)
 
 
+def test_settings_lists_render_and_activity_can_refresh(page: Page):
+    sign_in(page)
+    page.get_by_role("button", name="Settings Tab 3 of 3", exact=True).click()
+    page.get_by_role("button", name=re.compile(r"^Teams ")).click()
+    expect(page.get_by_role("button", name="Create team", exact=True)).to_be_visible()
+    expect(page.get_by_text("Nothing here yet", exact=True)).to_be_visible()
+    page.get_by_role("button", name="Account settings", exact=True).click()
+    page.get_by_role("button", name="Active sessions", exact=True).click()
+    expect(page.get_by_role("button", name="Revoke all sessions", exact=True)).to_be_visible()
+    page.get_by_role("button", name="Library Tab 1 of 3", exact=True).click()
+    page.get_by_role("button", name=re.compile("Little moments")).click()
+    page.get_by_role("button", name="Activity", exact=True).click()
+    page.get_by_role("button", name="Refresh activity", exact=True).click()
+    expect(page.get_by_role("group", name=re.compile("Page 1 of 2"))).to_be_visible()
+
+
 def test_invalid_credentials_keep_form_usable(page: Page):
     page.route(
         "**/api/auth/login",
@@ -111,7 +127,7 @@ def test_keyboard_range_and_bulk_review(page: Page):
     expect(page.get_by_role("group", name=re.compile(r"^Selected stickers updated "))).to_be_visible()
     assert updates == ["NEEDS_WORK"] * 3
     expect(page.get_by_role("button", name="Add stickers", exact=True)).to_be_enabled()
-    page.keyboard.press("Escape")
+    page.get_by_role("group", name=re.compile(r"^Selected stickers updated ")).press("Escape")
     expect(page.get_by_role("checkbox", checked=True)).to_have_count(0)
 
 

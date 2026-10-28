@@ -4,7 +4,7 @@
 
 ### ✨ Features
 
-- Use one Flutter application on Android, desktop and the web, with an image editor, animated previews, batch editing and offline downloads.
+- Use one Flutter application on Android, desktop and the web, with an image editor, animated previews, batch editing, offline downloads and working team/settings lists and refresh actions.
 - **Breaking:** Run the server and workers in Python, with a new database baseline and no support for previous server or client installations.
 - Confirm saved changes only after their database transaction completes, so immediately following requests can read them reliably.
 

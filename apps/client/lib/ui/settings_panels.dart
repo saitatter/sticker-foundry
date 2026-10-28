@@ -197,12 +197,12 @@ class _InstancePanelState extends State<InstancePanel> {
       if (snapshot.hasError) {
         return Center(
           child: TextButton(
-            onPressed: () => setState(
-              () => request = widget.store.api.request(
+            onPressed: () => setState(() {
+              request = widget.store.api.request(
                 widget.store.admin ? 'admin/settings' : 'instance',
                 auth: widget.store.admin,
-              ),
-            ),
+              );
+            }),
             child: Text('Retry: ${snapshot.error}'),
           ),
         );

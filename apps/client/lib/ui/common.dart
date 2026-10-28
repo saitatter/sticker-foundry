@@ -247,7 +247,22 @@ class _RemoteListState extends State<RemoteList> {
   }
 
   void reload() {
-    setState(() => data = widget.store.api.request(widget.path));
+    setState(() {
+      data = widget.store.api.request(widget.path);
+    });
+  }
+
+  @override
+  void didUpdateWidget(covariant RemoteList oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.store != widget.store) {
+      oldWidget.store.removeListener(onStoreChange);
+      widget.store.addListener(onStoreChange);
+      wasBusy = widget.store.busy;
+    }
+    if (oldWidget.path != widget.path || oldWidget.store != widget.store) {
+      reload();
+    }
   }
 
   @override

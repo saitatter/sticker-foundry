@@ -30,7 +30,9 @@ class _ActivityPanelState extends State<ActivityPanel> {
     data = widget.store.api.request(path);
   }
 
-  void reload() => setState(() => data = widget.store.api.request(path));
+  void reload() => setState(() {
+    data = widget.store.api.request(path);
+  });
   @override
   Widget build(BuildContext context) => FutureBuilder(
     future: data,
