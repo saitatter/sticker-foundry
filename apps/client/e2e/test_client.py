@@ -155,8 +155,20 @@ def test_admin_route_and_public_password_reset(page: Page):
     expect(page.get_by_role("button", name="Save settings", exact=True)).to_be_visible()
     page.goto("/reset-password?token=reset-fixture")
     page.locator("flt-semantics-placeholder").evaluate("element => element.click()")
-    page.get_by_role("button", name="Choose new password", exact=True).click()
     expect(page.get_by_role("textbox", name="New password", exact=True)).to_be_visible()
+    fill(page, "New password", "replacement-password")
+    fill(page, "Confirm password", "different-password")
+    page.get_by_role("button", name="Reset password", exact=True).click()
+    expect(page.locator("flt-semantics span").filter(has_text=re.compile(r"^Passwords do not match$"))).to_be_visible()
+    page.route(
+        "**/api/auth/password/reset/confirm",
+        lambda route: route.fulfill(
+            status=400, json={"message": "Password reset token is invalid or expired"}
+        ),
+    )
+    fill(page, "Confirm password", "replacement-password")
+    page.get_by_role("button", name="Reset password", exact=True).click()
+    expect(page.get_by_text("Password reset token is invalid or expired", exact=True)).to_be_visible()
     expect(page).to_have_url(re.compile(r"reset-password\?token=reset-fixture$"))
 
 

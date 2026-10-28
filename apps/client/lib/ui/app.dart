@@ -805,35 +805,109 @@ class _AuthScreenState extends State<AuthScreen> {
   }
 }
 
-class ResetScreen extends StatelessWidget {
+class ResetScreen extends StatefulWidget {
   final FoundryStore store;
   final String token;
   const ResetScreen({super.key, required this.store, required this.token});
   @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Reset password')),
-    body: Center(
-      child: FilledButton(
-        onPressed: () async {
-          final d = await formDialog(
-            context,
-            'New password',
-            {'newPassword': 'New password'},
-            secrets: {'newPassword'},
-          );
-          if (d != null) {
-            await store.run(() async {
-              await store.api.request(
-                'auth/password/reset/confirm',
-                method: 'POST',
-                auth: false,
-                data: {...d, 'token': token},
-              );
-              if (context.mounted) context.go('/');
-            }, success: 'Password reset. Sign in with your new password.');
-          }
-        },
-        child: const Text('Choose new password'),
+  State<ResetScreen> createState() => _ResetScreenState();
+}
+
+class _ResetScreenState extends State<ResetScreen> {
+  final form = GlobalKey<FormState>();
+  final password = TextEditingController(),
+      confirmation = TextEditingController();
+  bool visible = false;
+
+  @override
+  void dispose() {
+    password.dispose();
+    confirmation.dispose();
+    super.dispose();
+  }
+
+  Future<void> submit() async {
+    if (widget.store.busy || !form.currentState!.validate()) return;
+    await widget.store.run(() async {
+      await widget.store.api.request(
+        'auth/password/reset/confirm',
+        method: 'POST',
+        auth: false,
+        data: {'newPassword': password.text, 'token': widget.token},
+      );
+      await widget.store.signOut();
+    }, success: 'Password reset. Sign in with your new password.');
+    if (mounted && widget.store.error == null) context.go('/login');
+  }
+
+  @override
+  Widget build(BuildContext context) => ListenableBuilder(
+    listenable: widget.store,
+    builder: (_, _) => Scaffold(
+      appBar: AppBar(
+        leading: BackButton(onPressed: () => context.go('/login')),
+        title: const Text('Reset password'),
+      ),
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 440),
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: Form(
+              key: form,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  messages(widget.store),
+                  if (widget.token.isEmpty)
+                    const Text(
+                      'This reset link is incomplete. Request a new link from the sign-in screen.',
+                    )
+                  else ...[
+                    TextFormField(
+                      controller: password,
+                      obscureText: !visible,
+                      autofillHints: const [AutofillHints.newPassword],
+                      textInputAction: TextInputAction.next,
+                      decoration: InputDecoration(
+                        labelText: 'New password',
+                        suffixIcon: action(
+                          visible ? Icons.visibility_off : Icons.visibility,
+                          visible ? 'Hide passwords' : 'Show passwords',
+                          () => setState(() => visible = !visible),
+                        ),
+                      ),
+                      validator: (value) => (value?.length ?? 0) < 8
+                          ? 'Use at least 8 characters'
+                          : null,
+                    ),
+                    const SizedBox(height: 14),
+                    TextFormField(
+                      controller: confirmation,
+                      obscureText: !visible,
+                      autofillHints: const [AutofillHints.newPassword],
+                      decoration: const InputDecoration(
+                        labelText: 'Confirm password',
+                      ),
+                      textInputAction: TextInputAction.done,
+                      onFieldSubmitted: (_) => submit(),
+                      validator: (value) => value != password.text
+                          ? 'Passwords do not match'
+                          : null,
+                    ),
+                    const SizedBox(height: 20),
+                    FilledButton(
+                      onPressed: widget.store.busy ? null : submit,
+                      child: Text(
+                        widget.store.busy ? 'Resetting…' : 'Reset password',
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+        ),
       ),
     ),
   );

@@ -122,11 +122,13 @@ Future<Json?> formDialog(
                         maxLines: e.key == 'description' || e.key == 'body'
                             ? 3
                             : 1,
-                        validator: (v) =>
-                            !optional.contains(e.key) &&
-                                (v?.trim().isEmpty ?? true)
-                            ? 'Required'
-                            : null,
+                        validator: (v) {
+                          final value = secrets.contains(e.key) ? v : v?.trim();
+                          return !optional.contains(e.key) &&
+                                  (value?.isEmpty ?? true)
+                              ? 'Required'
+                              : null;
+                        },
                       ),
                     ),
                   for (final e in choices.entries)
@@ -174,7 +176,9 @@ Future<Json?> formDialog(
             onPressed: () {
               if (key.currentState!.validate()) {
                 Navigator.pop(c, <String, dynamic>{
-                  ...inputs.map((k, v) => MapEntry(k, v.trim())),
+                  ...inputs.map(
+                    (k, v) => MapEntry(k, secrets.contains(k) ? v : v.trim()),
+                  ),
                   ...selected,
                   ...toggles,
                 });
