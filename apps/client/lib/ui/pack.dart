@@ -520,19 +520,30 @@ class _PackScreenState extends State<PackScreen> {
   }
 
   @override
-  Widget build(BuildContext context) => Focus(
-    focusNode: keyboardFocus,
-    autofocus: true,
-    onKeyEvent: keyboard,
-    child: ListenableBuilder(
-      listenable: s,
-      builder: (_, _) => content(context),
+  Widget build(BuildContext context) => PopScope(
+    canPop: !widget.public,
+    onPopInvokedWithResult: (didPop, _) {
+      if (!didPop && widget.public) context.go('/discover');
+    },
+    child: Focus(
+      focusNode: keyboardFocus,
+      autofocus: true,
+      onKeyEvent: keyboard,
+      child: ListenableBuilder(
+        listenable: s,
+        builder: (_, _) => content(context),
+      ),
     ),
   );
   Widget content(BuildContext context) {
     if (pack == null) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Pack')),
+        appBar: AppBar(
+          leading: widget.public
+              ? BackButton(onPressed: () => context.go('/discover'))
+              : null,
+          title: const Text('Pack'),
+        ),
         body: Center(
           child: failure == null
               ? const CircularProgressIndicator()
@@ -550,6 +561,9 @@ class _PackScreenState extends State<PackScreen> {
         .toList();
     return Scaffold(
       appBar: AppBar(
+        leading: widget.public
+            ? BackButton(onPressed: () => context.go('/discover'))
+            : null,
         title: Text('${pack!['name']}'),
         actions: [
           if (edit)
