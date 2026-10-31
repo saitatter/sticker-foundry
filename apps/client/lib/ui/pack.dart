@@ -264,15 +264,8 @@ class _PackScreenState extends State<PackScreen> {
     }
   }
 
-  Future<void> dropSticker(String from, String to) async {
+  Future<void> dropSticker(List<String> ids) async {
     if (!edit || s.busy) return;
-    final ids = objects(pack!['stickers'])
-        .map((v) => v['id'] as String)
-        .toList();
-    final fromIndex = ids.indexOf(from), toIndex = ids.indexOf(to);
-    if (fromIndex < 0 || toIndex < 0 || fromIndex == toIndex) return;
-    ids.removeAt(fromIndex);
-    ids.insert(toIndex, from);
     await mutate('$base/stickers', method: 'PATCH', data: {'stickerIds': ids});
   }
 

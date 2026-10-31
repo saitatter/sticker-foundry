@@ -2,12 +2,12 @@
 
 ## Unreleased
 
-Import sticker images from a chosen folder, review them before creating packs and keep completed imports when a file fails.
+Import sticker images from a chosen folder, review them before creating packs and arrange packs with live drag previews.
 
 ### Features
 
 - **Bring existing stickers into your library:** preview folder or file imports, skip identical files and split static/animated stickers into packs of up to 30. Use Android's scoped folder picker, stop and retry unfinished imports, and respect server upload limits.
-- **Arrange packs visually:** keep the tray icon centered above a numbered three-column phone grid, add images from empty slots and hold or drag stickers to reorder with automatic scrolling.
+- **Arrange packs visually:** use a centered tray icon and a clean, numbered three-column phone grid. Hold and drag images to preview their order live, with automatic scrolling; save on release and undo cancelled or failed moves.
 
 ### CI & Build
 

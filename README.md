@@ -7,7 +7,7 @@ Self-hosted sticker management with a shared Flutter interface and a Python back
 - **Create and edit:** upload PNG/GIF media individually or in batches, crop and rotate, add text, adjust effects and edit sticker metadata.
 - **Import existing sticker files:** use the folder-import icon in your library to preview WebP and other images, skip identical files and create separate static/animated packs. On Android, choose an accessible sticker-media folder or copy files to Downloads; WhatsApp does not expose its entire collection to other apps.
 - **Organize your library:** search, filter, rename and clone packs; copy or move stickers between them.
-- **Arrange a pack:** keep its tray icon centered above a numbered grid, add images from empty slots and hold or drag stickers to reorder them. The phone layout uses three columns; desktop adapts to the available width.
+- **Arrange a pack:** keep its tray icon centered above a numbered grid, add images from empty slots and hold and drag stickers to preview their new order live. The order saves on release. The phone layout uses three columns; desktop adapts to the available width.
 - **Collaborate safely:** use teams, invitations, roles, comments, review approvals and public sharing.
 - **Export and take offline:** validate pack readiness, download ZIP archives, cache packs per server/account and import static or animated packs into WhatsApp on Android.
 - **Manage your instance:** configure registration, quotas and processing, review activity and audit entries, reset passwords and revoke individual or all sessions.

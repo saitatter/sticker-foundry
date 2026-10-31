@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sticker_foundry/ui/sticker_grid.dart';
@@ -7,7 +9,7 @@ void main() {
     WidgetTester tester, {
     int count = 3,
     bool editable = true,
-    void Function(String, String)? drop,
+    Future<void> Function(List<String>)? drop,
     VoidCallback? add,
   }) async {
     tester.view.physicalSize = const Size(390, 844);
@@ -30,7 +32,7 @@ void main() {
             open: (_) => fail('Reorder opened sticker'),
             select: (_, _) {},
             action: (_, _) {},
-            drop: drop ?? (_, _) {},
+            drop: drop ?? (_) async {},
             add: add,
           ),
         ),
@@ -64,7 +66,12 @@ void main() {
     tester,
   ) async {
     String? moved;
-    await grid(tester, drop: (a, b) => moved = '$a/$b');
+    await grid(
+      tester,
+      drop: (ids) async {
+        moved = ids.join('/');
+      },
+    );
     final trayBefore = tester.getCenter(
       find.byKey(const ValueKey('tray-image')),
     );
@@ -74,9 +81,19 @@ void main() {
     await tester.pump(const Duration(milliseconds: 600));
     await gesture.moveTo(target);
     await tester.pump();
+    await tester.pump(const Duration(milliseconds: 90));
+    expect(moved, isNull);
+    expect(
+      tester.getCenter(find.byKey(const ValueKey('sticker-2'))).dx,
+      closeTo(target.dx, .1),
+    );
+    expect(
+      tester.getCenter(find.byKey(const ValueKey('sticker-0'))).dx,
+      greaterThan(target.dx),
+    );
     await gesture.up();
     await tester.pumpAndSettle();
-    expect(moved, '2/0');
+    expect(moved, '2/0/1');
     expect(
       tester.getCenter(find.byKey(const ValueKey('tray-image'))),
       trayBefore,
@@ -114,4 +131,97 @@ void main() {
     expect(find.byType(LongPressDraggable<String>), findsNothing);
     expect(find.byKey(const ValueKey('empty-slot-3')), findsNothing);
   });
+
+  testWidgets('cancelled image drag restores the preview without saving', (
+    tester,
+  ) async {
+    var saves = 0;
+    await grid(
+      tester,
+      drop: (_) async {
+        saves++;
+      },
+    );
+    final original = tester.getCenter(find.byKey(const ValueKey('sticker-2')));
+    final target = tester.getCenter(find.byKey(const ValueKey('sticker-0')));
+    final gesture = await tester.startGesture(original);
+    await tester.pump(const Duration(milliseconds: 600));
+    await gesture.moveTo(target);
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(
+      tester.getCenter(find.byKey(const ValueKey('sticker-2'))).dx,
+      closeTo(target.dx, .1),
+    );
+    await gesture.cancel();
+    await tester.pumpAndSettle();
+    expect(saves, 0);
+    expect(tester.getCenter(find.byKey(const ValueKey('sticker-2'))), original);
+    expect(find.byIcon(Icons.drag_indicator), findsNothing);
+    expect(find.byIcon(Icons.pending_outlined), findsNothing);
+  });
+
+  testWidgets(
+    'preview stays visible until saving finishes, then follows the server order',
+    (tester) async {
+      final response = Completer<void>();
+      var saves = 0;
+      await grid(
+        tester,
+        drop: (_) {
+          saves++;
+          return response.future;
+        },
+      );
+      final original = tester.getCenter(
+        find.byKey(const ValueKey('sticker-2')),
+      );
+      final target = tester.getCenter(find.byKey(const ValueKey('sticker-0')));
+      final gesture = await tester.startGesture(original);
+      await tester.pump(const Duration(milliseconds: 600));
+      await gesture.moveTo(target);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 200));
+      await gesture.up();
+      await tester.pump();
+      expect(saves, 1);
+      expect(
+        tester.getCenter(find.byKey(const ValueKey('sticker-2'))).dx,
+        closeTo(target.dx, .1),
+      );
+      // A failed save leaves the authoritative input unchanged.
+      response.complete();
+      await tester.pumpAndSettle();
+      expect(
+        tester.getCenter(find.byKey(const ValueKey('sticker-2'))),
+        original,
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'returning to the original slot does not save an unchanged order',
+    (tester) async {
+      var saves = 0;
+      await grid(
+        tester,
+        drop: (_) async {
+          saves++;
+        },
+      );
+      final original = tester.getCenter(
+        find.byKey(const ValueKey('sticker-2')),
+      );
+      final target = tester.getCenter(find.byKey(const ValueKey('sticker-0')));
+      final gesture = await tester.startGesture(original);
+      await tester.pump(const Duration(milliseconds: 600));
+      await gesture.moveTo(target);
+      await tester.pump();
+      await gesture.moveTo(original);
+      await tester.pump();
+      await gesture.up();
+      await tester.pumpAndSettle();
+      expect(saves, 0);
+    },
+  );
 }

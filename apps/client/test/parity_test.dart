@@ -226,7 +226,7 @@ void main() {
     },
   );
 
-  testWidgets('drag handle reorders without opening the image editor', (
+  testWidgets('image drag saves its final order only after release', (
     tester,
   ) async {
     String? moved;
@@ -244,24 +244,85 @@ void main() {
             open: (_) => fail('Drag opened editor'),
             select: (_, _) {},
             action: (_, _) {},
-            drop: (from, to) => moved = '$from/$to',
+            drop: (ids) async {
+              moved = ids.join('/');
+            },
           ),
         ),
       ),
     );
-    final source = tester.getCenter(
-      find.byTooltip('Drag sticker 3 to reorder'),
-    );
+    final source = tester.getCenter(find.byKey(const ValueKey('sticker-c')));
     final target = tester.getCenter(find.byKey(const ValueKey('sticker-a')));
     final gesture = await tester.startGesture(source);
-    await gesture.moveBy(const Offset(-10, 0));
-    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 600));
     await gesture.moveTo(target);
-    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(moved, isNull);
     await gesture.up();
     await tester.pumpAndSettle();
-    expect(moved, 'c/a');
+    expect(moved, 'c/a/b');
   });
+
+  testWidgets(
+    'failed reorder reports the server error and restores the displayed order',
+    (tester) async {
+      final writes = <List<dynamic>>[];
+      final store = TestStore()..user = {'id': 'u'};
+      store.api = FoundryApi(
+        'http://example.test/api/',
+        client: MockClient((request) async {
+          if (request.method == 'PATCH') {
+            writes.add(jsonDecode(request.body)['stickerIds'] as List);
+            return http.Response('{"message":"Saving order failed"}', 500);
+          }
+          if (request.url.path.endsWith('/packs/p')) {
+            return http.Response(
+              jsonEncode({
+                'id': 'p',
+                'name': 'QA',
+                'canEdit': true,
+                'stickers': [
+                  for (var i = 0; i < 3; i++)
+                    {'id': '$i', 'fileName': '$i.webp'},
+                ],
+              }),
+              200,
+            );
+          }
+          if (request.url.path.endsWith('/file') ||
+              request.url.path.endsWith('/tray-icon')) {
+            return http.Response('', 404);
+          }
+          return http.Response('[]', 200);
+        }),
+      );
+      await tester.pumpWidget(
+        MaterialApp(
+          home: PackScreen(store: store, id: 'p'),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final source = tester.getCenter(find.byKey(const ValueKey('sticker-2')));
+      final target = tester.getCenter(find.byKey(const ValueKey('sticker-0')));
+      final gesture = await tester.startGesture(source);
+      await tester.pump(const Duration(milliseconds: 600));
+      await gesture.moveTo(target);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 200));
+      expect(writes, isEmpty);
+      await gesture.up();
+      await tester.pumpAndSettle();
+      expect(writes, [
+        ['2', '0', '1'],
+      ]);
+      expect(store.error, 'Saving order failed');
+      expect(
+        tester.getCenter(find.byKey(const ValueKey('sticker-2'))).dx,
+        closeTo(source.dx, .1),
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   testWidgets('activity paginates complete history and changes page size', (
     tester,
