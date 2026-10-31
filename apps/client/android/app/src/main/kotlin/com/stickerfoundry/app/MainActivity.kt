@@ -14,13 +14,16 @@ import java.util.zip.ZipInputStream
 
 class MainActivity : FlutterActivity() {
     private val executor = Executors.newSingleThreadExecutor()
+    private val folders by lazy { FolderImportBridge(this) }
     private var importResult: MethodChannel.Result? = null
-    private val authority = "com.stickerfoundry.app.stickercontentprovider"
+    private val authority = BuildConfig.CONTENT_PROVIDER_AUTHORITY
     override fun configureFlutterEngine(engine: FlutterEngine) {
         super.configureFlutterEngine(engine)
         MethodChannel(engine.dartExecutor.binaryMessenger, "com.stickerfoundry.app/native").setMethodCallHandler { call, result ->
             val args = call.arguments as? Map<*, *> ?: emptyMap<Any, Any>()
-            if (call.method == "importPack" || call.method == "openWhatsApp") {
+            if (folders.handles(call.method)) {
+                folders.handle(call, result)
+            } else if (call.method == "importPack" || call.method == "openWhatsApp") {
                 val pkg = if (args["business"] == true) "com.whatsapp.w4b" else "com.whatsapp"
                 try {
                     if (call.method == "openWhatsApp") { val intent = packageManager.getLaunchIntentForPackage(pkg) ?: error("WhatsApp is not installed"); startActivity(intent); result.success(null) }
@@ -53,6 +56,7 @@ class MainActivity : FlutterActivity() {
     @Deprecated("Used by the WhatsApp import contract")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
+        if (folders.onResult(requestCode, resultCode, data)) return
         if (requestCode == 7123) {
             val pending = importResult; importResult = null
             val error = data?.getStringExtra("validation_error")

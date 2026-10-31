@@ -7,6 +7,28 @@ import 'package:http/testing.dart';
 import 'package:sticker_foundry/core/api.dart';
 
 void main() {
+  test('rate-limit responses preserve the server retry interval', () async {
+    final api = FoundryApi(
+      'http://example.test/api/',
+      client: MockClient(
+        (_) async => http.Response(
+          '{"message":"Too many requests"}',
+          429,
+          headers: {'retry-after': '12'},
+        ),
+      ),
+    );
+    await expectLater(
+      api.request('imports/inspect'),
+      throwsA(
+        isA<ApiError>().having(
+          (e) => e.retryAfterSeconds,
+          'retry interval',
+          12,
+        ),
+      ),
+    );
+  });
   test(
     'network messages hide transport details and preserve server validation',
     () {

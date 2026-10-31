@@ -17,6 +17,7 @@ android {
     defaultConfig {
         // Preserve the installed app and WhatsApp provider identity.
         applicationId = "com.stickerfoundry.app"
+        manifestPlaceholders["appLabel"] = "Sticker Foundry"
         minSdk = 26
         targetSdk = flutter.targetSdkVersion
         // Uses the version code from pubspec.yaml. When using split APKs, 1000 * ABI_VERSION
@@ -42,6 +43,13 @@ android {
         }
     }
     buildTypes {
+        debug {
+            if (providers.gradleProperty("qaInstall").orNull == "true") {
+                applicationIdSuffix = ".qa"
+                manifestPlaceholders["appLabel"] = "Sticker Foundry QA"
+                buildConfigField("String", "CONTENT_PROVIDER_AUTHORITY", "\"com.stickerfoundry.app.qa.stickercontentprovider\"")
+            }
+        }
         release {
             if (listOf("ANDROID_KEYSTORE_PATH", "ANDROID_KEYSTORE_PASSWORD", "ANDROID_KEY_ALIAS", "ANDROID_KEY_PASSWORD").all { providers.environmentVariable(it).orNull?.isNotBlank() == true }) {
                 signingConfig = signingConfigs.getByName("release")

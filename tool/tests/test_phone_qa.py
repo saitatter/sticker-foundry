@@ -121,7 +121,7 @@ def test_restart_launch_requests_an_actual_application_restart(tmp_path):
     device = Device()
     session = PhoneSession(device, tmp_path / "evidence")
     session.execute({"action": "launch", "restart": True})
-    assert device.starts == [(APP, {"stop": True})]
+    assert device.starts == [(APP, {"activity": "com.stickerfoundry.app.MainActivity", "stop": True})]
 
 
 def test_app_links_keep_tokens_in_environment_references(tmp_path, monkeypatch):

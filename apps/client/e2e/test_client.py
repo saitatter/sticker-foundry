@@ -1,3 +1,4 @@
+import base64
 import re
 from pathlib import Path
 
@@ -5,6 +6,42 @@ from playwright.sync_api import Page, expect
 
 EMAIL = "artist@example.test"
 ROOT = Path(__file__).resolve().parents[3]
+
+
+def test_import_previews_group_types_and_skip_identical_files(page: Page):
+    sign_in(page)
+    thumbnail = base64.b64encode((ROOT / "assets/brand/sticker-foundry-icon.png").read_bytes()).decode()
+
+    def inspect(route):
+        name = re.search(rb'filename="([^"]+)"', route.request.post_data_buffer).group(1).decode()
+        animated = name == "animated.webp"
+        route.fulfill(
+            json={
+                "sha256": "animated" if animated else "static",
+                "animated": animated,
+                "width": 512,
+                "height": 512,
+                "thumbnail": thumbnail,
+            }
+        )
+
+    page.route("**/api/imports/inspect", inspect)
+    page.get_by_role("button", name="Import stickers", exact=True).click()
+    with page.expect_file_chooser() as chooser:
+        page.get_by_role("button", name="Choose images", exact=True).click()
+    content = (ROOT / "assets/brand/sticker-foundry-icon.png").read_bytes()
+    chooser.value.set_files(
+        [
+            {"name": name, "mimeType": "image/webp", "buffer": content}
+            for name in ["static.webp", "duplicate.webp", "animated.webp"]
+        ]
+    )
+    expect(page.get_by_text("2 selected · 1 duplicate files · 0 imported", exact=True)).to_be_visible()
+    expect(
+        page.get_by_text("1 static packs · 1 animated packs. Up to 30 stickers per pack.", exact=True)
+    ).to_be_visible()
+    expect(page.get_by_role("checkbox", checked=True)).to_have_count(2)
+    expect(page.get_by_role("button", name="Import selected", exact=True)).to_be_enabled()
 
 
 def accessible(page: Page):

@@ -14,7 +14,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from urllib.parse import urlsplit
 
-APP = "com.stickerfoundry.app"
+APP = "com.stickerfoundry.app" + (".qa" if os.environ.get("PHONE_QA_VARIANT") == "qa" else "")
 ROOT = Path(__file__).resolve().parents[1]
 SELECTORS = {
     "label",
@@ -287,7 +287,11 @@ class PhoneSession:
                 package = step.get("package", APP)
                 if package not in self.allowed:
                     raise ValueError("Launching this package is not enabled for this session")
-                self.device.app_start(package, stop=step.get("restart", False))
+                self.device.app_start(
+                    package,
+                    activity="com.stickerfoundry.app.MainActivity" if package == APP else None,
+                    stop=step.get("restart", False),
+                )
                 self.wait_for_package(package, step.get("timeout", 15))
             elif action == "open-link":
                 link = os.environ[step["env"]]
@@ -305,7 +309,7 @@ class PhoneSession:
                             "-d",
                             link,
                             "-n",
-                            f"{APP}/.MainActivity",
+                            f"{APP}/com.stickerfoundry.app.MainActivity",
                         ]
                     )
                     if result.exit_code != 0 or "Error" in result.output:

@@ -38,7 +38,8 @@ String normalizeServer(String input) {
 class ApiError implements Exception {
   final int status;
   final String message;
-  ApiError(this.status, this.message);
+  final int? retryAfterSeconds;
+  ApiError(this.status, this.message, {this.retryAfterSeconds});
   @override
   String toString() => message;
 }
@@ -164,7 +165,11 @@ class FoundryApi {
         final msg = error['message'];
         message = msg is List ? msg.join('\n') : msg?.toString() ?? message;
       } catch (_) {}
-      throw ApiError(response.statusCode, message);
+      throw ApiError(
+        response.statusCode,
+        message,
+        retryAfterSeconds: int.tryParse(response.headers['retry-after'] ?? ''),
+      );
     }
     if (raw) return response.bodyBytes;
     if (response.body.isEmpty) return null;

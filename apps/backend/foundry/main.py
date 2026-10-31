@@ -11,7 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy.exc import IntegrityError
 
-from . import __version__, admin, auth, collaboration, health, jobs, packs, teams
+from . import __version__, admin, auth, collaboration, health, imports, jobs, packs, teams
 from .common import request_context
 from .config import get_settings
 
@@ -183,6 +183,7 @@ def create_app():
 
     for api in [
         auth.router,
+        imports.router,
         admin.public_router,
         admin.router,
         packs.router,

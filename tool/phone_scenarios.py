@@ -389,3 +389,37 @@ def cleanup_scenarios(names, *, keep_packs=False):
         )
         for index, name in enumerate(packs)
     ]
+
+
+def folder_import_scenario(name, folder="Foundry-Import-QA", *, storage):
+    return {
+        "version": 1,
+        "covers": [
+            "import.folder",
+            "import.cancel",
+            "import.duplicates",
+            "import.static-animated",
+            "import.invalid",
+        ],
+        "preconditions": "Signed in to an isolated QA server. The named Downloads folder contains the synthetic --import-folder fixtures.",
+        "steps": [
+            tap("Import stickers"),
+            tap("Choose folder"),
+            BACK,
+            check("No images selected"),
+            tap("Choose folder"),
+            tap("Show roots"),
+            {"action": "tap", "selector": {"text": storage, "resourceId": "android:id/title"}, "timeout": 30},
+            tap("Download"),
+            {"action": "tap", "selector": {"text": folder}, "timeout": 30},
+            {"action": "tap", "selector": {"resourceId": "android:id/button1"}, "timeout": 30},
+            {"action": "tap", "selector": {"resourceId": "android:id/button1"}, "timeout": 30},
+            check("6 selected", contains=True),
+            check("1 duplicate files", contains=True),
+            field(0, value=name),
+            field(1, value="Phone QA"),
+            BACK,
+            tap("Import selected"),
+            check("6 imported", contains=True),
+        ],
+    }

@@ -485,6 +485,20 @@ class FoundryStore extends ChangeNotifier {
     await afterPackMutation(packId);
   }
 
+  Future<void> importSticker(
+    String packId,
+    Uint8List bytes,
+    String filename,
+  ) async {
+    await api.request(
+      'packs/$packId/stickers',
+      method: 'POST',
+      file: bytes,
+      fileName: filename,
+      fields: {'backgroundRemovalMode': 'none'},
+    );
+  }
+
   Future<Uint8List> export(String id) async {
     await track(
       object(

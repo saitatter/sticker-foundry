@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+Import sticker images from a chosen folder, review them before creating packs and keep completed imports when a file fails.
+
+### Features
+
+- **Bring existing stickers into your library:** preview folder or file imports, skip identical files and split static/animated stickers into packs of up to 30. Use Android's scoped folder picker, stop and retry unfinished imports, and respect server upload limits.
+
+### CI & Build
+
+- **Keep phone testing separate:** install an optional QA debug app beside the normal app, with its own data and WhatsApp provider identity.
+
 ### Docs
 
 - **Find the server download:** use the published `sticker-foundry-server-package.tar.gz` archive name in the installation guide.

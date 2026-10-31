@@ -8,6 +8,7 @@ import '../core/store.dart';
 import 'common.dart';
 import 'pack.dart';
 import 'settings.dart';
+import 'import_stickers.dart';
 
 GoRouter createFoundryRouter(FoundryStore store, {String? initialLocation}) {
   return GoRouter(
@@ -352,6 +353,20 @@ class _HomeState extends State<Home> {
                 padding: const EdgeInsets.all(16),
                 child: Row(
                   children: [
+                    if (tab == 0)
+                      IconButton(
+                        tooltip: 'Import stickers',
+                        icon: const Icon(Icons.drive_folder_upload_outlined),
+                        onPressed: s.offline || s.busy
+                            ? null
+                            : () => Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) =>
+                                      ImportStickersScreen(store: s),
+                                ),
+                              ),
+                      ),
                     Expanded(
                       child: TextField(
                         controller: search,

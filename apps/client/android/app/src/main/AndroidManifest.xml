@@ -8,11 +8,11 @@
         <intent><action android:name="com.whatsapp.intent.action.ENABLE_STICKER_PACK" /></intent>
     </queries>
     <application
-        android:label="Sticker Foundry"
+        android:label="${appLabel}"
         android:usesCleartextTraffic="true"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
-        <provider android:name="com.stickerfoundry.app.whatsapp.StickerContentProvider" android:authorities="com.stickerfoundry.app.stickercontentprovider" android:enabled="true" android:exported="true" android:grantUriPermissions="true" android:readPermission="com.whatsapp.sticker.READ" />
+        <provider android:name="com.stickerfoundry.app.whatsapp.StickerContentProvider" android:authorities="${applicationId}.stickercontentprovider" android:enabled="true" android:exported="true" android:grantUriPermissions="true" android:readPermission="com.whatsapp.sticker.READ" />
         <activity
             android:name=".MainActivity"
             android:exported="true"
