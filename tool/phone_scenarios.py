@@ -61,6 +61,7 @@ def choose_files(names, picker):
 
     return [
         tap("Add stickers"),
+        tap("Select file"),
         tap("Show roots"),
         tap("Downloads"),
         {"action": "tap", "selector": {"text": "Foundry-QA"}, "timeout": 30},

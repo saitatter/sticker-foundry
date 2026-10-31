@@ -44,6 +44,39 @@ def test_import_previews_group_types_and_skip_identical_files(page: Page):
     expect(page.get_by_role("button", name="Import selected", exact=True)).to_be_enabled()
 
 
+def test_add_sticker_offers_sources_and_opens_a_selected_file_in_the_editor(page: Page):
+    sign_in(page)
+    page.get_by_role("button", name=re.compile("Little moments")).click()
+    page.get_by_role("button", name="Add stickers", exact=True).click()
+    expect(page.get_by_text("Pick image from", exact=True)).to_be_visible()
+    for name in [
+        "Take photo",
+        "Open gallery",
+        "Select file",
+        "Sticker library",
+        "Text only",
+        "Selfie camera",
+    ]:
+        expect(page.get_by_text(name, exact=True)).to_be_visible()
+    with page.expect_file_chooser() as chooser:
+        page.get_by_text("Select file", exact=True).click()
+    chooser.value.set_files(ROOT / "assets/brand/sticker-foundry-icon.png")
+    expect(page.get_by_text("Edit sticker", exact=True)).to_be_visible()
+    expect(page.get_by_role("button", name="Use image", exact=True)).to_be_enabled()
+
+
+def test_text_only_source_opens_text_entry_and_a_transparent_editor(page: Page):
+    sign_in(page)
+    page.get_by_role("button", name=re.compile("Little moments")).click()
+    page.get_by_role("button", name="Add stickers", exact=True).click()
+    page.get_by_text("Text only", exact=True).click()
+    expect(page.get_by_text("Sticker text", exact=True)).to_be_visible()
+    expect(page.get_by_role("button", name="Apply", exact=True)).to_be_disabled()
+    fill(page, "Text", "Hello from text")
+    page.get_by_role("button", name="Apply", exact=True).click()
+    expect(page.get_by_role("button", name="Use image", exact=True)).to_be_enabled()
+
+
 def accessible(page: Page):
     page.goto("/")
     page.locator("flt-semantics-placeholder").evaluate("element => element.click()")

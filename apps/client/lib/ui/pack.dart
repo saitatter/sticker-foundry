@@ -15,6 +15,8 @@ import 'common.dart';
 import 'sticker_grid.dart';
 import 'pack_settings.dart';
 import 'activity_panel.dart';
+import 'sticker_source.dart';
+import 'sticker_image.dart';
 
 class PackScreen extends StatefulWidget {
   final FoundryStore store;
@@ -104,21 +106,59 @@ class _PackScreenState extends State<PackScreen> {
         await load();
         await s.afterPackMutation(widget.id);
       });
-  Future<void> upload({String? replace, bool tray = false}) async {
-    final files = await FilePicker.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: ['png', 'jpg', 'jpeg', 'webp', 'gif', 'avif'],
-    );
+  Future<void> upload({
+    String? replace,
+    bool tray = false,
+    bool resumePhoto = false,
+  }) async {
+    if (replace == null && !tray && objects(pack!['stickers']).length >= 30) {
+      s.error = 'A pack can contain at most 30 stickers.';
+      s.changed();
+      return;
+    }
+    final scope = s.scope;
+    List<StickerInput> files;
+    try {
+      if (resumePhoto) {
+        final recovered = s.recoveredPhoto;
+        if (recovered == null || recovered.packId != widget.id) return;
+        files = recovered.files.map(StickerInput.photo).toList();
+        await s.clearPhotoRecovery();
+      } else if (replace != null || tray) {
+        final picked = await FilePicker.pickFiles(
+          type: FileType.custom,
+          allowedExtensions: ['png', 'jpg', 'jpeg', 'webp', 'gif', 'avif'],
+        );
+        files = [
+          for (final file in picked)
+            StickerInput(file.name, file.readAsBytes, file.length),
+        ];
+      } else {
+        files = await pickStickerInputs(context, s, pack!);
+      }
+    } catch (e) {
+      s.error = userMessage(e);
+      s.changed();
+      return;
+    }
+    if (!mounted || s.scope != scope) return;
     EditorRecipe? sharedRecipe;
     for (final file in (replace != null || tray ? files.take(1) : files)) {
-      if (!mounted) return;
+      if (!mounted || s.scope != scope) return;
       if (!tray && replace == null && objects(pack!['stickers']).length >= 30) {
         s.error = 'A pack can contain at most 30 stickers.';
         s.changed();
         return;
       }
-      final bytes = await file.readAsBytes();
-      if (!mounted) return;
+      Uint8List bytes;
+      try {
+        bytes = await file.bytes();
+      } catch (e) {
+        s.error = userMessage(e);
+        s.changed();
+        return;
+      }
+      if (!mounted || s.scope != scope) return;
       final isAnimated = pack?['isAnimated'] == true && !tray;
       EditedMedia? media;
       if (sharedRecipe != null) {
@@ -139,10 +179,13 @@ class _PackScreenState extends State<PackScreen> {
           animated: isAnimated,
           tray: tray,
           allowBatch: files.length > 1 && replace == null && !tray,
+          initial: file.recipe,
+          textOnly: file.textOnly,
         );
         if (media?.applyToAll == true) sharedRecipe = media!.recipe;
       }
       if (media == null) continue;
+      if (s.scope != scope) return;
       await s.run(() async {
         await s.upload(
           widget.id,
@@ -718,6 +761,20 @@ class _PackScreenState extends State<PackScreen> {
       body: Column(
         children: [
           messages(s),
+          if (edit && s.recoveredPhoto?.packId == widget.id)
+            MaterialBanner(
+              content: const Text('Your selected image is ready to edit.'),
+              actions: [
+                TextButton(
+                  onPressed: () => s.clearPhotoRecovery(),
+                  child: const Text('Discard'),
+                ),
+                TextButton(
+                  onPressed: () => upload(resumePhoto: true),
+                  child: const Text('Resume editing'),
+                ),
+              ],
+            ),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             child: Row(
@@ -1153,44 +1210,6 @@ class _PackScreenState extends State<PackScreen> {
 
   Widget activity() =>
       ActivityPanel(store: s, packId: widget.id, manage: manage);
-}
-
-class StickerImage extends StatelessWidget {
-  final FoundryStore store;
-  final Json pack, sticker;
-  final bool public;
-  const StickerImage({
-    super.key,
-    required this.store,
-    required this.pack,
-    required this.sticker,
-    this.public = false,
-  });
-  @override
-  Widget build(BuildContext context) => FutureBuilder<Uint8List?>(
-    future: public
-        ? store.api
-              .request(
-                'public/packs/${pack['id']}/stickers/${sticker['id']}/file',
-                auth: false,
-                raw: true,
-              )
-              .then((v) => v as Uint8List)
-        : store.sticker(pack, sticker),
-    builder: (_, snap) => snap.hasData
-        ? Image.memory(
-            snap.data!,
-            fit: BoxFit.contain,
-            gaplessPlayback: true,
-            semanticLabel: '${sticker['accessibilityText'] ?? 'Sticker'}',
-            errorBuilder: (_, _, _) => const Icon(Icons.broken_image_outlined),
-          )
-        : Center(
-            child: snap.hasError
-                ? const Icon(Icons.cloud_off)
-                : const CircularProgressIndicator(strokeWidth: 2),
-          ),
-  );
 }
 
 class CommentPanel extends StatelessWidget {

@@ -8,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'api.dart';
 import 'cache.dart';
 import 'native_bridge.dart';
+import '../media/photo_selection.dart';
 
 class FoundryStore extends ChangeNotifier {
   void changed() => notifyListeners();
@@ -18,6 +19,7 @@ class FoundryStore extends ChangeNotifier {
   late SharedPreferences prefs;
   late FoundryApi api;
   Json? user;
+  RecoveredPhoto? recoveredPhoto;
   List<Json> packs = [], publicPacks = [], teams = [], jobs = [];
   Map<String, Json> cached = {};
   final Map<String, Uint8List> images = {};
@@ -106,6 +108,10 @@ class FoundryStore extends ChangeNotifier {
     } catch (e) {
       error = 'Could not restore your session. Sign in again.';
     }
+    recoveredPhoto = await PhotoSelection.recover(
+      prefs,
+      user == null ? null : scope,
+    );
     initialized = true;
     notifyListeners();
   }
@@ -145,7 +151,10 @@ class FoundryStore extends ChangeNotifier {
         },
       ),
     );
-    if (user?['id'] != object(data['user'])['id']) await clearCache();
+    if (user?['id'] != object(data['user'])['id']) {
+      await clearPhotoRecovery();
+      await clearCache();
+    }
     api.accessToken = data['accessToken'];
     api.refreshToken = kIsWeb ? null : data['refreshToken'];
     user = object(data['user']);
@@ -155,6 +164,7 @@ class FoundryStore extends ChangeNotifier {
   }
 
   Future<void> signOut() async {
+    await clearPhotoRecovery();
     try {
       await api.request(
         'auth/logout',
@@ -174,6 +184,12 @@ class FoundryStore extends ChangeNotifier {
     await prefs.remove('profile');
     if (!kIsWeb) await secure.delete(key: 'session');
     await clearCache();
+    notifyListeners();
+  }
+
+  Future<void> clearPhotoRecovery() async {
+    recoveredPhoto = null;
+    await prefs.remove(PhotoSelection.pendingKey);
     notifyListeners();
   }
 

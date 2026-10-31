@@ -2,10 +2,11 @@
 
 ## Unreleased
 
-Import sticker images from a chosen folder, review them before creating packs and arrange packs with live drag previews.
+Create stickers from photos, text or existing packs, import image folders and arrange packs with live drag previews.
 
 ### Features
 
+- **Choose a sticker source:** take a photo or selfie, open the gallery, select files, reuse a sticker from a compatible pack or start with text on a transparent canvas. Recover interrupted Android photo selections within their original account and server.
 - **Bring existing stickers into your library:** preview folder or file imports, skip identical files and split static/animated stickers into packs of up to 30. Use Android's scoped folder picker, stop and retry unfinished imports, and respect server upload limits.
 - **Arrange packs visually:** use a centered tray icon and a clean, numbered three-column phone grid. Hold and drag images to preview their order live, with automatic scrolling; save on release and undo cancelled or failed moves.
 

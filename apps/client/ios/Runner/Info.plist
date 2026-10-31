@@ -53,6 +53,10 @@
 			</array>
 		</dict>
 	</dict>
+	<key>NSCameraUsageDescription</key>
+	<string>Take a photo to create a sticker you choose to save.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Select images to edit into your sticker packs.</string>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>UILaunchStoryboardName</key>

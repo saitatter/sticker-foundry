@@ -30,6 +30,7 @@ Future<EditedMedia?> editMedia(
   bool animated = false,
   bool tray = false,
   bool allowBatch = false,
+  bool textOnly = false,
   EditorRecipe? initial,
 }) => Navigator.of(context).push<EditedMedia>(
   MaterialPageRoute(
@@ -40,6 +41,7 @@ Future<EditedMedia?> editMedia(
       animated: animated,
       tray: tray,
       allowBatch: allowBatch,
+      textOnly: textOnly,
       initial: initial,
     ),
   ),
@@ -48,7 +50,7 @@ Future<EditedMedia?> editMedia(
 class ImageEditor extends StatefulWidget {
   final Uint8List bytes;
   final String name;
-  final bool animated, tray, allowBatch;
+  final bool animated, tray, allowBatch, textOnly;
   final EditorRecipe? initial;
   const ImageEditor({
     super.key,
@@ -57,6 +59,7 @@ class ImageEditor extends StatefulWidget {
     this.animated = false,
     this.tray = false,
     this.allowBatch = false,
+    this.textOnly = false,
     this.initial,
   });
   @override
@@ -116,7 +119,12 @@ class _ImageEditorState extends State<ImageEditor>
       emoji.text = initial.emojis;
       alt.text = initial.accessibilityText;
     }
-    _load();
+    _load().then((_) async {
+      if (widget.textOnly && mounted && failure == null) {
+        await text();
+        if (mounted && doc.texts.isEmpty) Navigator.pop(context);
+      }
+    });
   }
 
   Future<void> _load() async {
@@ -290,32 +298,46 @@ class _ImageEditorState extends State<ImageEditor>
     var draft = index == null ? '' : doc.texts[index].text;
     final value = await showDialog<String>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Sticker text'),
-        content: TextFormField(
-          initialValue: draft,
-          onChanged: (value) => draft = value,
-          autofocus: true,
-          maxLength: 80,
-          decoration: const InputDecoration(labelText: 'Text'),
-          onFieldSubmitted: (s) => Navigator.pop(context, s),
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Sticker text'),
+          content: TextFormField(
+            initialValue: draft,
+            onChanged: (value) => setDialogState(() => draft = value),
+            autofocus: true,
+            maxLength: 80,
+            maxLines: widget.textOnly ? 3 : 1,
+            decoration: const InputDecoration(labelText: 'Text'),
+            onFieldSubmitted: (s) {
+              if (s.trim().isNotEmpty) Navigator.pop(context, s);
+            },
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: draft.trim().isEmpty
+                  ? null
+                  : () => Navigator.pop(context, draft),
+              child: const Text('Apply'),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, draft),
-            child: const Text('Apply'),
-          ),
-        ],
       ),
     );
     if (value == null || !mounted) return;
     change(() {
       if (index == null) {
-        doc.texts.add(TextLayer(value, const Offset(.5, .8), .09));
+        final centered = widget.textOnly && doc.texts.isEmpty;
+        doc.texts.add(
+          TextLayer(
+            value,
+            Offset(.5, centered ? .5 : .8),
+            centered ? .18 : .09,
+          ),
+        );
         selectedText = doc.texts.length - 1;
       } else {
         doc.texts[index].text = value;
@@ -326,6 +348,10 @@ class _ImageEditorState extends State<ImageEditor>
 
   Future<void> save() async {
     if (preview == null || exporting) return;
+    if (widget.textOnly && doc.texts.isEmpty) {
+      setState(() => failure = 'Add text before saving this sticker.');
+      return;
+    }
     timeline.stop();
     playing = false;
     setState(() {

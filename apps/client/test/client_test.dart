@@ -12,6 +12,7 @@ import 'package:sticker_foundry/core/api.dart';
 import 'package:sticker_foundry/core/cache.dart';
 import 'package:sticker_foundry/core/store.dart';
 import 'package:sticker_foundry/editor/image_editor.dart';
+import 'package:sticker_foundry/media/photo_selection.dart';
 import 'package:sticker_foundry/ui/app.dart';
 
 class MemoryCache implements AssetCache {
@@ -71,6 +72,11 @@ void main() {
       SharedPreferences.setMockInitialValues({});
       final store = TestStore();
       store.prefs = await SharedPreferences.getInstance();
+      await store.prefs.setString(
+        PhotoSelection.pendingKey,
+        'private-selection',
+      );
+      store.recoveredPhoto = RecoveredPhoto('private', []);
       store.user = {'id': 'previous-user'};
       store.cached['private'] = {'id': 'private'};
       store.images['private/sticker'] = Uint8List.fromList([1]);
@@ -91,6 +97,8 @@ void main() {
       expect(store.images, isEmpty);
       expect(await store.cache.read('private/sticker.webp'), isNull);
       expect(store.user!['id'], 'new-user');
+      expect(store.recoveredPhoto, isNull);
+      expect(store.prefs.getString(PhotoSelection.pendingKey), isNull);
     },
   );
   test(
@@ -241,6 +249,7 @@ void main() {
       await tester.tap(find.byTooltip('Text'));
       await tester.pumpAndSettle();
       await tester.enterText(find.byType(TextField).last, 'HELLO');
+      await tester.pump();
       await tester.tap(find.text('Apply'));
       await tester.pumpAndSettle();
       expect(find.byTooltip('Undo'), findsOneWidget);

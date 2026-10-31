@@ -349,6 +349,24 @@ class _HomeState extends State<Home> {
               : SettingsScreen(store: s, section: widget.settingsSection))
         : Column(
             children: [
+              if (tab == 0 && s.recoveredPhoto != null)
+                MaterialBanner(
+                  content: const Text(
+                    'An interrupted image selection is ready to continue.',
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => s.clearPhotoRecovery(),
+                      child: const Text('Discard'),
+                    ),
+                    TextButton(
+                      onPressed: () => context.go(
+                        '/app/packs/${s.recoveredPhoto!.packId}/stickers',
+                      ),
+                      child: const Text('Open pack'),
+                    ),
+                  ],
+                ),
               Padding(
                 padding: const EdgeInsets.all(16),
                 child: Row(
