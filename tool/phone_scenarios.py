@@ -423,3 +423,26 @@ def folder_import_scenario(name, folder="Foundry-Import-QA", *, storage):
             check("6 imported", contains=True),
         ],
     }
+
+
+def reorder_current_pack(device, from_index=3, to_index=1):
+    """Build a drag from the current pack's semantic bounds, never fixed pixels."""
+    from tool.phone_qa import APP
+
+    width, height = device.window_size()
+
+    def center(index):
+        bounds = device(packageName=APP, descriptionContains=f"Drag sticker {index} to reorder").info[
+            "bounds"
+        ]
+        return [
+            (bounds["left"] + bounds["right"]) / (2 * width),
+            (bounds["top"] + bounds["bottom"]) / (2 * height),
+        ]
+
+    return {
+        "version": 1,
+        "covers": ["pack.reorder"],
+        "preconditions": "An editable QA pack is open and both sticker positions are visible. Assert the server order and persistence after this gesture.",
+        "steps": [{"action": "drag", "start": center(from_index), "end": center(to_index), "duration": 1.2}],
+    }

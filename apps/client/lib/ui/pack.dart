@@ -868,30 +868,32 @@ class _PackScreenState extends State<PackScreen> {
                 ? people()
                 : tab == 2
                 ? activity()
-                : stickers.isEmpty
-                ? Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(
-                          Icons.add_photo_alternate_outlined,
-                          size: 48,
-                        ),
-                        const SizedBox(height: 12),
-                        const Text('Add your first stickers'),
-                        if (edit)
-                          FilledButton.tonal(
-                            onPressed: upload,
-                            child: const Text('Choose images'),
-                          ),
-                      ],
-                    ),
-                  )
                 : StickerGrid(
                     stickers: stickers,
                     selected: Set.unmodifiable(selected),
                     editable: edit && !s.busy,
                     public: widget.public,
+                    showSlots: edit,
+                    add: edit && !s.busy ? upload : null,
+                    changeTray: edit && !s.busy
+                        ? () => upload(tray: true)
+                        : null,
+                    tray: FutureBuilder<Uint8List?>(
+                      future: s.cover(pack!, public: widget.public),
+                      builder: (_, snap) => snap.hasData
+                          ? Image.memory(
+                              snap.data!,
+                              fit: BoxFit.contain,
+                              errorBuilder: (_, _, _) => const Icon(
+                                Icons.broken_image_outlined,
+                                size: 32,
+                              ),
+                            )
+                          : const Icon(
+                              Icons.add_photo_alternate_outlined,
+                              size: 32,
+                            ),
+                    ),
                     focusId: selectionAnchor,
                     image: (sticker) => StickerImage(
                       store: s,

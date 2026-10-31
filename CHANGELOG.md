@@ -7,6 +7,7 @@ Import sticker images from a chosen folder, review them before creating packs an
 ### Features
 
 - **Bring existing stickers into your library:** preview folder or file imports, skip identical files and split static/animated stickers into packs of up to 30. Use Android's scoped folder picker, stop and retry unfinished imports, and respect server upload limits.
+- **Arrange packs visually:** keep the tray icon centered above a numbered three-column phone grid, add images from empty slots and hold or drag stickers to reorder with automatic scrolling.
 
 ### CI & Build
 

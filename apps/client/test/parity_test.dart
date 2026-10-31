@@ -209,7 +209,7 @@ void main() {
       );
       await tester.pumpAndSettle();
       await tester.sendKeyEvent(LogicalKeyboardKey.keyJ);
-      await tester.pump();
+      await tester.pumpAndSettle();
       expect(find.text('1 selected'), findsOneWidget);
       await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
       await tester.tap(find.bySemanticsLabel('Select sticker 3'));
